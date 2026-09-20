@@ -281,6 +281,19 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
 .loglist .gap{justify-content:center;background:none;color:var(--ink2);padding:0}
 .nickin{width:100%;min-height:46px;padding:8px 12px;border:3px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit;font-size:17px}
 
+/* 채팅 */
+.chatlist{list-style:none;margin:0;padding:8px;height:min(46vh,340px);overflow-y:auto;overscroll-behavior:contain;background:var(--panel2);border-radius:12px;display:flex;flex-direction:column;gap:6px}
+.chatlist>li{flex:0 0 auto;font-size:14px;line-height:1.35;overflow-wrap:anywhere;padding:4px 8px;background:var(--panel);border-radius:8px}
+.chatlist>li:first-child{margin-top:auto}
+.chatlist>li.me{outline:2px solid var(--accent);outline-offset:-2px}
+.chatlist .cn{margin-right:6px}
+.chatlist small{color:var(--ink2);margin-left:6px;white-space:nowrap}
+.chatlist>li.empty{color:var(--ink2);background:none;text-align:center;padding:12px 0}
+.chatform{display:flex;gap:8px}
+.chatform .nickin{flex:1 1 auto;min-width:0}
+.chatform .btn{flex:0 0 auto}
+.chatform.off{opacity:.55}
+
 /* 황금 몬스터 */
 .mob{touch-action:manipulation}
 .mob.golden{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -387,6 +400,7 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
         <button class="tab" role="tab" data-tab="quest">📅 퀘스트<i class="dot" id="qDot" hidden></i></button>
         <button class="tab" role="tab" data-tab="dungeon">🏰 던전</button>
         <button class="tab" role="tab" data-tab="rank" id="tabRank" hidden>🏆 랭킹</button>
+        <button class="tab" role="tab" data-tab="chat" id="tabChat" hidden>💬 채팅<i class="dot" id="chatDot" hidden></i></button>
         <button class="tab" role="tab" data-tab="info">📜 기록</button>
       </nav>
 
@@ -460,6 +474,20 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
         <div class="rankme" id="rankMe"></div>
         <ul class="loglist" id="rankList"></ul>
         <p class="hint">기록은 이 브라우저의 익명 계정에 묶여요. 브라우저 데이터를 지우면 새 계정이 돼요.</p>
+      </div>
+
+      <div class="card pane" id="pane-chat" hidden>
+        <div class="rowtop">
+          <h2>채팅</h2>
+          <span class="hint" id="chatStat"></span>
+        </div>
+        <div class="rankme" id="chatMe" hidden></div>
+        <ul class="chatlist" id="chatList" aria-live="polite"></ul>
+        <form class="chatform" id="chatForm" autocomplete="off">
+          <input class="nickin" id="chatIn" maxlength="100" placeholder="메시지를 입력하세요" enterkeyhint="send" aria-label="채팅 메시지">
+          <button class="btn" type="submit" id="chatBtn">보내기</button>
+        </form>
+        <p class="hint">최근 대화만 남아요 · 100자까지 · 서로 예의를 지켜 주세요.</p>
       </div>
 
       <div class="card pane" id="pane-info" hidden>
@@ -1775,6 +1803,7 @@ function renderInfo() {
 let curTab = 'train';
 function setTab(t) {
   curTab = t;
+  if (t === 'chat') { CH.paintSig = ''; CH.bottom = true; }
   document.querySelectorAll('.tab').forEach(b => { const on = b.dataset.tab === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   document.querySelectorAll('.pane').forEach(p => { p.hidden = p.id !== 'pane-' + t; });
   RT.jobSig = '';
@@ -1851,6 +1880,7 @@ function uiPane() {
   else if (curTab === 'pet') updatePets();
   else if (curTab === 'job') renderJob();
   else if (curTab === 'rank') renderRank();
+  else if (curTab === 'chat') renderChat();
   else if (curTab === 'dungeon') renderDungeon();
   else if (curTab === 'quest') renderQuests();
   else if (curTab === 'info') renderInfo();
@@ -2330,9 +2360,138 @@ function renderRank() {
   L.innerHTML = html;
 }
 
+/* =====================================================
+   💬 채팅 (chat.sql 을 Supabase 에서 한 번 실행해야 해요)
+   실시간 구독 + 주기적 확인을 같이 써서, 실시간이 끊겨도 대화가 이어져요.
+   ===================================================== */
+const CH = { started: false, uid: '', ch: null, live: false, msgs: [], ids: new Set(), loaded: false, loading: false,
+  busy: false, sentAt: 0, pollAt: 0, unread: 0, ver: 0, paintSig: '', err: '', bottom: true };
+const CH_MAX = 80;
+
+function chatSetupErr(e) {
+  const c = String((e && e.code) || ''), m = String((e && e.message) || e || '');
+  if (c === 'PGRST205' || c === '42P01' || c === 'PGRST202' || m.includes('chat_messages')) return '채팅 서버가 아직 준비되지 않았어요 (chat.sql 실행 필요)';
+  return '채팅을 불러오지 못했어요';
+}
+function chatErrText(e) {
+  const m = String((e && e.message) || e || '');
+  if (m.includes('chat_rate')) return '너무 빨리 보내고 있어요';
+  if (m.includes('chat_invalid')) return '메시지는 1~100자로 써 주세요';
+  if (m.includes('nick_invalid')) return '닉네임을 다시 정해 주세요';
+  if (m.includes('chat_send') && m.includes('function')) return '채팅 서버가 아직 준비되지 않았어요 (chat.sql 실행 필요)';
+  return '보내지 못했어요. 잠시 뒤에 다시 해 주세요';
+}
+function chatDot() { const d = $('chatDot'); if (d) d.hidden = CH.unread <= 0; }
+function chatTime(at) {
+  const d = new Date(at);
+  return isNaN(d) ? '' : String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+/* 받은 메시지를 합쳐요 (같은 번호는 한 번만) */
+function chatAdd(rows) {
+  let added = 0;
+  (rows || []).forEach(r => {
+    const id = Number(r && r.id);
+    if (!id || CH.ids.has(id)) return;
+    CH.ids.add(id);
+    CH.msgs.push({ id, uid: String(r.user_id || ''), nick: String(r.nickname || ''), body: String(r.body || ''), at: r.created_at });
+    added++;
+    if (CH.loaded && CH.uid && r.user_id !== CH.uid && curTab !== 'chat') CH.unread++;
+  });
+  if (!added) return;
+  CH.msgs.sort((a, b) => a.id - b.id);
+  while (CH.msgs.length > CH_MAX) CH.ids.delete(CH.msgs.shift().id);
+  CH.ver++;
+  chatDot();
+}
+
+async function chatPoll(force) {
+  if (!ON.ready || (CH.loading && !force)) return;
+  CH.loading = true; CH.pollAt = Date.now();
+  try {
+    const r = await ON.sb.from('chat_messages').select('id,user_id,nickname,body,created_at').order('id', { ascending: false }).limit(50);
+    if (r.error) throw r.error;
+    chatAdd(r.data || []);
+    CH.err = ''; CH.loaded = true;
+  } catch (e) { CH.err = chatSetupErr(e); }
+  CH.loading = false; CH.ver++;
+}
+
+async function chatStart() {
+  CH.started = true;
+  try { const s = await ON.sb.auth.getSession(); CH.uid = s.data && s.data.session ? s.data.session.user.id : ''; } catch (e) { /* 무시 */ }
+  try {
+    CH.ch = ON.sb.channel('chat-room')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, p => chatAdd([p.new]))
+      .subscribe(st => { const on = st === 'SUBSCRIBED'; if (on !== CH.live) { CH.live = on; CH.ver++; } });
+  } catch (e) { CH.live = false; }
+  await chatPoll(true);
+}
+
+/* 1초마다 불려요: 채팅 탭을 보고 있으면 자주, 아니면 드물게 확인 */
+function chatTick() {
+  if (!HAS_DOM || !onlineOn() || !ON.ready) return;
+  if (!CH.started) { chatStart(); return; }
+  if (document.hidden) return;
+  const every = curTab === 'chat' ? (CH.live ? 15000 : 4000) : (CH.live ? 60000 : 20000);
+  if (Date.now() - CH.pollAt >= every) chatPoll(false);
+}
+
+async function chatSend() {
+  const inp = $('chatIn');
+  const text = inp.value.replace(/\s+/g, ' ').trim();
+  if (!text) return;
+  if (!ON.ready) { toast(ON.err || '서버에 연결 중이에요', 'bad'); return; }
+  if (!ON.nick) { openNickModal('', '채팅을 하려면 닉네임이 필요해요'); return; }
+  if (CH.busy) return;
+  if (Date.now() - CH.sentAt < 1500) { toast('너무 빨리 보내고 있어요', 'bad'); return; }
+  CH.busy = true; CH.sentAt = Date.now();
+  inp.value = '';
+  let err = null;
+  try { const r = await ON.sb.rpc('chat_send', { p_nick: ON.nick, p_body: text }); err = r.error; }
+  catch (e) { err = e; }
+  CH.busy = false;
+  if (err) { if (!inp.value) inp.value = text; toast(chatErrText(err), 'bad'); return; }
+  CH.bottom = true;
+  chatPoll(true);
+}
+
+/* 바뀐 게 있을 때만 다시 그려요 */
+function renderChat() {
+  if (!HAS_DOM || !onlineOn()) return;
+  if (CH.unread) { CH.unread = 0; chatDot(); }
+  const sig = [CH.ver, ON.nick, ON.ready ? 1 : 0, ON.err, CH.live ? 1 : 0].join('|');
+  if (sig === CH.paintSig) return;
+  CH.paintSig = sig;
+  const me = $('chatMe');
+  me.hidden = !!ON.nick;
+  if (!ON.nick) me.innerHTML = '<span>닉네임을 정하면 채팅에 참여할 수 있어요</span><button class="btn" type="button" data-nick>닉네임 정하기</button>';
+  $('chatForm').classList.toggle('off', !ON.nick || !ON.ready);
+  $('chatStat').textContent = !ON.ready ? '연결 중…' : CH.err ? '⚠ 연결 불안정' : CH.live ? '● 실시간' : '● 연결됨';
+  const L = $('chatList');
+  const near = CH.bottom || L.scrollHeight - L.scrollTop - L.clientHeight < 40;
+  let html;
+  if (CH.msgs.length) {
+    html = CH.msgs.map(m => {
+      const mine = CH.uid && m.uid === CH.uid;
+      return '<li' + (mine ? ' class="me"' : '') + '><b class="cn">' + esc(m.nick) + '</b>' + esc(m.body) + '<small>' + chatTime(m.at) + '</small></li>';
+    }).join('');
+  } else {
+    const t = CH.err || (!ON.ready ? (ON.err || '서버에 연결하는 중이에요…') : !CH.loaded ? '불러오는 중이에요…' : '아직 대화가 없어요. 첫 인사를 남겨 보세요!');
+    html = '<li class="empty">' + esc(t) + '</li>';
+  }
+  L.innerHTML = html;
+  if (near) L.scrollTop = L.scrollHeight;
+  CH.bottom = false;
+}
+
 function initOnlineDom() {
   if (!onlineOn()) return;
   $('tabRank').hidden = false;
+  $('tabChat').hidden = false;
+  $('chatMe').addEventListener('click', e => { if (e.target.closest('[data-nick]')) openNickModal('', ''); });
+  $('chatForm').addEventListener('submit', e => { e.preventDefault(); chatSend(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && CH.started) chatPoll(false); });
   $('rankMe').addEventListener('click', e => { if (e.target.closest('[data-nick]')) openNickModal('', ''); });
   $('rankSeg').addEventListener('click', e => {
     const b = e.target.closest('[data-by]'); if (!b || b.dataset.by === ON.by) return;
@@ -2357,7 +2516,7 @@ function boot() {
   } else {
     afterTimeSync(checkDaily);
   }
-  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0, dayT = 0, syncT = 0;
+  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0, dayT = 0, syncT = 0, chT = 0;
   setInterval(() => {
     const now = Date.now();
     let dt = Math.max(0, (now - lastT) / 1000); lastT = now;
@@ -2376,6 +2535,7 @@ function boot() {
     onT += dt; if (onT >= 5) { onT = 0; rankSend(false); }
     dayT += dt; if (dayT >= 30) { dayT = 0; if ($('modal').hidden) checkDaily(); }
     syncT += dt; if (syncT >= 600) { syncT = 0; if (ON.sb) syncServerTime(); }
+    chT += dt; if (chT >= 1) { chT = 0; chatTick(); }
   }, 50);
 }
 

@@ -298,6 +298,18 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
 .buy.alt.no{background:var(--line-soft);color:var(--ink2)}
 .dgrun{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:8px 10px}
 .dgrun .buy{background:var(--panel);color:var(--ink);box-shadow:0 3px 0 rgba(31,51,88,.25)}
+
+/* 궁극기 */
+.ult{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);z-index:7;min-width:132px;min-height:38px;padding:4px 16px;border-radius:999px;
+  border:3px solid var(--line);color:#fff;font-size:15px;cursor:pointer;text-shadow:0 1px 2px rgba(0,0,0,.6);
+  background:linear-gradient(90deg,#ff7a45 var(--p,0%),rgba(0,0,0,.55) var(--p,0%));box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.ult:disabled{cursor:default}
+.ult.ready{background:linear-gradient(#ffd166,#ff7a45);color:#3a2200;text-shadow:none;animation:ultpulse 1s ease-in-out infinite}
+@keyframes ultpulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.08)}}
+/* 퀘스트 */
+.qbar{height:8px;border-radius:9px;background:var(--line-soft);overflow:hidden;margin-top:4px}
+.qbar i{display:block;height:100%;width:0;background:var(--good);transition:width .3s}
+.qbonus{border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -347,6 +359,7 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
           <div class="mobbody"><div class="crown">👑</div><div class="mobface" id="mobFace"></div></div>
         </div>
         <div class="fx" id="fx"></div>
+        <button class="ult" id="ultBtn" type="button" disabled><span id="ultTxt">🔥 0%</span></button>
         <div class="banner" id="banner"></div>
       </div>
 
@@ -371,6 +384,7 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
         <button class="tab" role="tab" data-tab="lamp">📦 보물상자<i class="dot" id="lampDot" hidden></i></button>
         <button class="tab" role="tab" data-tab="pet">🐾 펫</button>
         <button class="tab" role="tab" data-tab="job">⚔️ 전직<i class="dot" id="advDot" hidden></i></button>
+        <button class="tab" role="tab" data-tab="quest">📅 퀘스트<i class="dot" id="qDot" hidden></i></button>
         <button class="tab" role="tab" data-tab="dungeon">🏰 던전</button>
         <button class="tab" role="tab" data-tab="rank" id="tabRank" hidden>🏆 랭킹</button>
         <button class="tab" role="tab" data-tab="info">📜 기록</button>
@@ -421,6 +435,12 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
       <div class="card pane" id="pane-job" hidden>
         <h2>전직</h2>
         <div id="jobBox" style="display:grid;gap:10px"></div>
+      </div>
+
+      <div class="card pane" id="pane-quest" hidden>
+        <h2>일일 퀘스트</h2>
+        <p class="hint" id="qHint"></p>
+        <div id="qBox" style="display:grid;gap:8px"></div>
       </div>
 
       <div class="card pane" id="pane-dungeon" hidden>
@@ -482,6 +502,29 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const REDUCED = HAS_DOM && window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SAVE_KEY = 'infinite-hunt-v1';
+
+/* ---------- 게임 시간 (서버 시간 기준 · 하루는 한국 시간 00:00에 바뀜) ---------- */
+/* 서버를 확인하면 서버 시간을 쓰고(기기 시계를 바꿔도 소용없음), 확인 전에는 기기 시계를 쓰되 되돌리기만 막아요 */
+const TIME = { base: 0, perf: 0, synced: false, tried: false, cbs: [] };
+const DAY_MS = 86400000, KST_MS = 9 * 3600000;
+const gameMs = () => TIME.synced ? TIME.base + (performance.now() - TIME.perf) : Date.now();
+function gameDayNum() {
+  let n = Math.floor((gameMs() + KST_MS) / DAY_MS);
+  if (!TIME.synced && S && S.dayHi > n) n = S.dayHi;
+  return n;
+}
+const dayNumToKey = n => { const t = new Date(n * DAY_MS); return t.getUTCFullYear() + '-' + (t.getUTCMonth() + 1) + '-' + t.getUTCDate(); };
+function dayKeyToNum(k) {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(k || ''));
+  return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / DAY_MS) : 0;
+}
+const msToReset = () => DAY_MS - ((gameMs() + KST_MS) % DAY_MS);
+function afterTimeSync(fn) {
+  if (!onlineOn() || TIME.tried) { setTimeout(fn, 700); return; }
+  let done = false; const go = () => { if (!done) { done = true; fn(); } };
+  TIME.cbs.push(go); setTimeout(go, 3500);
+}
+function timeDone() { TIME.tried = true; TIME.cbs.splice(0).forEach(f => f()); }
 
 /* ---------- 숫자 표시 ---------- */
 const UNITS = ['', '만', '억', '조', '경', '해', '자', '양', '구', '간', '정', '재', '극', '항하사', '아승기', '나유타', '불가사의', '무량대수'];
@@ -638,6 +681,19 @@ const mesoKill = s => 4 * Math.pow(1.12, s - 1);
 const expKill  = s => 4 * Math.pow(s, 1.5);
 const expNeed  = L => Math.floor(20 * Math.pow(L, 1.9));
 const stageNeed = s => (s % 10 === 0 ? 1 : 10);
+/* 📅 일일 퀘스트: 매일(한국 시간 자정) 3개가 정해지고, 오늘 달성한 만큼만 인정돼요 */
+const QPOOL = [
+  { id: 'kills',  e: '⚔️', name: '몬스터 사냥',   unit: '마리', get: s => s.stats.kills,  goal: 300, rw: { lamps: 1 },    ok: () => true },
+  { id: 'items',  e: '🛡️', name: '장비 얻기',     unit: '개',   get: s => s.stats.items,  goal: 15,  rw: { gold: 40 },    ok: () => true },
+  { id: 'bosses', e: '👑', name: '보스 처치',     unit: '마리', get: s => s.stats.bosses, goal: 3,   rw: { stones: 12 },  ok: s => s.best >= 10 },
+  { id: 'dungeon',e: '🏰', name: '던전 도전',     unit: '번',   get: s => s.stats.dgRuns, goal: 2,   rw: { stones: 15 },  ok: s => s.best >= 8 },
+  { id: 'lamp',   e: '📦', name: '보물상자 열기', unit: '개',   get: s => s.lampOpened,   goal: 3,   rw: { gold: 60 },    ok: s => s.lamps >= 3 },
+  { id: 'enh',    e: '🔨', name: '장비 강화',     unit: '번',   get: s => s.stats.enh || 0, goal: 3, rw: { lamps: 1 },    ok: s => s.best >= 15 },
+];
+const Q_BONUS = { lamps: 2, stones: 20, gold: 80 };
+const qDef = id => QPOOL.find(q => q.id === id);
+/* 🔥 궁극기: 전투 중 게이지가 차면 눌러서 큰 피해 */
+const ULT = { rate: 4, kill: 2, mult: 4 };
 /* 🏰 던전: 60초 안에 최대한 많이 처치 → 처치 수만큼 보상. 하루 3번, 기록이 있으면 소탕 */
 const DG_TIME = 60, DG_DAILY = 3, DG_SWEEP = 0.8;
 const DG = [
@@ -663,16 +719,17 @@ function defaultState() {
     job: null, tier: 0, souls: 0,
     pets: {}, pet: null, ach: {},
     lamps: 3, lampOpened: 0, stones: 0,
-    stats: { kills: 0, bosses: 0, items: 0, legend: 0, maxHit: 0, playSec: 0, mesosTotal: 0, bestEver: 1, golden: 0, dgRuns: 0 },
-    dg: { day: '', left: { gold: DG_DAILY, stone: DG_DAILY, chest: DG_DAILY }, rec: { gold: 0, stone: 0, chest: 0 } },
-    dailyStreak: 0, dailyLast: '',
+    stats: { kills: 0, bosses: 0, items: 0, legend: 0, maxHit: 0, playSec: 0, mesosTotal: 0, bestEver: 1, golden: 0, dgRuns: 0, enh: 0 },
+    q: { dn: 0, ids: [], base: {}, claim: [0, 0, 0], bonus: 0 },
+    dg: { dn: 0, left: { gold: DG_DAILY, stone: DG_DAILY, chest: DG_DAILY }, rec: { gold: 0, stone: 0, chest: 0 } },
+    dailyStreak: 0, dailyLast: '', dailyN: 0, dayHi: 0,
     last: Date.now(),
   };
 }
 let S = defaultState();
 let P = null;
 const RT = {
-  hp: 1, mob: null, dg: null, atkT: 0, skT: 0, mobT: 0, spawnT: 0.3, deadT: 0, bossT: 0, goldT: 0,
+  hp: 1, mob: null, dg: null, ult: 0, atkT: 0, skT: 0, mobT: 0, spawnT: 0.3, deadT: 0, bossT: 0, goldT: 0,
   log: [], logDirty: true, jobSig: '', heroSig: '', zoneKey: -1, advSeen: false,
 };
 
@@ -747,9 +804,63 @@ function castSkill() {
   for (let i = 0; i < sk.hits && RT.mob; i++) dealHit(P.atk * sk.mult, { skill: true, crit: sk.crit ? true : undefined, idx: i });
 }
 
+function qSanitize(x) {
+  x = (x && typeof x === 'object') ? x : {};
+  const ids = Array.isArray(x.ids) ? x.ids.filter(id => qDef(id)).slice(0, 3) : [];
+  const base = {};
+  ids.forEach(id => { const b = Number(x.base && x.base[id]); base[id] = isFinite(b) ? b : 0; });
+  return { dn: Math.max(0, Math.floor(Number(x.dn)) || 0), ids, base, claim: [0, 1, 2].map(i => (x.claim && x.claim[i]) ? 1 : 0), bonus: x.bonus ? 1 : 0 };
+}
+function qPick(dn) {
+  const pool = QPOOL.filter(q => q.ok(S)), ids = [];
+  let x = (dn * 2654435761) % 4294967296;
+  while (ids.length < 3 && pool.length) { x = (x * 1664525 + 1013904223) % 4294967296; ids.push(pool.splice(x % pool.length, 1)[0].id); }
+  return ids;
+}
+function qEnsure() {
+  const t = gameDayNum(); S.dayHi = t;
+  if (t <= S.q.dn && S.q.ids.length) return;
+  const ids = qPick(t), base = {};
+  ids.forEach(id => { base[id] = qDef(id).get(S); });
+  S.q = { dn: t, ids, base, claim: [0, 0, 0], bonus: 0 };
+}
+const qProg = i => { const d = qDef(S.q.ids[i]); return d ? Math.max(0, d.get(S) - (S.q.base[d.id] || 0)) : 0; };
+const qDone = i => !!qDef(S.q.ids[i]) && qProg(i) >= qDef(S.q.ids[i]).goal;
+const qAllClaimed = () => S.q.ids.length > 0 && S.q.ids.every((_, i) => S.q.claim[i]);
+function qGrant(rw) {
+  const out = [];
+  if (rw.lamps) { S.lamps += rw.lamps; out.push('📦 ' + rw.lamps); }
+  if (rw.stones) { S.stones += rw.stones; out.push('🔩 ' + rw.stones); }
+  if (rw.gold) { const g = Math.ceil(mesoKill(Math.max(1, S.best)) * P.mesoM * rw.gold); S.mesos += g; S.stats.mesosTotal += g; out.push('🪙 ' + fmt(g)); }
+  return out.join(' · ');
+}
+function qRwText(rw) {
+  const out = [];
+  if (rw.lamps) out.push('📦 ' + rw.lamps);
+  if (rw.stones) out.push('🔩 ' + rw.stones);
+  if (rw.gold) out.push('🪙 ' + fmt(Math.ceil(mesoKill(Math.max(1, S.best)) * (P ? P.mesoM : 1) * rw.gold)));
+  return out.join(' · ');
+}
+function qClaim(i) {
+  qEnsure();
+  if (!qDone(i) || S.q.claim[i]) return null;
+  S.q.claim[i] = 1;
+  const txt = qGrant(qDef(S.q.ids[i]).rw);
+  save(); return txt;
+}
+function qClaimBonus() {
+  qEnsure();
+  if (!qAllClaimed() || S.q.bonus) return null;
+  S.q.bonus = 1;
+  const txt = qGrant(Q_BONUS);
+  save(); return txt;
+}
+const qClaimable = () => S.q.ids.some((_, i) => qDone(i) && !S.q.claim[i]) || (qAllClaimed() && !S.q.bonus);
+
 function dgSanitize(x) {
   x = (x && typeof x === 'object') ? x : {};
-  const out = { day: typeof x.day === 'string' ? x.day : '', left: {}, rec: {} };
+  const dn = Math.floor(Number(x.dn)) > 0 ? Math.floor(Number(x.dn)) : dayKeyToNum(x.day);
+  const out = { dn, left: {}, rec: {} };
   DG.forEach(d => {
     const l = Math.floor(Number(x.left && x.left[d.id])), r = Math.floor(Number(x.rec && x.rec[d.id]));
     out.left[d.id] = l >= 0 ? Math.min(DG_DAILY, l) : DG_DAILY;
@@ -758,8 +869,8 @@ function dgSanitize(x) {
   return out;
 }
 function dgEnsure() {
-  const t = dayKey();
-  if (S.dg.day !== t) { S.dg.day = t; DG.forEach(d => { S.dg.left[d.id] = DG_DAILY; }); }
+  const t = gameDayNum(); S.dayHi = t;
+  if (t > S.dg.dn) { S.dg.dn = t; DG.forEach(d => { S.dg.left[d.id] = DG_DAILY; }); }
 }
 function dgGrant(id, kills, ref) {
   const r = dgDef(id).rw(kills, ref);
@@ -793,7 +904,7 @@ function spawnDgMob() {
   uiMobSpawn(m);
 }
 function dgKill() {
-  RT.dg.kills++;
+  RT.dg.kills++; RT.ult = Math.min(100, RT.ult + ULT.kill);
   RT.mob = null; RT.spawnT = 0.25;
   uiMobDie(null, false, '🗡️ ' + RT.dg.kills);
 }
@@ -828,6 +939,31 @@ function sweepDungeon(id) {
   return { kills, got };
 }
 
+function castUlt() {
+  if (!RT.mob || RT.ult < 100 || RT.deadT > 0) return false;
+  RT.ult = 0;
+  const sk = P.skill;
+  uiUlt(); uiUltFx(sk);
+  const base = P.atk * sk.mult * sk.hits * ULT.mult / 3;
+  for (let i = 0; i < 3 && RT.mob; i++) dealHit(base, { skill: true, crit: true, idx: i });
+  return true;
+}
+function uiUltFx(sk) {
+  if (!HAS_DOM) return;
+  sfx('ult'); banner('🔥 ' + sk.name + '!');
+  if (fxOK() && !REDUCED) {
+    $('scene').animate([{ filter: 'brightness(1)', transform: 'translate(0,0)' }, { filter: 'brightness(1.5)', transform: 'translate(-3px,2px)' }, { filter: 'brightness(1.2)', transform: 'translate(3px,-2px)' }, { filter: 'brightness(1)', transform: 'translate(0,0)' }], { duration: 380 });
+  }
+}
+function uiUlt() {
+  if (!HAS_DOM) return;
+  const b = $('ultBtn'), p = Math.floor(RT.ult), ready = p >= 100 && !!RT.mob;
+  b.style.setProperty('--p', p + '%');
+  b.classList.toggle('ready', ready);
+  b.disabled = !ready;
+  const t = ready ? '🔥 궁극기 발동!' : '🔥 ' + p + '%';
+  if ($('ultTxt').textContent !== t) $('ultTxt').textContent = t;
+}
 function goldenBonus(mesos) {
   S.stats.golden++;
   const box = Math.random() < GOLDEN.box ? 1 : 0;
@@ -852,7 +988,7 @@ function killMob() {
   const mesos = Math.ceil(mesoKill(s) * P.mesoM * (boss ? 12 : 1) * (gold ? GOLDEN.meso : 1) * rnd(0.85, 1.15));
   const exp = Math.ceil(expKill(s) * P.expM * (boss ? 10 : 1) * (gold ? GOLDEN.exp : 1));
   S.mesos += mesos; S.stats.mesosTotal += mesos; S.stats.kills++; if (boss) S.stats.bosses++;
-  RT.mob = null; RT.spawnT = boss ? 0.9 : 0.35;
+  RT.mob = null; RT.spawnT = boss ? 0.9 : 0.35; RT.ult = Math.min(100, RT.ult + ULT.kill);
   uiMobDie(mesos, gold);
   if (gold) goldenBonus(mesos);
   gainExp(exp);
@@ -916,6 +1052,7 @@ function tick(dt) {
     return;
   }
   const m = RT.mob;
+  RT.ult = Math.min(100, RT.ult + dt * ULT.rate);
   if (m.boss) {
     RT.bossT -= dt;
     if (RT.bossT <= 0) { retreat('시간 초과! 자동 진행이 꺼졌어요. 더 강해진 뒤 ▶로 다시 도전하세요.'); return; }
@@ -956,7 +1093,7 @@ function enhanceGear(slotId) {
   const cost = enhanceCost(it);
   if (S.mesos < cost.gold || S.stones < cost.stones) return false;
   S.mesos -= cost.gold; S.stones -= cost.stones;
-  it.enh = lvl + 1;
+  it.enh = lvl + 1; S.stats.enh = (S.stats.enh || 0) + 1;
   recalc(); save();
   return true;
 }
@@ -1139,7 +1276,7 @@ function changeJob(jobId) {
   return true;
 }
 function resetRuntime() {
-  RT.mob = null; RT.atkT = 0; RT.skT = 0; RT.mobT = 0; RT.spawnT = 0.3; RT.deadT = 0; RT.bossT = 0; RT.goldT = 0; RT.dg = null;
+  RT.mob = null; RT.atkT = 0; RT.skT = 0; RT.mobT = 0; RT.spawnT = 0.3; RT.deadT = 0; RT.bossT = 0; RT.goldT = 0; RT.dg = null; RT.ult = 0;
   RT.log = []; RT.logDirty = true; RT.jobSig = ''; RT.heroSig = ''; RT.zoneKey = -1; RT.advSeen = false;
 }
 
@@ -1193,28 +1330,34 @@ function loadSave() {
     ['lamps', 'lampOpened', 'stones'].forEach(k => { const v = Math.floor(Number(S[k])); S[k] = v >= 0 ? v : 0; });
     S.dailyStreak = Math.max(0, Math.floor(Number(S.dailyStreak)) || 0);
     S.dailyLast = typeof S.dailyLast === 'string' ? S.dailyLast : '';
+    S.dailyN = Math.floor(Number(d.dailyN)) > 0 ? Math.floor(Number(d.dailyN)) : dayKeyToNum(S.dailyLast);
+    S.dayHi = Math.max(0, Math.floor(Number(d.dayHi)) || 0);
+    S.q = qSanitize(d.q);
     return true;
   } catch (e) { return false; }
 }
 
 /* ---------- 출석 보상 ---------- */
-function dayKey(d) { d = d || new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
-function checkDaily() {
-  if (!HAS_DOM) return;
-  const today = dayKey();
-  if (S.dailyLast === today) return;
-  const y = new Date(); y.setDate(y.getDate() - 1);
-  S.dailyStreak = (S.dailyLast === dayKey(y)) ? S.dailyStreak + 1 : 1;
-  S.dailyLast = today;
+/* 출석: 하루에 한 번. 계산은 dailyCore, 팝업은 checkDaily */
+function dailyCore() {
+  const today = gameDayNum(); S.dayHi = today;
+  if (S.dailyN >= today) return null;
+  S.dailyStreak = (S.dailyN === today - 1) ? S.dailyStreak + 1 : 1;
+  S.dailyN = today; S.dailyLast = dayNumToKey(today);
   const day = ((S.dailyStreak - 1) % 7) + 1;
   const gold = Math.ceil(mesoKill(Math.max(1, S.best)) * 30 * day);
   const box = day >= 7 ? 3 : (day % 3 === 0 ? 2 : 1);
   S.mesos += gold; S.stats.mesosTotal += gold; S.lamps += box;
+  return { day, gold, box };
+}
+function checkDaily() {
+  if (!HAS_DOM) return;
+  const r = dailyCore(); if (!r) return;
   save(); updateUI();
-  modal('📅 출석 보상 · ' + day + '일차',
+  modal('📅 출석 보상 · ' + r.day + '일차',
     '<p class="big">' + S.dailyStreak + '일 연속 접속!</p>' +
-    '<p>🪙 골드 +' + fmt(gold) + '<br>📦 상자 +' + box + '</p>' +
-    '<p class="hint">매일 접속하면 7일마다 보상이 더 커져요.</p>',
+    '<p>🪙 골드 +' + fmt(r.gold) + '<br>📦 상자 +' + r.box + '</p>' +
+    '<p class="hint">매일 접속하면 7일마다 보상이 더 커져요. 하루는 한국 시간 자정에 바뀌어요.</p>',
     [{ label: '받기', cls: '' }]);
 }
 
@@ -1333,7 +1476,7 @@ function uiMobSpawn(m) {
   const el = $('mob');
   el.classList.toggle('boss', m.boss);
   el.classList.toggle('golden', !!m.golden);
-  el.querySelector('.crown').textContent = m.golden ? '✨' : '👑';
+  const cr = el.querySelector('.crown'); if (cr) cr.textContent = m.golden ? '✨' : '👑';
   if (m.boss) sfx('boss');
   el.style.visibility = 'visible';
   $('hero').classList.remove('down');
@@ -1637,12 +1780,54 @@ function setTab(t) {
   RT.jobSig = '';
   uiPane();
 }
+let qSig = '';
+function renderQuests() {
+  if (!HAS_DOM) return;
+  qEnsure();
+  const box = $('qBox');
+  const sig = S.q.dn + ':' + S.q.ids.join(',');
+  if (sig !== qSig) {
+    qSig = sig;
+    let html = '';
+    S.q.ids.forEach((id, i) => {
+      const d = qDef(id);
+      html += '<div class="upg"><div class="uicon">' + d.e + '</div><div><div class="uname">' + esc(d.name) + '<span class="ulv" data-qp="' + i + '"></span></div>' +
+        '<div class="udesc">보상 ' + '<span data-qr="' + i + '"></span></div><div class="qbar"><i data-qb="' + i + '"></i></div></div>' +
+        '<button class="buy no" data-qclaim="' + i + '" disabled><span class="bc"></span><small></small></button></div>';
+    });
+    html += '<div class="upg qbonus"><div class="uicon">🎁</div><div><div class="uname">모두 완료 보너스</div><div class="udesc">보상 <span data-qr="b"></span></div></div>' +
+      '<button class="buy no" data-qbonus disabled><span class="bc"></span><small></small></button></div>';
+    box.innerHTML = html;
+  }
+  const setBtn = (btn, state, text) => {
+    btn.disabled = state !== 'ready';
+    btn.className = 'buy' + (state === 'ready' ? '' : ' no');
+    btn.querySelector('.bc').textContent = text;
+  };
+  S.q.ids.forEach((id, i) => {
+    const d = qDef(id), p = Math.min(qProg(i), d.goal);
+    box.querySelector('[data-qp="' + i + '"]').textContent = ' ' + fmt(p) + ' / ' + fmt(d.goal) + d.unit;
+    box.querySelector('[data-qb="' + i + '"]').style.width = (p / d.goal * 100) + '%';
+    box.querySelector('[data-qr="' + i + '"]').textContent = qRwText(d.rw);
+    setBtn(box.querySelector('[data-qclaim="' + i + '"]'), S.q.claim[i] ? 'done' : (qDone(i) ? 'ready' : 'wait'), S.q.claim[i] ? '완료' : (qDone(i) ? '받기' : '진행 중'));
+  });
+  box.querySelector('[data-qr="b"]').textContent = qRwText(Q_BONUS);
+  setBtn(box.querySelector('[data-qbonus]'), S.q.bonus ? 'done' : (qAllClaimed() ? 'ready' : 'wait'), S.q.bonus ? '완료' : (qAllClaimed() ? '받기' : '잠김'));
+  const left = msToReset(), h = Math.floor(left / 3600000), m = Math.floor(left % 3600000 / 60000);
+  $('qHint').textContent = '한국 시간 자정에 새로 바뀌어요 · ' + h + '시간 ' + m + '분 남음' + (TIME.synced ? '' : ' (기기 시계 기준)');
+}
+function uiQuestDot() {
+  if (!HAS_DOM) return;
+  qEnsure();
+  $('qDot').hidden = !qClaimable();
+}
+
 let dgSig = '';
 function renderDungeon() {
   if (!HAS_DOM) return;
   dgEnsure();
   const run = RT.dg;
-  const sig = [S.dg.day, DG.map(d => S.dg.left[d.id] + ':' + S.dg.rec[d.id]).join(','), S.best, run ? run.id : '-'].join('|');
+  const sig = [S.dg.dn, DG.map(d => S.dg.left[d.id] + ':' + S.dg.rec[d.id]).join(','), S.best, run ? run.id : '-'].join('|');
   if (sig === dgSig) return;
   dgSig = sig;
   let html = run ? '<div class="dgrun"><span>🏰 ' + esc(dgDef(run.id).name) + ' 진행 중!</span><button class="buy" data-dgquit><span class="bc">나가기</span><small>지금까지 보상 받기</small></button></div>' : '';
@@ -1667,6 +1852,7 @@ function uiPane() {
   else if (curTab === 'job') renderJob();
   else if (curTab === 'rank') renderRank();
   else if (curTab === 'dungeon') renderDungeon();
+  else if (curTab === 'quest') renderQuests();
   else if (curTab === 'info') renderInfo();
 }
 function uiSyncAuto() { if (HAS_DOM) $('autoAdv').checked = S.auto; }
@@ -1728,7 +1914,7 @@ function uiHud() {
 function updateUI() {
   if (!HAS_DOM) return;
   if (!P) recalc();
-  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI();
+  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI(); uiUlt(); uiQuestDot();
 }
 function uiAll(force) {
   if (!HAS_DOM) return;
@@ -1871,6 +2057,12 @@ const SFX = {
     tone(2093, 0.3, { type: 'sine', delay: 0.32, vol: 0.12 });
     noise(0.25, { type: 'highpass', f: 5500, delay: 0.1, vol: 0.06 });
   },
+  ult() {
+    noise(0.5, { f: 200, to: 5000, q: 1.4, vol: 0.28 });
+    tone(180, 0.5, { type: 'sawtooth', to: 900, vol: 0.2 });
+    tone(90, 0.45, { type: 'square', to: 45, vol: 0.22, delay: 0.28 });
+    [784, 988, 1319].forEach((f, i) => tone(f, 0.16, { type: 'triangle', delay: 0.25 + i * 0.07, vol: 0.13 }));
+  },
   fanfare() {
     [523, 523, 523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i > 6 ? 0.45 : 0.12, { type: 'square', delay: i * 0.11, vol: 0.12 }));
     tone(262, 0.95, { type: 'triangle', vol: 0.14 });
@@ -1928,6 +2120,14 @@ function initDom() {
   });
   const goStage = d => { if (RT.dg) return; S.stage += d; S.kills = 0; RT.mob = null; RT.deadT = 0; RT.spawnT = 0.25; uiMobGone(); updateUI(); };
   $('mob').addEventListener('pointerdown', tapMob);
+  $('ultBtn').addEventListener('click', () => { if (castUlt()) updateUI(); });
+  $('qBox').addEventListener('click', e => {
+    const c = e.target.closest('[data-qclaim]'), b = e.target.closest('[data-qbonus]');
+    let txt = null;
+    if (c) txt = qClaim(Number(c.dataset.qclaim)); else if (b) txt = qClaimBonus();
+    if (txt) { sfx('lamp'); toast('🎁 ' + txt, 'gold'); }
+    updateUI();
+  });
   $('dgBox').addEventListener('click', e => {
     const p = e.target.closest('[data-dgplay]'), w = e.target.closest('[data-dgsweep]'), q = e.target.closest('[data-dgquit]');
     if (p) { if (startDungeon(p.dataset.dgplay)) sfx('tick'); else toast('지금은 들어갈 수 없어요', 'bad'); }
@@ -1998,6 +2198,7 @@ async function onlineInit() {
     ON.sb = window.supabase.createClient(SB_URL, SB_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, storageKey: 'infinite-hunt-auth' },
     });
+    await syncServerTime();   // 로그인이 안 돼도 시간은 받아 와요
     const cur = await ON.sb.auth.getSession();
     if (!cur.data || !cur.data.session) {
       const r = await ON.sb.auth.signInAnonymously();
@@ -2008,7 +2209,24 @@ async function onlineInit() {
     console.warn('[online] init 실패', e);
     ON.sb = null; ON.err = '서버에 연결하지 못했어요';
   }
+  timeDone();
   ON.ver++;
+}
+
+/* 서버 시간 받기 (server_time.sql 필요). 실패하면 기기 시계로 계속해요 */
+async function syncServerTime() {
+  if (!ON.sb) { timeDone(); return; }
+  try {
+    const t0 = performance.now();
+    const r = await ON.sb.rpc('server_now');
+    const t1 = performance.now();
+    const ms = r && r.data ? Number(r.data.ms) : 0;
+    if (!r.error && ms > 1.7e12) {
+      TIME.base = ms + (t1 - t0) / 2; TIME.perf = t1; TIME.synced = true;
+      S.dayHi = gameDayNum(); dgSig = ''; qSig = '';
+    }
+  } catch (e) { /* 기기 시계 사용 */ }
+  timeDone();
 }
 
 function rankPayload(nick) {
@@ -2121,6 +2339,7 @@ function initOnlineDom() {
     ON.by = b.dataset.by; ON.ver++; rankLoad(true); renderRank();
   });
   window.addEventListener('load', onlineInit);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && ON.sb) syncServerTime(); });
 }
 
 function boot() {
@@ -2134,11 +2353,11 @@ function boot() {
   if (loaded) {
     const gone = (Date.now() - S.last) / 1000;
     if (gone >= 60) { const r = awayProgress(gone); showAway(r); }
-    else setTimeout(checkDaily, 700);
+    else afterTimeSync(checkDaily);
   } else {
-    setTimeout(checkDaily, 700);
+    afterTimeSync(checkDaily);
   }
-  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0;
+  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0, dayT = 0, syncT = 0;
   setInterval(() => {
     const now = Date.now();
     let dt = Math.max(0, (now - lastT) / 1000); lastT = now;
@@ -2155,13 +2374,15 @@ function boot() {
     saveT += dt; if (saveT >= 5) { saveT = 0; save(); }
     achT += dt; if (achT >= 1) { achT = 0; if (checkAch()) uiPane(); }
     onT += dt; if (onT >= 5) { onT = 0; rankSend(false); }
+    dayT += dt; if (dayT >= 30) { dayT = 0; if ($('modal').hidden) checkDaily(); }
+    syncT += dt; if (syncT >= 600) { syncT = 0; if (ON.sb) syncServerTime(); }
   }, 50);
 }
 
 if (HAS_DOM) boot();
 if (typeof module !== 'undefined') {
   module.exports = { get S() { return S; }, get P() { return P; }, RT, tick, recalc, buy, planBuy, UPG, unitCost, advance, canAdvance, changeJob, jobChangeCost,
-    PETS, ACH, openLamps, lampRoll, lampCost, buyPet, setPet, petBonus, achBonus, checkAch, petCost, petUnlocked, mobHp, mobDmg, mesoKill, expKill, expNeed, awayProgress, defaultState, enhanceGear, enhanceCost, itemPower, rollStone, ENH_MAX, spawnMob, killMob, tapMob, GOLDEN, DG, DG_TIME, DG_DAILY, startDungeon, endDungeon, sweepDungeon, dgEnsure, dgSanitize, setS: v => { S = v; } };
+    PETS, ACH, openLamps, lampRoll, lampCost, buyPet, setPet, petBonus, achBonus, checkAch, petCost, petUnlocked, mobHp, mobDmg, mesoKill, expKill, expNeed, awayProgress, defaultState, enhanceGear, enhanceCost, itemPower, rollStone, ENH_MAX, spawnMob, killMob, tapMob, GOLDEN, DG, DG_TIME, DG_DAILY, startDungeon, endDungeon, sweepDungeon, dgEnsure, dgSanitize, TIME, gameDayNum, gameMs, dayKeyToNum, dayNumToKey, dailyCore, msToReset, qEnsure, qProg, qDone, qClaim, qClaimBonus, qSanitize, qDef, castUlt, ULT, QPOOL, setS: v => { S = v; } };
 }
 </script>
 </body>

@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>무한 사냥터 · 방치형 키우기</title>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#cfeaff; --bg-top:#a9dcff; --panel:#f7fbff; --panel2:#e4f0ff;
+  --line:#2b4a7a; --line-soft:#a9c4e8; --ink:#1f3358; --ink2:#566d96;
+  --accent:#ffb020; --accent-dark:#b86f00; --accent-ink:#3a2200;
+  --good:#2fae4f; --bad:#e5484d; --exp:#3ab7ff; --hpc:#ff5d6c; --gold:#ffc933;
+  --r0:#66768d; --r1:#1f6fe0; --r2:#8d33ee; --r3:#c96a00; --r4:#0c8f5a;
+  --shadow:0 4px 0 rgba(31,51,88,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1630; --bg-top:#18244f; --panel:#17224a; --panel2:#223163;
+    --line:#7fa4e8; --line-soft:#33477f; --ink:#e8f0ff; --ink2:#9fb4e0;
+    --accent:#ffb020; --accent-dark:#a86000; --accent-ink:#2b1800;
+    --r0:#a9b7cf; --r1:#5ea3ff; --r2:#c08bff; --r3:#ffb04d; --r4:#4fe0a0;
+    --shadow:0 4px 0 rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1630; --bg-top:#18244f; --panel:#17224a; --panel2:#223163;
+  --line:#7fa4e8; --line-soft:#33477f; --ink:#e8f0ff; --ink2:#9fb4e0;
+  --accent:#ffb020; --accent-dark:#a86000; --accent-ink:#2b1800;
+  --r0:#a9b7cf; --r1:#5ea3ff; --r2:#c08bff; --r3:#ffb04d; --r4:#4fe0a0;
+  --shadow:0 4px 0 rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+body{
+  margin:0;min-height:100vh;
+  font-family:'Jua','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;
+  color:var(--ink);background:var(--bg);
+  background-image:linear-gradient(var(--bg-top),var(--bg) 320px);
+  background-repeat:no-repeat;
+  font-size:16px;line-height:1.4;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.app{max-width:1120px;margin:0 auto;padding:12px 12px 32px}
+
+/* 헤더 */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px 12px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.logo{font-size:34px;line-height:1;filter:drop-shadow(0 3px 0 rgba(31,51,88,.25))}
+.brand h1{margin:0;font-size:22px;line-height:1.1;font-weight:400}
+.brand p{margin:0;font-size:12px;color:var(--ink2)}
+.tools{display:flex;align-items:center;gap:8px}
+.snd{width:46px;height:46px;border-radius:50%;border:3px solid var(--line);background:var(--panel);box-shadow:var(--shadow);font-size:20px;cursor:pointer;line-height:1}
+.snd:active{transform:translateY(2px)}
+.snd.pending{animation:pulse 1.2s ease-in-out infinite;border-color:var(--accent)}
+.wallet{display:flex;gap:8px;align-items:center;background:var(--panel);border:3px solid var(--line);border-radius:999px;padding:4px 14px 4px 8px;box-shadow:var(--shadow);font-size:20px;white-space:nowrap}
+.wallet .souls{font-size:14px;color:var(--r2);margin-right:4px}
+
+@media (max-width:430px){.brand p{display:none}.brand h1{font-size:19px}.wallet{font-size:17px}}
+.layout{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:900px){
+  .layout{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}
+  .left{position:sticky;top:calc(12px + env(safe-area-inset-top,0px))}
+}
+.left,.right{display:grid;gap:12px;min-width:0}
+.card{background:var(--panel);border:3px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:12px}
+
+/* HUD */
+.hud{display:grid;gap:8px}
+.lvrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.badge{background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:1px 10px;font-size:18px;border:2px solid var(--line)}
+#jobName{font-size:18px}
+.dps{margin-left:auto;font-size:15px;color:var(--ink2)}
+.dps b{color:var(--ink);font-weight:400;font-size:18px}
+.chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.chip{background:var(--panel2);border-radius:10px;padding:4px 6px;text-align:center;font-size:12px;color:var(--ink2);min-width:0}
+.chip b{display:block;font-weight:400;font-size:15px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{position:relative;height:20px;background:rgba(31,51,88,.18);border:2px solid var(--line);border-radius:999px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;transition:width .15s linear}
+.bar span{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7)}
+.bar.exp i{background:linear-gradient(#7ad3ff,var(--exp))}
+.bar.kills{height:20px}
+.bar.kills i{background:linear-gradient(#8be27d,var(--good))}
+.bar.kills.boss i{background:linear-gradient(#ff9aa2,var(--bad))}
+
+/* 전투 장면 */
+.scene{
+  position:relative;aspect-ratio:16/9;border-radius:18px;overflow:hidden;
+  border:3px solid var(--line);box-shadow:var(--shadow);container-type:inline-size;isolation:isolate;
+  --sky1:#8fd3ff;--sky2:#e6f7ff;--hill1:#9ad96b;--hill2:#7cc455;--ground:#5da83a;--top:#7ed957;
+  background:var(--sky2);user-select:none;-webkit-user-select:none;
+}
+@media (max-width:520px){.scene{aspect-ratio:4/3}}
+.sky{position:absolute;inset:0;background:linear-gradient(var(--sky1),var(--sky2));transition:background .6s}
+.cloud{position:absolute;left:-90px;top:12%;height:20px;width:64px;background:rgba(255,255,255,.85);border-radius:999px;animation:drift 46s linear infinite}
+.cloud::before,.cloud::after{content:"";position:absolute;background:inherit;border-radius:50%}
+.cloud::before{width:32px;height:32px;left:9px;top:-15px}
+.cloud::after{width:24px;height:24px;left:34px;top:-9px}
+.cloud.c2{top:27%;transform:scale(.75);animation-duration:70s;animation-delay:-28s}
+.cloud.c3{top:8%;transform:scale(1.2);animation-duration:90s;animation-delay:-60s;opacity:.7}
+@keyframes drift{from{left:-100px}to{left:104%}}
+.hills{position:absolute;left:0;right:0;bottom:20%;height:36%;
+  background:
+    radial-gradient(ellipse 46% 100% at 16% 100%,var(--hill1) 97%,transparent 100%),
+    radial-gradient(ellipse 52% 84% at 68% 100%,var(--hill2) 97%,transparent 100%);}
+.ground{position:absolute;left:0;right:0;bottom:0;height:22%;background:var(--ground);border-top:5px solid var(--top)}
+.hero{position:absolute;left:10%;bottom:16%;width:clamp(58px,14%,104px);z-index:3}
+.herobar{height:7px;background:rgba(0,0,0,.35);border-radius:9px;overflow:hidden;margin:0 auto 2px;width:74%}
+.herobar i{display:block;height:100%;width:100%;background:var(--hpc);transition:width .15s linear}
+.herosvg{animation:idle 1.4s ease-in-out infinite;transform-origin:bottom center}
+.herosvg svg{display:block;width:100%;height:auto;overflow:visible}
+.hero.down .herosvg{animation:none;filter:grayscale(1);transform:rotate(78deg) translateY(4%)}
+@keyframes idle{0%,100%{transform:translateY(0) scaleY(1)}50%{transform:translateY(-3%) scaleY(1.02)}}
+.mob{position:absolute;right:10%;bottom:16%;z-index:2;display:flex;flex-direction:column;align-items:center;width:clamp(70px,18%,150px)}
+.mobname{font-size:12px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8);white-space:nowrap;margin-bottom:2px}
+.mobbar{width:78%;height:8px;background:rgba(0,0,0,.4);border-radius:9px;overflow:hidden;margin-bottom:2px}
+.mobbar i{display:block;height:100%;width:100%;background:linear-gradient(#ff8b8b,var(--bad));transition:width .1s linear}
+.mobbody{position:relative;line-height:1;animation:bob 1.7s ease-in-out infinite;transform-origin:bottom center;font-size:clamp(44px,9vw,78px);font-size:clamp(44px,11cqw,80px)}
+.mob.boss .mobbody{filter:drop-shadow(0 0 8px rgba(255,80,60,.95))}
+.mob.boss .mobface{font-size:1.5em}
+.mobface{display:block;text-align:center}
+.mobface svg{width:1.05em;height:.85em;display:block;margin:0 auto}
+.crown{position:absolute;left:50%;top:.1em;transform:translateX(-50%);font-size:.4em;z-index:1}
+.mob:not(.boss) .crown{display:none}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4%)}}
+.fx{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:6}
+.dmg{position:absolute;white-space:nowrap;font-size:clamp(14px,2.6vw,19px);color:#fff;
+  text-shadow:-1px -1px 0 #4a2a00,1px -1px 0 #4a2a00,-1px 1px 0 #4a2a00,1px 1px 0 #4a2a00,0 2px 0 #4a2a00}
+.dmg.crit{color:#ffd33d;font-size:clamp(18px,3.6vw,28px)}
+.dmg.skill{color:#a5ecff}
+.dmg.hurt{color:#ff8d8d}
+.dmg.meso{color:#ffe38a;font-size:clamp(12px,2.2vw,15px)}
+.dmg.lv{color:#fff;font-size:clamp(18px,3.4vw,26px)}
+.proj{position:absolute;font-size:clamp(20px,4vw,30px);z-index:5;pointer-events:none}
+.bosstimer{position:absolute;top:8px;right:10px;z-index:7;background:rgba(0,0,0,.55);color:#fff;padding:2px 10px;border-radius:999px;font-size:15px}
+.zonetag{position:absolute;top:8px;left:10px;z-index:7;background:rgba(0,0,0,.45);color:#fff;padding:2px 10px;border-radius:999px;font-size:14px}
+.banner{position:absolute;left:50%;top:32%;transform:translateX(-50%);z-index:8;pointer-events:none;
+  font-size:clamp(20px,5vw,34px);color:#fff;white-space:nowrap;opacity:0;
+  text-shadow:-2px -2px 0 #7a1f1f,2px -2px 0 #7a1f1f,-2px 2px 0 #7a1f1f,2px 2px 0 #7a1f1f,0 4px 0 #7a1f1f}
+
+/* 스테이지 바 */
+.stagebar{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center}
+.nav{width:46px;height:46px;border-radius:12px;border:3px solid var(--line);background:var(--panel2);cursor:pointer;font-size:18px;box-shadow:0 3px 0 rgba(31,51,88,.25)}
+.nav:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 rgba(31,51,88,.25)}
+.nav:disabled{opacity:.35;cursor:not-allowed}
+.stageinfo{display:grid;gap:4px;min-width:0}
+.stageinfo .t{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.stageinfo b{font-weight:400;font-size:19px}
+.stageinfo small{color:var(--ink2);font-size:13px}
+.auto{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:6px;border-top:2px dashed var(--line-soft);font-size:15px}
+.switch{display:inline-flex;align-items:center;gap:10px;cursor:pointer;min-height:36px}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.switch .knob{width:50px;height:28px;border-radius:999px;background:var(--line-soft);border:2px solid var(--line);position:relative;transition:background .15s}
+.switch .knob::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;border:2px solid var(--line);transition:transform .15s}
+.switch input:checked + .knob{background:var(--good)}
+.switch input:checked + .knob::after{transform:translateX(22px)}
+.switch input:focus-visible + .knob{outline:3px solid var(--gold);outline-offset:2px}
+.best{color:var(--ink2);font-size:13px}
+
+/* 탭 */
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1 1 auto;min-height:46px;padding:6px 9px;border-radius:14px 14px 4px 4px;border:3px solid var(--line);background:var(--panel2);cursor:pointer;font-size:16px;position:relative;white-space:nowrap;color:var(--ink2)}
+.tab.on{background:var(--accent);color:var(--accent-ink);box-shadow:0 3px 0 var(--accent-dark)}
+.tab .dot{position:absolute;top:-4px;right:-2px;width:14px;height:14px;border-radius:50%;background:var(--bad);border:2px solid #fff;animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{transform:scale(1.3)}}
+.pane{display:grid;gap:10px}
+.pane h2{margin:0;font-size:19px;font-weight:400}
+.hint{margin:0;color:var(--ink2);font-size:14px}
+
+/* 훈련 */
+.seg{display:inline-flex;border:3px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{border:0;background:var(--panel2);padding:6px 14px;min-height:38px;cursor:pointer;font-size:15px;color:var(--ink2)}
+.seg button+button{border-left:2px solid var(--line)}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.rowtop{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.upg,.slot{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;background:var(--panel2);border:2px solid var(--line-soft);border-radius:14px}
+.senhrow{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:2px}
+.senh{font-size:13px;color:var(--ink2)}
+.senhbtn{min-height:32px;padding:4px 12px;font-size:14px;border-radius:10px}
+.uicon,.sicon{font-size:28px;text-align:center}
+.uname,.sname{font-size:17px}
+.ulv{color:var(--ink2);font-size:13px;margin-left:4px}
+.udesc{font-size:13px;color:var(--ink2)}
+.buy{min-width:104px;min-height:46px;border-radius:12px;border:3px solid var(--line);background:var(--accent);color:var(--accent-ink);cursor:pointer;display:grid;line-height:1.1;padding:4px 8px;box-shadow:0 3px 0 var(--accent-dark)}
+.buy:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 var(--accent-dark)}
+.buy .bc{font-size:16px}
+.buy small{font-size:11px;opacity:.8}
+.buy.no{background:var(--line-soft);color:var(--ink2);box-shadow:0 3px 0 rgba(31,51,88,.2)}
+.buy:disabled{cursor:default}
+
+/* 장비 */
+.sitem{font-size:15px}
+.sitem.empty{color:var(--ink2)}
+.sstat{font-size:13px;color:var(--ink2);text-align:right}
+.r0{color:var(--r0)}.r1{color:var(--r1)}.r2{color:var(--r2)}.r3{color:var(--r3)}.r4{color:var(--r4)}
+.loglist{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.loglist li{display:flex;justify-content:space-between;gap:8px;font-size:14px;padding:4px 8px;background:var(--panel2);border-radius:8px}
+.loglist small{color:var(--ink2);white-space:nowrap}
+.loglist .empty{color:var(--ink2)}
+
+/* 전직 */
+.jobcard{display:flex;gap:12px;align-items:center;background:var(--panel2);border-radius:14px;padding:10px}
+.jbig{font-size:38px;line-height:1}
+.jobcard h3{margin:0;font-size:20px;font-weight:400}
+.jobcard p,.skillbox p{margin:0;font-size:13px;color:var(--ink2)}
+.skillbox{display:flex;gap:10px;align-items:center;border:2px dashed var(--line-soft);border-radius:14px;padding:8px 10px}
+.skillbox .sicon{font-size:28px}
+.path{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:14px}
+.path span{padding:2px 10px;border-radius:999px;background:var(--panel2);color:var(--ink2)}
+.path span.on{background:var(--accent);color:var(--accent-ink)}
+.path span.done{background:var(--good);color:#fff}
+.jobgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.jobpick{display:grid;gap:2px;justify-items:start;text-align:left;background:var(--panel2);border:3px solid var(--line);border-radius:14px;padding:10px;cursor:pointer;box-shadow:0 3px 0 rgba(31,51,88,.25)}
+.jobpick:active{transform:translateY(2px)}
+.jobpick b{font-weight:400;font-size:18px}
+.jobpick small{color:var(--ink2);font-size:12px}
+.jobpick em{font-style:normal;font-size:12px;color:var(--ink)}
+.btn{min-height:46px;padding:8px 18px;border-radius:12px;border:3px solid var(--line);background:var(--accent);color:var(--accent-ink);cursor:pointer;font-size:17px;box-shadow:0 4px 0 var(--accent-dark)}
+.btn:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 var(--accent-dark)}
+.btn:disabled{background:var(--line-soft);color:var(--ink2);box-shadow:0 4px 0 rgba(31,51,88,.2);cursor:not-allowed}
+.btn.ghost{background:var(--panel2);color:var(--ink);box-shadow:0 4px 0 rgba(31,51,88,.25)}
+.btn.danger{background:var(--bad);color:#fff;box-shadow:0 4px 0 #9d2a2e}
+
+/* 기록 */
+.stats{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:15px}
+.stats dt{color:var(--ink2)}
+.stats dd{margin:0;text-align:right}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+.volrow{display:grid;gap:6px;font-size:15px}
+.volrow input{width:100%;height:32px;accent-color:var(--accent);cursor:pointer}
+
+footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
+
+/* 토스트 · 모달 */
+#toasts{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;display:grid;gap:6px;justify-items:center;width:min(92vw,420px);pointer-events:none}
+.toast{background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:15px;box-shadow:0 4px 0 rgba(0,0,0,.25);text-align:center;animation:tin .25s ease-out}
+.toast.good{background:var(--good);color:#fff}
+.toast.bad{background:var(--bad);color:#fff}
+.toast.gold{background:var(--gold);color:#3a2200}
+@keyframes tin{from{opacity:0;transform:translateY(-8px)}}
+.modal{position:fixed;inset:0;z-index:70;background:rgba(10,20,45,.6);display:grid;place-items:center;padding:16px}
+.mcard{width:min(92vw,440px);max-height:86vh;overflow:auto;background:var(--panel);border:3px solid var(--line);border-radius:18px;box-shadow:0 8px 0 rgba(0,0,0,.3);padding:16px;display:grid;gap:12px}
+.mcard h2{margin:0;font-size:22px;font-weight:400}
+.mactions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.mbody{font-size:15px}
+.mbody p{margin:0 0 6px}
+.mbody .big{font-size:20px}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+
+/* 펫 · 업적 · 속도 */
+.upg.locked{opacity:.6}
+.petpick{margin-top:4px;min-height:34px;padding:2px 12px;border-radius:999px;border:2px solid var(--line-soft);background:var(--panel);color:var(--ink2);font-size:13px;cursor:pointer}
+.petpick.on{background:var(--good);border-color:var(--good);color:#fff}
+.petpick[hidden]{display:none}
+.petfollow{position:absolute;left:100%;bottom:0;margin-left:2px;font-size:clamp(20px,4.4vw,32px);line-height:1;pointer-events:none;animation:pethop 1.1s ease-in-out infinite}
+@keyframes pethop{0%,100%{transform:translateY(0)}50%{transform:translateY(-16%)}}
+.auto{flex-wrap:wrap}
+.loglist .ach{align-items:center}
+.loglist .ach.on span{color:var(--ink)}
+.loglist .ach:not(.on){opacity:.65}
+
+/* 램프 */
+.lampart{font-size:60px;line-height:1;text-align:center;animation:pethop 2.2s ease-in-out infinite;filter:drop-shadow(0 4px 0 rgba(31,51,88,.25))}
+.lampshake{font-size:64px;line-height:1;text-align:center;padding:12px 0;animation:lampshake .35s ease-in-out infinite}
+@keyframes lampshake{0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}}
+
+/* 랭킹 */
+.rankme{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--panel2);border-radius:12px;padding:8px 10px}
+.rankme b{font-weight:400}
+.rankme .btn{min-height:38px;padding:4px 14px;font-size:15px}
+.loglist .rk{display:inline-block;min-width:2.4em}
+.loglist .me{outline:2px solid var(--accent);outline-offset:-2px}
+.loglist .gap{justify-content:center;background:none;color:var(--ink2);padding:0}
+.nickin{width:100%;min-height:46px;padding:8px 12px;border:3px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit;font-size:17px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <span class="logo">✨</span>
+      <div><h1>무한 사냥터</h1><p>쉬지 않는 나만의 방치형 모험</p></div>
+    </div>
+    <div class="tools">
+      <div class="wallet" title="골드">
+        <span class="souls" id="souls" title="예전 환생으로 얻은 영웅의 흔적" hidden></span>
+        <span>🪙</span><b id="mesos" style="font-weight:400">0</b>
+      </div>
+      <button class="snd" id="sndBtn" aria-label="효과음 켜기/끄기" aria-pressed="true">🔊</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="left">
+      <div class="card hud">
+        <div class="lvrow">
+          <span class="badge" id="lvBadge">Lv.1</span>
+          <span id="jobName">초보자</span>
+          <span class="dps">초당 피해 <b id="dps">0</b></span>
+        </div>
+        <div class="bar exp"><i id="expFill"></i><span id="expText"></span></div>
+        <div class="chips">
+          <div class="chip">공격력<b id="cAtk">0</b></div>
+          <div class="chip">공격 속도<b id="cSpd">0</b></div>
+          <div class="chip">치명타<b id="cCrit">0</b></div>
+          <div class="chip">최대 체력<b id="cHp">0</b></div>
+        </div>
+      </div>
+
+      <div class="scene" id="scene">
+        <div class="sky"></div>
+        <i class="cloud"></i><i class="cloud c2"></i><i class="cloud c3"></i>
+        <div class="hills"></div>
+        <div class="ground"></div>
+        <div class="zonetag" id="zoneTag"></div>
+        <div class="bosstimer" id="bossTimer" hidden></div>
+        <div class="hero" id="hero"><div class="herobar"><i id="hpFill"></i></div><div class="herosvg" id="heroSvg"></div><div class="petfollow" id="petFollow" hidden></div></div>
+        <div class="mob" id="mob">
+          <div class="mobname" id="mobName"></div>
+          <div class="mobbar"><i id="mobFill"></i></div>
+          <div class="mobbody"><div class="crown">👑</div><div class="mobface" id="mobFace"></div></div>
+        </div>
+        <div class="fx" id="fx"></div>
+        <div class="banner" id="banner"></div>
+      </div>
+
+      <div class="card stagebar">
+        <button class="nav" id="prevStage" aria-label="이전 스테이지">◀</button>
+        <div class="stageinfo">
+          <div class="t"><b id="stageName">스테이지 1</b><small id="zoneName"></small></div>
+          <div class="bar kills" id="killBar"><i id="killFill"></i><span id="killText"></span></div>
+        </div>
+        <button class="nav" id="nextStage" aria-label="다음 스테이지">▶</button>
+        <div class="auto">
+          <label class="switch"><input type="checkbox" id="autoAdv"><span class="knob"></span><span>자동 진행</span></label>
+          <span class="best" id="bestText"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="right">
+      <nav class="tabs" id="tabs" role="tablist" aria-label="메뉴">
+        <button class="tab on" role="tab" data-tab="train">🏋️ 훈련</button>
+        <button class="tab" role="tab" data-tab="gear">🛡️ 장비</button>
+        <button class="tab" role="tab" data-tab="lamp">📦 보물상자<i class="dot" id="lampDot" hidden></i></button>
+        <button class="tab" role="tab" data-tab="pet">🐾 펫</button>
+        <button class="tab" role="tab" data-tab="job">⚔️ 전직<i class="dot" id="advDot" hidden></i></button>
+        <button class="tab" role="tab" data-tab="rank" id="tabRank" hidden>🏆 랭킹</button>
+        <button class="tab" role="tab" data-tab="info">📜 기록</button>
+      </nav>
+
+      <div class="card pane" id="pane-train">
+        <div class="rowtop">
+          <h2>훈련</h2>
+          <div class="seg" id="modeSeg">
+            <button data-mode="1" class="on">×1</button>
+            <button data-mode="10">×10</button>
+            <button data-mode="max">최대</button>
+          </div>
+        </div>
+        <p class="hint">골드로 능력을 키워요. 전투는 자동으로 계속돼요.</p>
+        <div id="upgList" style="display:grid;gap:8px"></div>
+      </div>
+
+      <div class="card pane" id="pane-gear" hidden>
+        <h2>장비</h2>
+        <p class="hint">몬스터가 떨어뜨린 장비는 더 좋으면 자동 장착하고, 아니면 골드로 팔려요.</p>
+        <p class="hint" id="stoneHint"></p>
+        <div id="slotList" style="display:grid;gap:8px"></div>
+        <h2 style="margin-top:6px">최근 드랍</h2>
+        <ul class="loglist" id="dropLog"></ul>
+      </div>
+
+      <div class="card pane" id="pane-lamp" hidden>
+        <h2>보물상자</h2>
+        <p class="hint">상자를 열면 지금까지 도달한 최고 스테이지 기준의 장비가 나와요. 보스를 잡거나 몬스터를 처치하다 보면 가끔 떨어져요.</p>
+        <div class="lampart" aria-hidden="true">📦</div>
+        <dl class="stats" id="lampStats"></dl>
+        <div class="btnrow">
+          <button class="btn" id="lamp1" type="button">1개 열기</button>
+          <button class="btn" id="lamp10" type="button">10개 열기</button>
+        </div>
+        <p class="hint" id="lampOdds"></p>
+        <h2 style="margin-top:6px">최근 결과</h2>
+        <ul class="loglist" id="lampLog"></ul>
+      </div>
+
+      <div class="card pane" id="pane-pet" hidden>
+        <h2>펫</h2>
+        <p class="hint">펫을 입양하고 키우면 능력이 영구적으로 올라요. 하나를 동행시키면 효과가 1.5배가 되고 곁에서 함께 뛰어다녀요.</p>
+        <div id="petList" style="display:grid;gap:8px"></div>
+      </div>
+
+      <div class="card pane" id="pane-job" hidden>
+        <h2>전직</h2>
+        <div id="jobBox" style="display:grid;gap:10px"></div>
+      </div>
+
+      <div class="card pane" id="pane-rank" hidden>
+        <div class="rowtop">
+          <h2>랭킹</h2>
+          <div class="seg" id="rankSeg">
+            <button data-by="stage" class="on">스테이지</button>
+            <button data-by="level">레벨</button>
+          </div>
+        </div>
+        <div class="rankme" id="rankMe"></div>
+        <ul class="loglist" id="rankList"></ul>
+        <p class="hint">기록은 이 브라우저의 익명 계정에 묶여요. 브라우저 데이터를 지우면 새 계정이 돼요.</p>
+      </div>
+
+      <div class="card pane" id="pane-info" hidden>
+        <h2>기록</h2>
+        <dl class="stats" id="statList"></dl>
+        <h2 style="margin-top:6px">업적</h2>
+        <p class="hint" id="achHint"></p>
+        <ul class="loglist" id="achList"></ul>
+        <label class="volrow"><span>🔊 효과음 크기</span><input type="range" id="vol" min="0" max="100" step="5" value="60"></label>
+        <p class="hint">브라우저 정책상 화면을 한 번 누르거나 터치해야 소리가 나기 시작해요.</p>
+        <div class="btnrow">
+          <button class="btn ghost" id="saveBtn">지금 저장</button>
+          <button class="btn danger" id="resetBtn">처음부터 다시</button>
+        </div>
+        <p class="hint">진행 상황은 이 브라우저에 자동 저장돼요. 창을 닫아도 최대 8시간 동안 사냥이 이어져요.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>모든 그래픽은 이모지·CSS·SVG로 직접 그렸어요.</footer>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+<div class="modal" id="modal" hidden>
+  <div class="mcard" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+    <h2 id="mtitle"></h2>
+    <div class="mbody" id="mbody"></div>
+    <div class="mactions" id="mactions"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================
+   무한 사냥터
+   ===================================================== */
+const HAS_DOM = typeof document !== 'undefined';
+const $ = id => HAS_DOM ? document.getElementById(id) : null;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const REDUCED = HAS_DOM && window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SAVE_KEY = 'infinite-hunt-v1';
+
+/* ---------- 숫자 표시 ---------- */
+const UNITS = ['', '만', '억', '조', '경', '해', '자', '양', '구', '간', '정', '재', '극', '항하사', '아승기', '나유타', '불가사의', '무량대수'];
+function fmt(n) {
+  if (!isFinite(n)) return '∞';
+  n = Math.floor(n);
+  if (n < 10000) return n.toLocaleString('ko-KR');
+  let i = 0, x = n;
+  while (x >= 10000 && i < UNITS.length - 1) { x /= 10000; i++; }
+  if (x >= 10000) return n.toExponential(2).replace('e+', '×10^');
+  return x.toFixed(x < 10 ? 2 : x < 100 ? 1 : 0) + UNITS[i];
+}
+const fx2 = x => x < 1000 ? x.toFixed(2) : fmt(x);
+function fmtTime(sec) {
+  sec = Math.floor(sec);
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  return h > 0 ? h + '시간 ' + m + '분' : m > 0 ? m + '분 ' + s + '초' : s + '초';
+}
+
+/* ---------- 데이터 ---------- */
+const SLIME = 'SLIME';
+const SLIME_SVG = '<svg viewBox="0 0 100 80"><path d="M8 70 Q2 40 30 24 Q50 6 70 24 Q98 40 92 70 Q50 84 8 70Z" fill="#6fe07a" stroke="#2f9c48" stroke-width="4"/><ellipse cx="34" cy="28" rx="11" ry="5" fill="#fff" opacity=".55"/><circle cx="37" cy="50" r="5.5" fill="#203a2a"/><circle cx="63" cy="50" r="5.5" fill="#203a2a"/><path d="M44 60 Q50 66 56 60" stroke="#203a2a" stroke-width="3" fill="none" stroke-linecap="round"/></svg>';
+
+/* 배경색: [하늘 위, 하늘 아래, 먼 언덕, 가까운 언덕, 땅, 잔디] */
+const ZONES = [
+  { name: '달팽이 언덕', short: '달팽이',
+    mobs: [['달팽이', '🐌', ''], ['파란 달팽이', '🐌', 'hue-rotate(170deg)'], ['빨간 달팽이', '🐌', 'hue-rotate(320deg) saturate(1.8)']],
+    boss: ['왕 달팽이', '🐌', 'saturate(1.9) hue-rotate(15deg)'],
+    c: ['#8fd3ff', '#e6f7ff', '#9ad96b', '#7cc455', '#5da83a', '#7ed957'] },
+  { name: '버섯 숲', short: '버섯',
+    mobs: [['주황버섯', '🍄', 'hue-rotate(25deg)'], ['초록버섯', '🍄', 'hue-rotate(105deg)'], ['파란버섯', '🍄', 'hue-rotate(195deg)']],
+    boss: ['독버섯 여왕', '🍄', 'saturate(1.5) hue-rotate(300deg)'],
+    c: ['#a7dcc8', '#eafbe3', '#57a66a', '#468f5a', '#3b7043', '#5cab60'] },
+  { name: '들꽃 초원', short: '초원',
+    mobs: [['뿔돼지', '🐷', ''], ['아이언 호그', '🐗', ''], ['불타는 돼지', '🐷', 'hue-rotate(320deg) saturate(2)']],
+    boss: ['돼지 대왕', '🐗', 'saturate(1.6) brightness(.9)'],
+    c: ['#ffd1e3', '#fff3f8', '#b6e37f', '#98d15f', '#7bbf46', '#a5e05b'] },
+  { name: '슬라임 연못', short: '슬라임',
+    mobs: [['슬라임', SLIME, ''], ['블루 슬라임', SLIME, 'hue-rotate(95deg)'], ['핑크 슬라임', SLIME, 'hue-rotate(190deg)']],
+    boss: ['슬라임로드', SLIME, 'saturate(1.5) hue-rotate(40deg)'],
+    c: ['#9ee7e0', '#e0fbf8', '#58b9a5', '#43a08f', '#3a8a86', '#52c2b3'] },
+  { name: '골렘 광산', short: '골렘',
+    mobs: [['스톤골렘', '🗿', ''], ['다크 골렘', '🗿', 'brightness(.55)'], ['이끼 골렘', '🗿', 'sepia(1) hue-rotate(60deg) saturate(2)']],
+    boss: ['골렘 왕', '🗿', 'brightness(.7) saturate(1.5) hue-rotate(320deg)'],
+    c: ['#9a9ab0', '#d5d3e2', '#7a7186', '#645d70', '#4d4657', '#6b6378'] },
+  { name: '눈덮인 설원', short: '설원',
+    mobs: [['예티', '⛄', ''], ['펭귄', '🐧', ''], ['눈토끼', '🐇', '']],
+    boss: ['설원의 군주', '🦣', ''],
+    c: ['#bfe3ff', '#f3fbff', '#e8f4fb', '#d5e8f4', '#eef7fc', '#ffffff'] },
+  { name: '유령의 저택', short: '유령',
+    mobs: [['유령', '👻', ''], ['푸른 유령', '👻', 'hue-rotate(200deg) brightness(1.1)'], ['박쥐', '🦇', '']],
+    boss: ['저주받은 영주', '🧛', ''],
+    c: ['#3b2d5c', '#6a4f8f', '#4a3a6b', '#3a2d57', '#2c2244', '#493a70'] },
+  { name: '화염 협곡', short: '화염',
+    mobs: [['불꽃 정령', '🔥', ''], ['푸른 불꽃', '🔥', 'hue-rotate(200deg)'], ['용암 도마뱀', '🦎', 'hue-rotate(300deg) saturate(1.8)']],
+    boss: ['화염룡', '🐲', ''],
+    c: ['#ff9a5a', '#ffd7a6', '#a8482a', '#8a3a22', '#5e2a1c', '#d1582b'] },
+  { name: '심해 동굴', short: '심해',
+    mobs: [['문어', '🐙', ''], ['오징어', '🦑', ''], ['복어', '🐡', '']],
+    boss: ['심해의 괴수', '🦈', ''],
+    c: ['#0f4c81', '#2a86b8', '#14688f', '#0f5678', '#0b3d5c', '#1f80a8'] },
+  { name: '시간의 신전', short: '신전',
+    mobs: [['악마 병사', '👹', ''], ['도깨비', '👺', ''], ['해골 기사', '💀', '']],
+    boss: ['시간의 마왕', '😈', ''],
+    c: ['#241a4a', '#6b3fa0', '#5a3d8f', '#48317a', '#33235c', '#7a55c2'] },
+];
+const zoneIdx = s => Math.floor((s - 1) / 10) % ZONES.length;
+const zoneLoop = s => Math.floor((s - 1) / (ZONES.length * 10));
+const zoneOf = s => ZONES[zoneIdx(s)];
+const zoneTitle = s => zoneOf(s).name + (zoneLoop(s) > 0 ? ' +' + zoneLoop(s) : '');
+
+const ADV_LV = [10, 30, 60, 100];
+const TIER_ATK = [1, 1.8, 3, 5, 9];
+const TIER_HP = [1, 1.6, 2.5, 4, 6];
+const JOBS = {
+  novice: { names: ['초보자'], icon: '🌱', atk: 1, hp: 1, spd: 1, crit: 0, cdmg: 0, we: '🪄', weapon: '막대기',
+    blurb: '', skill: { name: '달팽이 껍질 던지기', e: '🐚', cd: 8, mult: 3, hits: 1 } },
+  warrior: { names: ['전사', '결투사', '수호기사', '파괴기사'], icon: '⚔️', atk: 1.2, hp: 1.6, spd: 1, crit: 0, cdmg: 0, we: '⚔️', weapon: '검',
+    blurb: '튼튼한 체력으로 버티는 근접 전사.',
+    skill: { name: '파워 스트라이크', e: '💥', cd: 6, mult: 6, hits: 1 } },
+  mage: { names: ['마법사', '원소술사', '비전술사', '대마도사'], icon: '🔮', atk: 1.3, hp: 0.85, spd: 1, crit: 0, cdmg: 0, we: '🪄', weapon: '스태프',
+    blurb: '체력은 낮지만 공격력이 가장 높아요.',
+    skill: { name: '에너지 볼트', e: '🔮', cd: 5, mult: 4.5, hits: 1 } },
+  archer: { names: ['궁수', '사격수', '매사냥꾼', '신궁'], icon: '🏹', atk: 1, hp: 1, spd: 1.3, crit: 0.1, cdmg: 0, we: '🏹', weapon: '활',
+    blurb: '빠른 공격 속도와 여러 번 맞히는 스킬.',
+    skill: { name: '애로우 레인', e: '🏹', cd: 6, mult: 1.6, hits: 4 } },
+  thief: { names: ['도적', '그림자검사', '야습자', '그림자군주'], icon: '🗡️', atk: 0.9, hp: 0.95, spd: 1.1, crit: 0.15, cdmg: 0.4, we: '🗡️', weapon: '단검',
+    blurb: '치명타에 특화됐고 스킬은 항상 치명타예요.',
+    skill: { name: '럭키 세븐', e: '⭐', cd: 5, mult: 2, hits: 2, crit: true } },
+};
+
+const UPG = [
+  { id: 'atk',  name: '공격력 훈련',   e: '💪', base: 80,  g: 1.15, max: Infinity, eff: l => '공격력 ×' + fx2(Math.pow(1.10, l)) },
+  { id: 'spd',  name: '공격 속도',     e: '⚡', base: 240,  g: 1.24, max: 30,  eff: l => '공격 속도 +' + l * 5 + '%' },
+  { id: 'crit', name: '치명타 확률',   e: '🎯', base: 320,  g: 1.22, max: 60,  eff: l => '치명타 확률 +' + l + '%' },
+  { id: 'cdmg', name: '치명타 피해',   e: '💢', base: 400, g: 1.18, max: 100, eff: l => '치명타 피해 +' + l * 8 + '%' },
+  { id: 'hp',   name: '체력 단련',     e: '❤️', base: 80,  g: 1.15, max: Infinity, eff: l => '최대 체력 ×' + fx2(Math.pow(1.08, l)) },
+  { id: 'meso', name: '골드 획득',     e: '🪙', base: 200,  g: 1.2,  max: 100, eff: l => '골드 +' + l * 6 + '%' },
+  { id: 'exp',  name: '경험치 획득',   e: '📈', base: 200,  g: 1.2,  max: 100, eff: l => '경험치 +' + l * 6 + '%' },
+  { id: 'luck', name: '행운',          e: '🍀', base: 480, g: 1.22, max: 50,  eff: l => '드랍률·장비 등급 +' + l * 4 + '%' },
+];
+const unitCost = (u, lv) => Math.ceil(u.base * Math.pow(u.g, lv));
+
+const SLOTS = [
+  { id: 'weapon', name: '무기', e: '⚔️', stat: 'atk', k: 1 },
+  { id: 'gloves', name: '장갑', e: '🧤', stat: 'atk', k: 0.5 },
+  { id: 'hat',    name: '모자', e: '🎩', stat: 'hp',  k: 10 },
+  { id: 'armor',  name: '상의', e: '👕', stat: 'hp',  k: 16 },
+  { id: 'shoes',  name: '신발', e: '👟', stat: 'hp',  k: 6 },
+];
+const RARITY = [
+  { n: '일반', w: 62, m: 1 }, { n: '레어', w: 27, m: 1.6 }, { n: '에픽', w: 8.5, m: 2.6 },
+  { n: '유니크', w: 2.2, m: 4.2 }, { n: '레전더리', w: 0.3, m: 7 },
+];
+
+/* ---------- 펫 · 업적 ---------- */
+const PETS = [
+  { id: 'penguin', name: '펭귄',   e: '🐧', need: 5,  base: 300,    g: 1.28, max: 25, stat: 'meso', per: 0.04,  txt: '골드 획득' },
+  { id: 'fox',     name: '여우',   e: '🦊', need: 15, base: 1500,   g: 1.28, max: 25, stat: 'exp',  per: 0.04,  txt: '경험치 획득' },
+  { id: 'turtle',  name: '거북이', e: '🐢', need: 25, base: 8000,   g: 1.30, max: 25, stat: 'hp',   per: 0.05,  txt: '최대 체력' },
+  { id: 'owl',     name: '부엉이', e: '🦉', need: 40, base: 60000,  g: 1.30, max: 25, stat: 'crit', per: 0.004, txt: '치명타 확률' },
+  { id: 'dragon',  name: '아기 용', e: '🐲', need: 60, base: 500000, g: 1.32, max: 25, stat: 'atk',  per: 0.05,  txt: '공격력' },
+];
+const ACH = [
+  { id: 'kill100',  name: '사냥 입문',     desc: '몬스터 100마리 처치',     ok: s => s.stats.kills >= 100 },
+  { id: 'kill5k',   name: '베테랑 사냥꾼', desc: '몬스터 5,000마리 처치',   ok: s => s.stats.kills >= 5000 },
+  { id: 'kill100k', name: '사냥의 신',     desc: '몬스터 10만 마리 처치',   ok: s => s.stats.kills >= 100000 },
+  { id: 'boss10',   name: '보스 사냥꾼',   desc: '보스 10마리 처치',        ok: s => s.stats.bosses >= 10 },
+  { id: 'boss100',  name: '보스 킬러',     desc: '보스 100마리 처치',       ok: s => s.stats.bosses >= 100 },
+  { id: 'stage20',  name: '모험가',        desc: '스테이지 20 도달',        ok: s => s.stats.bestEver >= 20 },
+  { id: 'stage40',  name: '탐험가',        desc: '스테이지 40 도달',        ok: s => s.stats.bestEver >= 40 },
+  { id: 'stage70',  name: '전설의 모험가', desc: '스테이지 70 도달',        ok: s => s.stats.bestEver >= 70 },
+  { id: 'stage150', name: '끝없는 여정',   desc: '스테이지 150 도달',       ok: s => s.stats.bestEver >= 150 },
+  { id: 'stage300', name: '영원의 모험가', desc: '스테이지 300 도달',       ok: s => s.stats.bestEver >= 300 },
+  { id: 'kill1m',   name: '학살의 화신',   desc: '몬스터 100만 마리 처치',  ok: s => s.stats.kills >= 1000000 },
+  { id: 'lv50',     name: '숙련자',        desc: '레벨 50 달성',            ok: s => s.lv >= 50 },
+  { id: 'job4',     name: '영웅의 길',     desc: '4차 전직 달성',           ok: s => s.tier >= 4 },
+  { id: 'legend1',  name: '행운의 주인공', desc: '레전더리 장비 획득',      ok: s => s.stats.legend >= 1 },
+  { id: 'pet3',     name: '동물 친구들',   desc: '펫 3마리 입양',           ok: s => PETS.filter(p => (s.pets[p.id] || 0) > 0).length >= 3 },
+  { id: 'hit1m',    name: '한 방의 남자',  desc: '한 번에 100만 피해',      ok: s => s.stats.maxHit >= 1000000 },
+  { id: 'lamp30',   name: '상자 수집가',   desc: '보물상자 30개 열기',          ok: s => s.lampOpened >= 30 },
+  { id: 'lamp200',  name: '상자의 주인',   desc: '보물상자 200개 열기',         ok: s => s.lampOpened >= 200 },
+];
+
+/* ---------- 밸런스 공식 ---------- */
+/* 스테이지 40까지는 가파르게, 그 뒤로는 완만하게 — 환생 없이도 끝없이 성장할 수 있게 */
+const KNEE = 40;
+const mobHp    = s => Math.ceil(16 * Math.pow(1.28, Math.min(s, KNEE) - 1) * Math.pow(1.24, Math.max(0, s - KNEE)) * (1 + 0.03 * s));
+const mobDmg   = s => Math.ceil(8 * Math.pow(1.20, Math.min(s, KNEE) - 1) * Math.pow(1.175, Math.max(0, s - KNEE)) * (1 + 0.03 * s));
+const mesoKill = s => 4 * Math.pow(1.12, s - 1);
+const expKill  = s => 4 * Math.pow(s, 1.5);
+const expNeed  = L => Math.floor(20 * Math.pow(L, 1.9));
+const stageNeed = s => (s % 10 === 0 ? 1 : 10);
+
+/* ---------- 상태 ---------- */
+function defaultState() {
+  return {
+    v: 1, lv: 1, exp: 0, mesos: 0, stage: 1, best: 1, kills: 0, auto: true, mode: 1,
+    upg: { atk: 0, spd: 0, crit: 0, cdmg: 0, hp: 0, meso: 0, exp: 0, luck: 0 },
+    gear: { weapon: null, gloves: null, hat: null, armor: null, shoes: null },
+    job: null, tier: 0, souls: 0,
+    pets: {}, pet: null, ach: {},
+    lamps: 3, lampOpened: 0, stones: 0,
+    stats: { kills: 0, bosses: 0, items: 0, legend: 0, maxHit: 0, playSec: 0, mesosTotal: 0, bestEver: 1 },
+    dailyStreak: 0, dailyLast: '',
+    last: Date.now(),
+  };
+}
+let S = defaultState();
+let P = null;
+const RT = {
+  hp: 1, mob: null, atkT: 0, skT: 0, mobT: 0, spawnT: 0.3, deadT: 0, bossT: 0,
+  log: [], logDirty: true, jobSig: '', heroSig: '', zoneKey: -1, advSeen: false,
+};
+
+function jobLabel() { return S.job ? JOBS[S.job].names[S.tier - 1] : '초보자'; }
+
+function recalc() {
+  const u = S.upg, job = JOBS[S.job || 'novice'], tier = S.tier;
+  let gAtk = 0, gHp = 0;
+  for (const sl of SLOTS) {
+    const it = S.gear[sl.id];
+    if (!it) continue;
+    if (sl.stat === 'atk') gAtk += itemPower(it) * sl.k; else gHp += itemPower(it) * sl.k;
+  }
+  const lvM = 1 + 0.03 * S.lv;
+  const pb = petBonus(), ab = achBonus();
+  const atk = (5 + 2 * (S.lv - 1) + gAtk) * lvM * Math.pow(1.10, u.atk) * TIER_ATK[tier] * job.atk * (1 + 0.08 * S.souls) * (1 + pb.atk) * (1 + ab);
+  const aps = Math.min(8, job.spd * (1 + 0.05 * u.spd));
+  const crit = Math.min(0.95, 0.05 + 0.01 * u.crit + job.crit + pb.crit);
+  const cdmg = 1.5 + 0.08 * u.cdmg + job.cdmg;
+  const maxHp = (60 + 12 * (S.lv - 1) + gHp) * lvM * Math.pow(1.08, u.hp) * TIER_HP[tier] * job.hp * (1 + 0.05 * S.souls) * (1 + pb.hp);
+  const sk = Object.assign({}, job.skill, { mult: job.skill.mult * (1 + 0.25 * tier) });
+  const avg = 1 + crit * (cdmg - 1);
+  const basicDps = atk * aps * avg;
+  const skillDps = atk * sk.mult * sk.hits * (sk.crit ? cdmg : avg) / sk.cd;
+  P = {
+    atk, aps, crit, cdmg, maxHp, skill: sk, dps: basicDps + skillDps,
+    mesoM: (1 + 0.06 * u.meso) * (1 + 0.08 * S.souls) * (1 + pb.meso) * (1 + ab),
+    expM: (1 + 0.06 * u.exp) * (1 + 0.05 * S.souls) * (1 + pb.exp) * (1 + ab),
+    dropCh: Math.min(0.5, 0.09 * (1 + 0.04 * u.luck)),
+    luckF: 1 + 0.04 * u.luck,
+  };
+  if (RT.hp > P.maxHp) RT.hp = P.maxHp;
+  return P;
+}
+
+/* ---------- 전투 ---------- */
+function spawnMob() {
+  const s = S.stage, z = zoneOf(s), boss = s % 10 === 0;
+  let m;
+  if (boss) {
+    m = { boss: true, stage: s, name: z.boss[0], e: z.boss[1], f: z.boss[2], max: mobHp(s) * 10, dmg: mobDmg(s) * 2, iv: 1.2 };
+    RT.bossT = 30;
+    banner('⚠️ BOSS 등장!');
+  } else {
+    const v = pick(z.mobs);
+    m = { boss: false, stage: s, name: v[0], e: v[1], f: v[2], max: mobHp(s), dmg: mobDmg(s), iv: 1.6 };
+  }
+  m.hp = m.max;
+  RT.mob = m; RT.mobT = 0; RT.atkT = (1 / P.aps) * 0.5;
+  uiMobSpawn(m);
+}
+
+function dealHit(base, opt) {
+  const m = RT.mob; if (!m) return;
+  const isCrit = opt.crit !== undefined ? opt.crit : Math.random() < P.crit;
+  let d = base * rnd(0.9, 1.1) * (isCrit ? P.cdmg : 1);
+  d = Math.max(1, Math.floor(d));
+  m.hp -= d;
+  if (d > S.stats.maxHit) S.stats.maxHit = d;
+  uiHit(d, isCrit, opt);
+  if (m.hp <= 0) killMob();
+}
+
+function castSkill() {
+  const sk = P.skill; if (!RT.mob) return;
+  uiSkill(sk);
+  for (let i = 0; i < sk.hits && RT.mob; i++) dealHit(P.atk * sk.mult, { skill: true, crit: sk.crit ? true : undefined, idx: i });
+}
+
+function killMob() {
+  const m = RT.mob, s = m.stage, boss = m.boss;
+  const mesos = Math.ceil(mesoKill(s) * P.mesoM * (boss ? 12 : 1) * rnd(0.85, 1.15));
+  const exp = Math.ceil(expKill(s) * P.expM * (boss ? 10 : 1));
+  S.mesos += mesos; S.stats.mesosTotal += mesos; S.stats.kills++; if (boss) S.stats.bosses++;
+  RT.mob = null; RT.spawnT = boss ? 0.9 : 0.35;
+  uiMobDie(mesos);
+  gainExp(exp);
+  rollDrop(s, boss);
+  rollLamp(boss);
+  rollStone(boss);
+  S.kills++;
+  if (S.kills >= stageNeed(s)) clearStage();
+}
+
+function clearStage() {
+  sfx(S.stage % 10 === 0 ? 'bossclear' : 'clear');
+  S.kills = 0;
+  if (S.stage === S.best) { S.best++; if (S.best > S.stats.bestEver) S.stats.bestEver = S.best; }
+  if (S.auto && S.stage < S.best) S.stage++;
+}
+
+function gainExp(x, silent) {
+  S.exp += x;
+  let n = 0;
+  while (S.exp >= expNeed(S.lv) && n < 5000) { S.exp -= expNeed(S.lv); S.lv++; n++; }
+  if (n > 0) {
+    recalc(); RT.hp = P.maxHp;
+    if (!silent) uiLevelUp(n);
+  }
+}
+
+function hurt(d) {
+  d = Math.max(1, Math.floor(d));
+  RT.hp -= d;
+  uiHurt(d);
+  if (RT.hp <= 0) { RT.hp = 0; RT.mob = null; RT.deadT = 2.5; uiDown(); }
+}
+
+function retreat(msg) {
+  if (S.stage > 1) { S.stage--; S.auto = false; }
+  S.kills = 0; RT.mob = null; RT.deadT = 0; RT.hp = P.maxHp; RT.spawnT = 1; RT.skT = 0;
+  toast(msg, 'bad'); sfx('fail');
+  uiMobGone(); uiSyncAuto();
+}
+
+function tick(dt) {
+  if (!P) recalc();
+  if (RT.deadT > 0) {
+    RT.deadT -= dt;
+    if (RT.deadT <= 0) retreat('쓰러졌어요! 자동 진행이 꺼졌어요. 더 강해진 뒤 ▶로 다시 도전하세요.');
+    return;
+  }
+  if (!RT.mob) {
+    RT.spawnT -= dt;
+    if (RT.spawnT <= 0) spawnMob();
+    RT.hp = Math.min(P.maxHp, RT.hp + P.maxHp * 0.02 * dt);
+    return;
+  }
+  const m = RT.mob;
+  if (m.boss) {
+    RT.bossT -= dt;
+    if (RT.bossT <= 0) { retreat('시간 초과! 자동 진행이 꺼졌어요. 더 강해진 뒤 ▶로 다시 도전하세요.'); return; }
+  }
+  RT.atkT += dt;
+  const iv = 1 / P.aps;
+  let guard = 0;
+  while (RT.atkT >= iv && RT.mob && guard++ < 10) { RT.atkT -= iv; dealHit(P.atk, {}); }
+  if (!RT.mob) return;
+  RT.skT += dt;
+  if (RT.skT >= P.skill.cd) { RT.skT = 0; castSkill(); if (!RT.mob) return; }
+  RT.mobT += dt;
+  guard = 0;
+  while (RT.mobT >= m.iv && guard++ < 5) {
+    RT.mobT -= m.iv;
+    hurt(m.dmg * rnd(0.9, 1.1));
+    if (RT.deadT > 0) return;
+  }
+  RT.hp = Math.min(P.maxHp, RT.hp + P.maxHp * 0.02 * dt);
+}
+
+/* ---------- 장비 드랍 ---------- */
+const ENH_MAX = 15;
+const itemPower = it => it ? it.p * (1 + 0.08 * (it.enh || 0)) : 0;
+function enhanceCost(it) {
+  const lvl = (it.enh || 0) + 1;
+  return { gold: Math.ceil(it.p * 1.3 * (1 + it.r) * Math.pow(1.22, lvl)), stones: lvl };
+}
+function enhanceGear(slotId) {
+  const it = S.gear[slotId];
+  if (!it) return false;
+  const lvl = it.enh || 0;
+  if (lvl >= ENH_MAX) return false;
+  const cost = enhanceCost(it);
+  if (S.mesos < cost.gold || S.stones < cost.stones) return false;
+  S.mesos -= cost.gold; S.stones -= cost.stones;
+  it.enh = lvl + 1;
+  recalc(); save();
+  return true;
+}
+function rollStone(boss) {
+  const n = boss ? Math.floor(rnd(3, 7)) : (Math.random() < 0.12 ? 1 : 0);
+  if (n <= 0) return;
+  S.stones += n;
+  if (boss) toast('🔩 강화석 +' + n, 'good');
+}
+function rollRarity(boss) {
+  const w = RARITY.map((r, i) => i === 0 ? r.w : r.w * P.luckF * (boss ? 4 : 1));
+  let t = w.reduce((a, b) => a + b, 0) * Math.random();
+  for (let i = 0; i < w.length; i++) { t -= w[i]; if (t <= 0) return i; }
+  return 0;
+}
+function genItem(stage, boss) {
+  const sl = pick(SLOTS);
+  const r = rollRarity(boss);
+  const p = 4 * Math.pow(1.10, stage - 1) * RARITY[r].m * rnd(0.85, 1.15);
+  const J = JOBS[S.job || 'novice'];
+  const base = sl.id === 'weapon' ? J.weapon : sl.name;
+  return { slot: sl.id, r, p, enh: 0, name: zoneOf(stage).short + '의 ' + base };
+}
+function rollDrop(stage, boss) {
+  if (!boss && Math.random() >= P.dropCh) return;
+  const n = boss ? 2 : 1;
+  for (let i = 0; i < n; i++) handleItem(genItem(stage, boss));
+}
+function handleItem(it, quiet) {
+  S.stats.items++;
+  const cur = S.gear[it.slot];
+  let mode, gold = 0;
+  if (!cur || it.p > itemPower(cur)) {
+    if (cur) { gold = Math.ceil(itemPower(cur) * 1.2 * (1 + cur.r)); S.mesos += gold; S.stats.mesosTotal += gold; }
+    S.gear[it.slot] = it; recalc(); mode = 'equip';
+  } else {
+    gold = Math.ceil(it.p * 1.2 * (1 + it.r)); S.mesos += gold; S.stats.mesosTotal += gold; mode = 'sell';
+  }
+  if (it.r === 4) S.stats.legend++;
+  if (!quiet) {
+    RT.log.unshift({ name: it.name, r: it.r, mode, gold });
+    if (RT.log.length > 8) RT.log.pop();
+    if (mode === 'equip') sfx('item', it.r);
+    RT.logDirty = true;
+    if (it.r >= 3 && mode === 'equip') toast('✨ ' + RARITY[it.r].n + ' ' + it.name + ' 장착!', 'gold');
+  }
+  return { mode, gold };
+}
+
+/* ---------- 훈련 ---------- */
+function planBuy(u) {
+  const lv = S.upg[u.id], room = u.max - lv;
+  if (room <= 0) return { n: 0, cost: 0, afford: false };
+  if (S.mode === 'max') {
+    let n = 0, cost = 0;
+    while (n < room && n < 10000) {
+      const c = unitCost(u, lv + n);
+      if (cost + c > S.mesos) break;
+      cost += c; n++;
+    }
+    if (n === 0) return { n: 1, cost: unitCost(u, lv), afford: false };
+    return { n, cost, afford: true };
+  }
+  const want = Math.min(S.mode, room);
+  let cost = 0;
+  for (let i = 0; i < want; i++) cost += unitCost(u, lv + i);
+  return { n: want, cost, afford: S.mesos >= cost };
+}
+function buy(id) {
+  const u = UPG.find(x => x.id === id); if (!u) return false;
+  const pl = planBuy(u);
+  if (!pl.afford || pl.n <= 0) return false;
+  S.mesos -= pl.cost; S.upg[id] += pl.n;
+  const before = P.maxHp;
+  recalc();
+  if (id === 'hp') RT.hp = Math.min(P.maxHp, RT.hp + (P.maxHp - before));
+  return true;
+}
+
+/* ---------- 펫 · 업적 ---------- */
+const COMPANION_X = 1.5;
+function petBonus() {
+  const b = { meso: 0, exp: 0, hp: 0, crit: 0, atk: 0 };
+  for (const p of PETS) {
+    const lv = S.pets[p.id] || 0;
+    if (lv > 0) b[p.stat] += lv * p.per * (S.pet === p.id ? COMPANION_X : 1);
+  }
+  return b;
+}
+const petCost = (p, lv) => Math.ceil(p.base * Math.pow(p.g, lv));
+const petUnlocked = p => S.stats.bestEver >= p.need;
+function buyPet(id) {
+  const p = PETS.find(x => x.id === id);
+  if (!p || !petUnlocked(p)) return false;
+  const lv = S.pets[id] || 0;
+  if (lv >= p.max) return false;
+  const c = petCost(p, lv);
+  if (S.mesos < c) return false;
+  S.mesos -= c; S.pets[id] = lv + 1;
+  if (!S.pet) S.pet = id;
+  recalc();
+  return true;
+}
+function setPet(id) {
+  if (!(S.pets[id] > 0)) return false;
+  S.pet = S.pet === id ? null : id;
+  recalc();
+  return true;
+}
+const achCount = () => ACH.filter(a => S.ach[a.id]).length;
+const achBonus = () => 0.01 * achCount();
+function checkAch(silent) {
+  let n = 0;
+  for (const a of ACH) {
+    if (S.ach[a.id] || !a.ok(S)) continue;
+    S.ach[a.id] = 1; n++; S.lamps += 2;
+    if (!silent) { toast('🏆 업적 달성: ' + a.name, 'gold'); sfx('item', 2); }
+  }
+  if (n > 0) recalc();
+  return n;
+}
+
+/* ---------- 램프 ---------- */
+const LAMP_W = [68, 24, 6, 1.7, 0.3];
+const lampCost = () => Math.ceil(mesoKill(Math.max(1, S.best)) * 90);
+function rollLamp(boss) {
+  const n = boss ? 2 : (Math.random() < 0.015 ? 1 : 0);
+  if (n <= 0) return;
+  S.lamps += n;
+  toast('📦 상자 +' + n, 'good');
+}
+function lampRoll() {
+  const w = LAMP_W;
+  let t = w.reduce((a, b) => a + b, 0) * Math.random();
+  let r = w.length - 1;
+  for (let i = 0; i < w.length; i++) { t -= w[i]; if (t <= 0) { r = i; break; } }
+  S.lampOpened++;
+  return r;
+}
+function genLampItem(r) {
+  const sl = pick(SLOTS), stage = Math.max(1, S.best);
+  const p = 4 * Math.pow(1.10, stage - 1) * RARITY[r].m * rnd(0.95, 1.25);
+  const J = JOBS[S.job || 'novice'];
+  return { slot: sl.id, r, p, enh: 0, name: '상자의 ' + (sl.id === 'weapon' ? J.weapon : sl.name) };
+}
+function openLamps(n) {
+  n = Math.min(n, S.lamps);
+  if (n <= 0) return null;
+  S.lamps -= n;
+  const res = [];
+  for (let i = 0; i < n; i++) {
+    const it = genLampItem(lampRoll());
+    const o = handleItem(it, true);
+    res.push({ it, mode: o.mode, gold: o.gold });
+  }
+  RT.lampLog = res.slice().reverse().concat(RT.lampLog || []).slice(0, 10);
+  RT.logDirty = true;
+  return res;
+}
+
+/* ---------- 전직 ---------- */
+const canAdvance = () => S.tier < 4 && S.lv >= ADV_LV[S.tier];
+function advance(jobId) {
+  if (!canAdvance()) return;
+  if (S.tier === 0) { if (!JOBS[jobId] || jobId === 'novice') return; S.job = jobId; S.tier = 1; }
+  else S.tier++;
+  recalc(); RT.hp = P.maxHp; RT.jobSig = ''; RT.advSeen = false;
+  toast('🎉 ' + jobLabel() + '(으)로 전직했어요!', 'gold'); sfx('fanfare');
+  uiHeroDraw(); uiPane();
+}
+const jobChangeCost = () => Math.ceil(mesoKill(Math.max(1, S.best)) * 300);
+function changeJob(jobId) {
+  if (S.tier < 1 || !JOBS[jobId] || jobId === 'novice' || jobId === S.job) return false;
+  const c = jobChangeCost();
+  if (S.mesos < c) return false;
+  S.mesos -= c; S.job = jobId;
+  recalc(); RT.hp = Math.min(P.maxHp, Math.max(RT.hp, P.maxHp * 0.5)); RT.jobSig = ''; RT.heroSig = ''; RT.skT = 0;
+  toast('🔄 ' + jobLabel() + '(으)로 직업을 바꿨어요!', 'gold'); sfx('fanfare');
+  uiHeroDraw(); uiPane();
+  return true;
+}
+function resetRuntime() {
+  RT.mob = null; RT.atkT = 0; RT.skT = 0; RT.mobT = 0; RT.spawnT = 0.3; RT.deadT = 0; RT.bossT = 0;
+  RT.log = []; RT.logDirty = true; RT.jobSig = ''; RT.heroSig = ''; RT.zoneKey = -1; RT.advSeen = false;
+}
+
+/* ---------- 자리 비움 보상 ---------- */
+function awayProgress(sec) {
+  sec = Math.min(Math.max(sec, 0), 8 * 3600);
+  if (!P) recalc();
+  const st = S.stage % 10 === 0 ? Math.max(1, S.stage - 1) : S.stage;
+  const ttk = Math.max(0.6, mobHp(st) / Math.max(1, P.dps) + 0.5);
+  const kills = Math.floor(sec * 0.8 / ttk);
+  const mesos = Math.floor(kills * mesoKill(st) * P.mesoM);
+  const exp = Math.floor(kills * expKill(st) * P.expM);
+  const lv0 = S.lv;
+  const lamps = Math.min(40, Math.floor(kills * 0.003));
+  S.lamps += lamps;
+  S.mesos += mesos; S.stats.mesosTotal += mesos; S.stats.kills += kills;
+  gainExp(exp, true);
+  RT.hp = P.maxHp;
+  return { sec, kills, mesos, exp, lamps, levels: S.lv - lv0, stage: st };
+}
+function showAway(r) {
+  modal('자리를 비운 사이에도 사냥했어요',
+    '<p class="big">⏱ ' + fmtTime(r.sec) + ' 동안</p>' +
+    '<p>' + zoneOf(r.stage).name + ' 스테이지 ' + r.stage + '에서 <b>' + fmt(r.kills) + '마리</b>를 처치했어요.</p>' +
+    '<p>🪙 골드 +' + fmt(r.mesos) + '<br>📈 경험치 +' + fmt(r.exp) + (r.levels > 0 ? ' (레벨 +' + r.levels + ')' : '') + (r.lamps > 0 ? '<br>📦 상자 +' + r.lamps : '') + '</p>',
+    [{ label: '좋아요', cls: '', fn: checkDaily }]);
+}
+
+/* ---------- 저장 ---------- */
+function save() {
+  try { S.last = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* 저장 불가 환경 */ }
+}
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object') return false;
+    const base = defaultState();
+    S = Object.assign(base, d);
+    S.upg = Object.assign(base.upg, d.upg || {});
+    S.gear = Object.assign(base.gear, d.gear || {});
+    S.stats = Object.assign(base.stats, d.stats || {});
+    S.pets = {};
+    if (d.pets && typeof d.pets === 'object') {
+      PETS.forEach(p => { const v = Math.floor(Number(d.pets[p.id])); if (v > 0) S.pets[p.id] = Math.min(p.max, v); });
+    }
+    S.pet = (typeof S.pet === 'string' && S.pets[S.pet]) ? S.pet : null;
+    S.ach = (d.ach && typeof d.ach === 'object') ? Object.assign({}, d.ach) : {};
+    ['lamps', 'lampOpened', 'stones'].forEach(k => { const v = Math.floor(Number(S[k])); S[k] = v >= 0 ? v : 0; });
+    S.dailyStreak = Math.max(0, Math.floor(Number(S.dailyStreak)) || 0);
+    S.dailyLast = typeof S.dailyLast === 'string' ? S.dailyLast : '';
+    return true;
+  } catch (e) { return false; }
+}
+
+/* ---------- 출석 보상 ---------- */
+function dayKey(d) { d = d || new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+function checkDaily() {
+  if (!HAS_DOM) return;
+  const today = dayKey();
+  if (S.dailyLast === today) return;
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  S.dailyStreak = (S.dailyLast === dayKey(y)) ? S.dailyStreak + 1 : 1;
+  S.dailyLast = today;
+  const day = ((S.dailyStreak - 1) % 7) + 1;
+  const gold = Math.ceil(mesoKill(Math.max(1, S.best)) * 30 * day);
+  const box = day >= 7 ? 3 : (day % 3 === 0 ? 2 : 1);
+  S.mesos += gold; S.stats.mesosTotal += gold; S.lamps += box;
+  save(); updateUI();
+  modal('📅 출석 보상 · ' + day + '일차',
+    '<p class="big">' + S.dailyStreak + '일 연속 접속!</p>' +
+    '<p>🪙 골드 +' + fmt(gold) + '<br>📦 상자 +' + box + '</p>' +
+    '<p class="hint">매일 접속하면 7일마다 보상이 더 커져요.</p>',
+    [{ label: '받기', cls: '' }]);
+}
+
+/* =====================================================
+   화면
+   ===================================================== */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function toast(msg, kind) {
+  if (!HAS_DOM) return;
+  const box = $('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast ' + (kind || '');
+  el.textContent = msg;
+  box.appendChild(el);
+  while (box.children.length > 4) box.removeChild(box.firstChild);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function modal(title, html, actions) {
+  if (!HAS_DOM) return;
+  $('mtitle').textContent = title;
+  $('mbody').innerHTML = html;
+  const ac = $('mactions'); ac.innerHTML = '';
+  actions.forEach(a => {
+    const b = document.createElement('button');
+    b.className = 'btn ' + (a.cls || '');
+    b.textContent = a.label;
+    b.onclick = () => { closeModal(); if (a.fn) a.fn(); };
+    ac.appendChild(b);
+  });
+  $('modal').hidden = false;
+  const first = ac.querySelector('button'); if (first) first.focus();
+}
+function closeModal() { if (HAS_DOM) $('modal').hidden = true; }
+
+/* ----- 효과 ----- */
+const fxOK = () => HAS_DOM && !document.hidden;
+function floatText(text, cls, x, y) {
+  if (!fxOK()) return;
+  const box = $('fx');
+  if (box.childElementCount > 26) box.removeChild(box.firstChild);
+  const el = document.createElement('span');
+  el.className = 'dmg ' + cls; el.textContent = text;
+  el.style.left = x + '%'; el.style.top = y + '%';
+  box.appendChild(el);
+  const rise = REDUCED ? 0 : 46;
+  const a = el.animate([
+    { transform: 'translate(-50%,0) scale(.7)', opacity: 0 },
+    { transform: 'translate(-50%,-14px) scale(1.1)', opacity: 1, offset: .18 },
+    { transform: 'translate(-50%,-' + rise + 'px) scale(1)', opacity: 0 },
+  ], { duration: 850, easing: 'ease-out' });
+  a.onfinish = () => el.remove();
+}
+function projectile(emoji, from, to, dur) {
+  if (!fxOK() || REDUCED) return;
+  const box = $('fx');
+  const el = document.createElement('span');
+  el.className = 'proj'; el.textContent = emoji; el.style.top = '48%';
+  box.appendChild(el);
+  const a = el.animate([{ left: from + '%', opacity: 1 }, { left: to + '%', opacity: 1 }], { duration: dur, easing: 'ease-in' });
+  a.onfinish = () => el.remove();
+}
+function banner(text) {
+  if (!fxOK()) return;
+  const b = $('banner'); b.textContent = text;
+  b.animate([{ opacity: 0, transform: 'translateX(-50%) scale(.6)' }, { opacity: 1, transform: 'translateX(-50%) scale(1.1)', offset: .2 },
+    { opacity: 1, transform: 'translateX(-50%) scale(1)', offset: .75 }, { opacity: 0, transform: 'translateX(-50%) scale(1)' }], { duration: 1400 });
+}
+
+function uiHeroLunge() {
+  if (!fxOK() || REDUCED) return;
+  $('hero').animate([{ transform: 'translateX(0)' }, { transform: 'translateX(22%) rotate(5deg)' }, { transform: 'translateX(0)' }], { duration: 170 });
+}
+function uiHit(d, crit, opt) {
+  if (!HAS_DOM) return;
+  const m = RT.mob;
+  if (!opt.skill) sfx(crit ? 'crit' : 'hit');
+  $('mobFill').style.width = Math.max(0, m.hp / m.max * 100) + '%';
+  if (!fxOK()) return;
+  if (!opt.skill) { uiHeroLunge(); projectileByJob(); }
+  const off = (opt.idx || 0) * 6;
+  floatText(fmt(d) + (crit ? '!' : ''), crit ? 'crit' : (opt.skill ? 'skill' : ''), 80 + rnd(-5, 5) + off, 34 - off * 0.6);
+  if (!REDUCED) $('mobFace').animate([{ transform: 'translateX(0)' }, { transform: 'translateX(7px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }], { duration: 130 });
+}
+function projectileByJob() {
+  const j = S.job;
+  if (j === 'mage') projectile('✨', 22, 72, 200);
+  else if (j === 'archer') projectile('➶', 22, 72, 170);
+  else if (j === 'thief') projectile('🌟', 22, 72, 180);
+}
+function uiSkill(sk) {
+  sfx('skill');
+  if (!fxOK()) return;
+  floatText(sk.name, 'skill', 34, 20);
+  projectile(sk.e, 22, 74, 260);
+  if (!REDUCED) $('scene').animate([{ filter: 'brightness(1)' }, { filter: 'brightness(1.25)' }, { filter: 'brightness(1)' }], { duration: 220 });
+}
+function uiHurt(d) {
+  if (!HAS_DOM) return;
+  sfx('hurt');
+  $('hpFill').style.width = Math.max(0, RT.hp / P.maxHp * 100) + '%';
+  if (!fxOK()) return;
+  floatText('-' + fmt(d), 'hurt', 18, 30);
+  if (!REDUCED) $('heroSvg').animate([{ filter: 'brightness(1)' }, { filter: 'brightness(1.9) saturate(2)' }, { filter: 'brightness(1)' }], { duration: 200 });
+}
+function uiDown() {
+  if (!HAS_DOM) return;
+  sfx('down');
+  $('hero').classList.add('down');
+  $('mob').style.visibility = 'hidden';
+  banner('💤 쓰러졌어요…');
+}
+function uiMobSpawn(m) {
+  if (!HAS_DOM) return;
+  const el = $('mob');
+  el.classList.toggle('boss', m.boss);
+  if (m.boss) sfx('boss');
+  el.style.visibility = 'visible';
+  $('hero').classList.remove('down');
+  $('mobName').textContent = (m.boss ? '👑 ' : '') + m.name + '  Lv.' + m.stage;
+  const face = $('mobFace');
+  if (m.e === SLIME) face.innerHTML = SLIME_SVG; else face.textContent = m.e;
+  face.style.filter = m.f || '';
+  $('mobFill').style.width = '100%';
+  if (fxOK() && !REDUCED) el.animate([{ opacity: 0, transform: 'scale(.4) translateY(-16px)' }, { opacity: 1, transform: 'scale(1) translateY(0)' }], { duration: 220, easing: 'ease-out' });
+}
+function uiMobDie(mesos) {
+  if (!HAS_DOM) return;
+  sfx('coin');
+  const el = $('mob');
+  if (fxOK() && !REDUCED) {
+    floatText('+' + fmt(mesos) + ' 🪙', 'meso', 80, 46);
+    const a = el.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.4) translateY(-20px)' }], { duration: 240 });
+    a.onfinish = () => { if (!RT.mob) el.style.visibility = 'hidden'; };
+  } else el.style.visibility = 'hidden';
+}
+function uiMobGone() { if (HAS_DOM) { $('mob').style.visibility = 'hidden'; $('hero').classList.remove('down'); } }
+function uiLevelUp(n) {
+  sfx('level');
+  toast('레벨 업! Lv.' + S.lv + (n > 1 ? ' (+' + n + ')' : ''), 'good');
+  floatText('LEVEL UP!', 'lv', 22, 14);
+}
+
+/* ----- 용사 그리기 ----- */
+function heroSVG(job, tier) {
+  const pal = { novice: ['#7bc74d', '#5da83a'], warrior: ['#e0503a', '#b83a28'], mage: ['#7a5cf0', '#5a3fd0'], archer: ['#3fa35a', '#2c8045'], thief: ['#4a4a5a', '#33333f'] }[job];
+  const [c1, c2] = pal;
+  const hats = {
+    novice: '<path d="M40 14 Q36 3 27 5 Q31 12 40 14Z" fill="#5da83a"/><path d="M40 14 Q46 3 55 7 Q49 13 40 14Z" fill="#7ed957"/>',
+    warrior: '<path d="M17 33 Q17 5 40 5 Q63 5 63 33 L58 30 Q40 21 22 30Z" fill="#c9ced8" stroke="#8c93a3" stroke-width="2"/><rect x="37" y="-3" width="6" height="14" rx="3" fill="#e0503a"/>',
+    mage: '<path d="M11 30 Q40 20 69 30 Q64 36 40 32 Q16 36 11 30Z" fill="#5a3fd0"/><path d="M20 28 Q30 -8 54 -6 Q47 8 60 28 Q40 20 20 28Z" fill="#7a5cf0"/><circle cx="54" cy="-3" r="3.4" fill="#ffd54a"/>',
+    archer: '<path d="M17 30 Q19 8 40 8 Q61 8 63 30 Q40 21 17 30Z" fill="#3fa35a"/><path d="M56 15 Q70 -1 77 8 Q66 8 58 21Z" fill="#ffd54a"/>',
+    thief: '<path d="M17 32 Q18 8 40 8 Q62 8 63 32 Q40 22 17 32Z" fill="#33333f"/><path d="M60 26 L75 31 L64 36Z" fill="#33333f"/>',
+  };
+  const weapons = {
+    novice: '<line x1="58" y1="72" x2="69" y2="42" stroke="#8a5a34" stroke-width="4" stroke-linecap="round"/>',
+    warrior: '<path d="M56 68 L60 68 L62 28 L58 21 L54 28Z" fill="#dfe6f0" stroke="#8c93a3" stroke-width="1.5"/><rect x="51" y="66" width="14" height="4" rx="2" fill="#c9a23c"/>',
+    mage: '<line x1="61" y1="86" x2="61" y2="24" stroke="#8a5a34" stroke-width="4" stroke-linecap="round"/><circle cx="61" cy="19" r="7.5" fill="#a78bff" stroke="#fff" stroke-opacity=".7" stroke-width="2"/>',
+    archer: '<path d="M66 28 Q84 58 66 90" stroke="#8a5a34" stroke-width="4" fill="none" stroke-linecap="round"/><line x1="66" y1="28" x2="66" y2="90" stroke="#fff" stroke-width="1.5"/>',
+    thief: '<path d="M58 70 L62 70 L64 44 L60 37 L56 44Z" fill="#cfd6e2" stroke="#7a8296" stroke-width="1.5"/><rect x="53" y="68" width="14" height="4" rx="2" fill="#7a4a2b"/>',
+  };
+  let s = '<svg viewBox="0 0 84 98" xmlns="http://www.w3.org/2000/svg">';
+  if (tier >= 3) s += '<defs><radialGradient id="aura"><stop offset="0" stop-color="#ffe98a" stop-opacity=".9"/><stop offset="1" stop-color="#ffe98a" stop-opacity="0"/></radialGradient></defs><circle cx="40" cy="52" r="52" fill="url(#aura)"/>';
+  s += '<ellipse cx="40" cy="94" rx="21" ry="4" fill="rgba(0,0,0,.2)"/>';
+  if (tier >= 2) s += '<path d="M26 52 Q12 80 22 93 L58 93 Q68 80 54 52Z" fill="' + c2 + '" opacity=".95"/>';
+  s += '<rect x="30" y="70" width="8" height="18" rx="3" fill="' + c2 + '"/><rect x="42" y="70" width="8" height="18" rx="3" fill="' + c2 + '"/>';
+  s += '<ellipse cx="34" cy="90" rx="7" ry="4" fill="#5b3a29"/><ellipse cx="46" cy="90" rx="7" ry="4" fill="#5b3a29"/>';
+  s += '<rect x="26" y="50" width="28" height="26" rx="9" fill="' + c1 + '"/><rect x="26" y="64" width="28" height="5" fill="' + c2 + '"/>';
+  s += '<rect x="19" y="52" width="9" height="17" rx="4.5" fill="' + c1 + '"/><rect x="52" y="52" width="9" height="17" rx="4.5" fill="' + c1 + '"/>';
+  s += '<circle cx="23.5" cy="70" r="4.2" fill="#ffe0c2"/><circle cx="56.5" cy="70" r="4.2" fill="#ffe0c2"/>';
+  s += '<circle cx="40" cy="34" r="22" fill="#ffe0c2"/>';
+  s += '<path d="M18 33 Q20 9 40 11 Q60 9 62 33 Q52 21 40 23 Q28 21 18 33Z" fill="#7a4a2b"/>';
+  s += '<ellipse cx="32" cy="38" rx="2.6" ry="3.4" fill="#2b1d16"/><ellipse cx="48" cy="38" rx="2.6" ry="3.4" fill="#2b1d16"/>';
+  s += '<circle cx="33" cy="36.6" r="1" fill="#fff"/><circle cx="49" cy="36.6" r="1" fill="#fff"/>';
+  s += '<ellipse cx="26" cy="45" rx="4" ry="2.4" fill="#ff9aa8" opacity=".6"/><ellipse cx="54" cy="45" rx="4" ry="2.4" fill="#ff9aa8" opacity=".6"/>';
+  s += '<path d="M37 46 Q40 49.5 43 46" stroke="#b0533a" stroke-width="1.7" fill="none" stroke-linecap="round"/>';
+  s += hats[job] + weapons[job];
+  if (tier >= 4) s += '<text x="6" y="14" font-size="14">✨</text><text x="62" y="10" font-size="12">✨</text>';
+  return s + '</svg>';
+}
+function uiHeroDraw() {
+  if (!HAS_DOM) return;
+  const sig = (S.job || 'novice') + S.tier;
+  if (RT.heroSig === sig) return;
+  RT.heroSig = sig;
+  $('heroSvg').innerHTML = heroSVG(S.job || 'novice', S.tier);
+}
+
+/* ----- 훈련 목록 ----- */
+function buildUpgrades() {
+  const box = $('upgList'); box.innerHTML = '';
+  UPG.forEach(u => {
+    const row = document.createElement('div'); row.className = 'upg';
+    row.innerHTML = '<div class="uicon">' + u.e + '</div><div><div class="uname">' + u.name + '<span class="ulv"></span></div><div class="udesc"></div></div>' +
+      '<button class="buy" data-upg="' + u.id + '"><span class="bc"></span><small></small></button>';
+    box.appendChild(row);
+    u.el = { lv: row.querySelector('.ulv'), desc: row.querySelector('.udesc'), btn: row.querySelector('.buy'), bc: row.querySelector('.bc'), bn: row.querySelector('small') };
+  });
+}
+function updateUpgrades() {
+  UPG.forEach(u => {
+    const lv = S.upg[u.id], e = u.el, maxed = lv >= u.max;
+    e.lv.textContent = ' Lv.' + lv + (u.max === Infinity ? '' : '/' + u.max);
+    e.desc.textContent = u.eff(lv);
+    if (maxed) { e.bc.textContent = 'MAX'; e.bn.textContent = ''; e.btn.disabled = true; e.btn.className = 'buy no'; return; }
+    const pl = planBuy(u);
+    e.bc.textContent = '🪙 ' + fmt(pl.cost);
+    e.bn.textContent = '+' + pl.n + ' 레벨';
+    e.btn.disabled = !pl.afford;
+    e.btn.className = 'buy' + (pl.afford ? '' : ' no');
+  });
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', String(S.mode) === b.dataset.mode));
+}
+
+/* ----- 장비 ----- */
+function buildGear() {
+  const box = $('slotList'); box.innerHTML = '';
+  SLOTS.forEach(sl => {
+    const row = document.createElement('div'); row.className = 'slot';
+    row.innerHTML = '<div class="sicon"></div><div><div class="sname">' + sl.name + '</div><div class="sitem"></div></div><div class="sstat"></div>' +
+      '<div class="senhrow"><span class="senh"></span><button class="btn ghost senhbtn" type="button">강화</button></div>';
+    box.appendChild(row);
+    sl.el = { icon: row.querySelector('.sicon'), item: row.querySelector('.sitem'), stat: row.querySelector('.sstat'), enh: row.querySelector('.senh'), enhBtn: row.querySelector('.senhbtn') };
+    sl.el.enhBtn.onclick = () => {
+      if (enhanceGear(sl.id)) { sfx('buy'); updateUI(); }
+      else toast('강화석이나 골드가 부족해요', 'bad');
+    };
+  });
+}
+function updateGear() {
+  const J = JOBS[S.job || 'novice'];
+  $('stoneHint').textContent = '🔩 보유 강화석 ' + fmt(S.stones) + '개 · 장비를 강화하면 성능이 올라가요.';
+  SLOTS.forEach(sl => {
+    const it = S.gear[sl.id];
+    sl.el.icon.textContent = sl.id === 'weapon' ? J.we : sl.e;
+    if (!it) {
+      sl.el.item.textContent = '비어 있음'; sl.el.item.className = 'sitem empty'; sl.el.stat.textContent = '';
+      sl.el.enh.textContent = ''; sl.el.enhBtn.disabled = true; sl.el.enhBtn.textContent = '강화';
+      return;
+    }
+    const lvl = it.enh || 0;
+    sl.el.item.textContent = RARITY[it.r].n + ' ' + it.name + (lvl ? ' +' + lvl : '');
+    sl.el.item.className = 'sitem r' + it.r;
+    sl.el.stat.textContent = (sl.stat === 'atk' ? '공격력 +' : '체력 +') + fmt(itemPower(it) * sl.k);
+    if (lvl >= ENH_MAX) {
+      sl.el.enh.textContent = '🔩 강화 최대치';
+      sl.el.enhBtn.disabled = true; sl.el.enhBtn.textContent = 'MAX';
+    } else {
+      const cost = enhanceCost(it);
+      sl.el.enh.textContent = '🔩 ' + cost.stones + ' · 🪙 ' + fmt(cost.gold);
+      sl.el.enhBtn.disabled = S.stones < cost.stones || S.mesos < cost.gold;
+      sl.el.enhBtn.textContent = '강화 +' + (lvl + 1);
+    }
+  });
+  if (RT.logDirty) {
+    RT.logDirty = false;
+    $('dropLog').innerHTML = RT.log.length
+      ? RT.log.map(l => '<li><span class="r' + l.r + '">' + esc(RARITY[l.r].n + ' ' + l.name) + '</span><small>' + (l.mode === 'equip' ? '장착' : '판매 +' + fmt(l.gold) + ' 🪙') + '</small></li>').join('')
+      : '<li class="empty">아직 드랍이 없어요</li>';
+  }
+}
+
+/* ----- 램프 ----- */
+function lampResultHTML(res) {
+  const best = Math.max.apply(null, res.map(x => x.it.r));
+  const head = '<p class="big r' + best + '">' + (res.length > 1 ? '최고 등급: ' : '') + RARITY[best].n + '</p>';
+  const list = '<ul class="loglist">' + res.map(x =>
+    '<li><span class="r' + x.it.r + '">' + esc(RARITY[x.it.r].n + ' ' + x.it.name) + '</span><small>' +
+    (x.mode === 'equip' ? '장착' : '판매 +' + fmt(x.gold) + ' 🪙') + '</small></li>').join('') + '</ul>';
+  return head + list;
+}
+function uiOpenLamps(n) {
+  const res = openLamps(n);
+  if (!res) { toast('열 수 있는 상자가 없어요', 'bad'); return; }
+  const best = Math.max.apply(null, res.map(x => x.it.r));
+  updateUI();
+  sfx('lamp');
+  const show = () => {
+    const again = Math.min(n, S.lamps);
+    const acts = [{ label: '확인', cls: 'ghost' }];
+    if (again > 0) acts.push({ label: (again === 1 ? '1개' : again + '개') + ' 더 열기', fn: () => uiOpenLamps(again) });
+    modal('📦 상자 결과', lampResultHTML(res), acts);
+    sfx('item', best);
+  };
+  if (REDUCED) show();
+  else { modal('📦 상자를 여는 중…', '<div class="lampshake">📦</div>', []); setTimeout(show, 750); }
+}
+function updateLamp() {
+  const w = LAMP_W, tot = w.reduce((a, b) => a + b, 0);
+  const rows = [['보유 상자', S.lamps + '개'], ['지금까지 연 상자', fmt(S.lampOpened) + '개']];
+  $('lampStats').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('');
+  $('lamp1').disabled = S.lamps < 1;
+  $('lamp10').disabled = S.lamps < 1;
+  $('lamp10').textContent = S.lamps > 1 && S.lamps < 10 ? '전부 열기 (' + S.lamps + ')' : '10개 열기';
+  $('lampOdds').textContent = '확률: ' + RARITY.map((r, i) => r.n + ' ' + (w[i] / tot * 100).toFixed(1) + '%').join(' · ');
+  const lg = RT.lampLog || [];
+  $('lampLog').innerHTML = lg.length
+    ? lg.map(l => '<li><span class="r' + l.it.r + '">' + esc(RARITY[l.it.r].n + ' ' + l.it.name) + '</span><small>' + (l.mode === 'equip' ? '장착' : '판매 +' + fmt(l.gold) + ' 🪙') + '</small></li>').join('')
+    : '<li class="empty">아직 연 상자가 없어요</li>';
+}
+
+/* ----- 펫 ----- */
+const pct = x => (Math.round(x * 1000) / 10) + '%';
+function buildPets() {
+  const box = $('petList'); box.innerHTML = '';
+  PETS.forEach(p => {
+    const row = document.createElement('div'); row.className = 'upg';
+    row.innerHTML = '<div class="uicon">' + p.e + '</div>' +
+      '<div><div class="uname">' + p.name + '<span class="ulv"></span></div><div class="udesc"></div>' +
+      '<button class="petpick" type="button" data-pick="' + p.id + '">동행하기</button></div>' +
+      '<button class="buy" data-pet="' + p.id + '"><span class="bc"></span><small></small></button>';
+    box.appendChild(row);
+    p.el = { row, lv: row.querySelector('.ulv'), desc: row.querySelector('.udesc'), pick: row.querySelector('.petpick'),
+      btn: row.querySelector('.buy'), bc: row.querySelector('.bc'), bn: row.querySelector('small') };
+  });
+}
+function updatePets() {
+  PETS.forEach(p => {
+    const lv = S.pets[p.id] || 0, e = p.el, open = petUnlocked(p), maxed = lv >= p.max, mine = S.pet === p.id;
+    e.row.classList.toggle('locked', !open && lv === 0);
+    e.lv.textContent = lv > 0 ? ' Lv.' + lv + '/' + p.max : '';
+    if (lv > 0) e.desc.textContent = p.txt + ' +' + pct(lv * p.per * (mine ? COMPANION_X : 1)) + ' (Lv당 +' + pct(p.per) + ')';
+    else if (open) e.desc.textContent = p.txt + ' Lv당 +' + pct(p.per);
+    else e.desc.textContent = '스테이지 ' + p.need + '에 도달하면 만날 수 있어요';
+    e.pick.hidden = lv === 0;
+    e.pick.classList.toggle('on', mine);
+    e.pick.textContent = mine ? '✅ 동행 중' : '동행하기';
+    if (!open && lv === 0) { e.bc.textContent = '🔒'; e.bn.textContent = '스테이지 ' + p.need; e.btn.disabled = true; e.btn.className = 'buy no'; return; }
+    if (maxed) { e.bc.textContent = 'MAX'; e.bn.textContent = ''; e.btn.disabled = true; e.btn.className = 'buy no'; return; }
+    const c = petCost(p, lv), can = S.mesos >= c;
+    e.bc.textContent = '🪙 ' + fmt(c);
+    e.bn.textContent = lv === 0 ? '입양하기' : '+1 레벨';
+    e.btn.disabled = !can;
+    e.btn.className = 'buy' + (can ? '' : ' no');
+  });
+}
+function uiPet() {
+  if (!HAS_DOM) return;
+  const f = $('petFollow'); if (!f) return;
+  const p = PETS.find(x => x.id === S.pet && (S.pets[x.id] || 0) > 0);
+  const sig = p ? p.id : '';
+  if (RT.petSig === sig) return;
+  RT.petSig = sig;
+  f.hidden = !p; f.textContent = p ? p.e : '';
+}
+/* ----- 전직 ----- */
+function skillText(J, tier) {
+  const sk = J.skill;
+  return sk.name + ' · ' + sk.cd + '초마다 · 공격력의 ' + Math.round(sk.mult * (1 + 0.25 * tier) * 100) + '% × ' + sk.hits + '회' + (sk.crit ? ' (필중 치명타)' : '');
+}
+function statText(J, tier) {
+  const p = ['공격 ×' + (J.atk * TIER_ATK[tier]).toFixed(2), '체력 ×' + (J.hp * TIER_HP[tier]).toFixed(2)];
+  if (J.spd !== 1) p.push('공속 ×' + J.spd);
+  if (J.crit) p.push('치명타 +' + Math.round(J.crit * 100) + '%');
+  if (J.cdmg) p.push('치명피해 +' + Math.round(J.cdmg * 100) + '%');
+  return p.join(' · ');
+}
+function renderJob() {
+  const can = canAdvance();
+  const sig = (S.job || '') + '|' + S.tier + '|' + can + '|' + jobChangeCost();
+  if (RT.jobSig === sig) return;
+  RT.jobSig = sig;
+  const J = JOBS[S.job || 'novice'];
+  let h = '<div class="jobcard"><div class="jbig">' + J.icon + '</div><div><h3>' + jobLabel() + '</h3><p>' + statText(J, S.tier) + '</p></div></div>';
+  h += '<div class="skillbox"><div class="sicon">' + J.skill.e + '</div><div><b>자동 스킬</b><p>' + skillText(J, S.tier) + '</p></div></div>';
+  if (S.job) {
+    h += '<div class="path">' + ['초보자'].concat(J.names).map((n, i) => '<span class="' + (i < S.tier ? 'done' : i === S.tier ? 'on' : '') + '">' + n + '</span>').join('') + '</div>';
+  } else {
+    h += '<p class="hint">Lv.10이 되면 네 가지 직업 중 하나를 고를 수 있어요.</p><div class="jobgrid">' +
+      ['warrior', 'mage', 'archer', 'thief'].map(id => { const j = JOBS[id]; return '<div class="jobcard" style="flex-direction:column;align-items:flex-start;gap:2px"><b>' + j.icon + ' ' + j.names[0] + '</b><p>' + j.blurb + '</p></div>'; }).join('') + '</div>';
+  }
+  if (S.tier < 4) {
+    const nxt = S.tier === 0 ? '1차 전직 (직업 선택)' : J.names[S.tier];
+    h += '<p class="hint">다음 전직: <b>Lv.' + ADV_LV[S.tier] + '</b> · ' + nxt + '</p>';
+    h += '<button class="btn" data-adv="1"' + (can ? '' : ' disabled') + '>' + (can ? '전직하기' : 'Lv.' + ADV_LV[S.tier] + ' 필요') + '</button>';
+  } else h += '<p class="hint">최종 전직을 마쳤어요. 🎉</p>';
+  if (S.tier >= 1) h += '<button class="btn ghost" data-chjob="1">🔄 직업 바꾸기 (🪙 ' + fmt(jobChangeCost()) + ')</button>';
+  $('jobBox').innerHTML = h;
+}
+function openJobChange() {
+  const cards = ['warrior', 'mage', 'archer', 'thief'].filter(id => id !== S.job).map(id => {
+    const J = JOBS[id];
+    return '<button class="jobpick" data-chg="' + id + '"><span class="jbig">' + J.icon + '</span><b>' + J.names[S.tier - 1] + '</b><small>' + J.blurb + '</small><em>' + statText(J, S.tier) + '</em></button>';
+  }).join('');
+  modal('직업 바꾸기', '<p>지금의 전직 단계(' + jobLabel() + ')를 유지한 채 다른 직업으로 바뀌어요.</p><div class="jobgrid">' + cards + '</div><p class="hint" style="margin-top:8px">비용: 🪙 ' + fmt(jobChangeCost()) + '</p>', [{ label: '취소', cls: 'ghost' }]);
+}
+function openJobPick() {
+  const cards = ['warrior', 'mage', 'archer', 'thief'].map(id => {
+    const J = JOBS[id];
+    return '<button class="jobpick" data-job="' + id + '"><span class="jbig">' + J.icon + '</span><b>' + J.names[0] + '</b><small>' + J.blurb + '</small><em>' + statText(J, 1) + '</em></button>';
+  }).join('');
+  modal('1차 전직 — 직업을 골라요', '<div class="jobgrid">' + cards + '</div><p class="hint" style="margin-top:8px">직업은 나중에 골드를 내고 바꿀 수 있어요.</p>', [{ label: '나중에', cls: 'ghost' }]);
+}
+
+/* ----- 기록 ----- */
+function renderInfo() {
+  const st = S.stats;
+  const rows = [['플레이 시간', fmtTime(st.playSec)], ['처치한 몬스터', fmt(st.kills) + '마리'], ['처치한 보스', fmt(st.bosses) + '마리'],
+    ['얻은 장비', fmt(st.items) + '개'], ['레전더리 장비', st.legend + '개'], ['최고 한 방 피해', fmt(st.maxHit)],
+    ['누적 골드', fmt(st.mesosTotal)], ['연 상자', fmt(S.lampOpened) + '개'], ['역대 최고 스테이지', st.bestEver], ['연속 출석', S.dailyStreak + '일']];
+  $('statList').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('');
+  const n = achCount();
+  $('achHint').textContent = '🏆 ' + n + ' / ' + ACH.length + ' 달성 · 공격력·골드·경험치 +' + n + '% · 달성마다 📦 상자 +2';
+  $('achList').innerHTML = ACH.map(a => {
+    const on = !!S.ach[a.id];
+    return '<li class="ach' + (on ? ' on' : '') + '"><span>' + (on ? '🏆 ' : '🔒 ') + esc(a.name) + '</span><small>' + esc(a.desc) + '</small></li>';
+  }).join('');
+}
+
+/* ----- 공통 갱신 ----- */
+let curTab = 'train';
+function setTab(t) {
+  curTab = t;
+  document.querySelectorAll('.tab').forEach(b => { const on = b.dataset.tab === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  document.querySelectorAll('.pane').forEach(p => { p.hidden = p.id !== 'pane-' + t; });
+  RT.jobSig = '';
+  uiPane();
+}
+function uiPane() {
+  if (!HAS_DOM) return;
+  if (curTab === 'train') updateUpgrades();
+  else if (curTab === 'gear') updateGear();
+  else if (curTab === 'lamp') updateLamp();
+  else if (curTab === 'pet') updatePets();
+  else if (curTab === 'job') renderJob();
+  else if (curTab === 'rank') renderRank();
+  else if (curTab === 'info') renderInfo();
+}
+function uiSyncAuto() { if (HAS_DOM) $('autoAdv').checked = S.auto; }
+function uiStage() {
+  const s = S.stage, boss = s % 10 === 0, need = stageNeed(s);
+  $('stageName').textContent = '스테이지 ' + s + (boss ? ' · 보스' : '');
+  $('zoneName').textContent = zoneTitle(s);
+  $('zoneTag').textContent = zoneTitle(s);
+  $('killFill').style.width = Math.min(100, S.kills / need * 100) + '%';
+  $('killText').textContent = boss ? '보스 처치' : S.kills + ' / ' + need;
+  $('killBar').classList.toggle('boss', boss);
+  $('prevStage').disabled = s <= 1;
+  $('nextStage').disabled = s >= S.best;
+  $('bestText').textContent = '최고 스테이지 ' + S.best;
+  const key = zoneIdx(s);
+  if (RT.zoneKey !== key) {
+    RT.zoneKey = key;
+    const c = ZONES[key].c, sc = $('scene');
+    ['--sky1', '--sky2', '--hill1', '--hill2', '--ground', '--top'].forEach((v, i) => sc.style.setProperty(v, c[i]));
+  }
+  const bt = $('bossTimer');
+  if (RT.mob && RT.mob.boss) { bt.hidden = false; bt.textContent = '⏱ ' + Math.max(0, Math.ceil(RT.bossT)) + '초'; } else bt.hidden = true;
+}
+function uiHud() {
+  $('lvBadge').textContent = 'Lv.' + S.lv;
+  $('jobName').textContent = jobLabel();
+  $('mesos').textContent = fmt(S.mesos);
+  const sl = $('souls');
+  if (S.souls > 0) { sl.hidden = false; sl.textContent = '🌟 ' + S.souls; } else sl.hidden = true;
+  const need = expNeed(S.lv);
+  $('expFill').style.width = Math.min(100, S.exp / need * 100) + '%';
+  $('expText').textContent = fmt(S.exp) + ' / ' + fmt(need);
+  $('dps').textContent = fmt(P.dps);
+  $('cAtk').textContent = fmt(P.atk);
+  $('cSpd').textContent = P.aps.toFixed(2) + '/초';
+  $('cCrit').textContent = Math.round(P.crit * 100) + '%';
+  $('cHp').textContent = fmt(P.maxHp);
+  $('hpFill').style.width = Math.max(0, RT.hp / P.maxHp * 100) + '%';
+  const can = canAdvance();
+  $('advDot').hidden = !can;
+  const ld = $('lampDot'); if (ld) ld.hidden = S.lamps < 1;
+  if (can && !RT.advSeen) { RT.advSeen = true; toast('⚔️ 전직할 수 있어요! 전직 탭을 확인하세요.', 'gold'); }
+}
+function updateUI() {
+  if (!HAS_DOM) return;
+  if (!P) recalc();
+  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI();
+}
+function uiAll(force) {
+  if (!HAS_DOM) return;
+  if (force) { RT.heroSig = ''; RT.zoneKey = -1; RT.jobSig = ''; RT.petSig = '~'; }
+  uiSyncAuto(); uiMobGone(); updateUI();
+}
+
+/* =====================================================
+   효과음 (Web Audio로 직접 합성 · 외부 파일 없음)
+   ===================================================== */
+const SND = { ctx: null, bus: null, master: null, noiseBuf: null, on: true, vol: 0.6, last: {} };
+const SND_KEY = 'infinite-hunt-snd';
+function sndLoad() {
+  try {
+    const d = JSON.parse(localStorage.getItem(SND_KEY) || 'null');
+    if (d) { SND.on = d.on !== false; if (typeof d.vol === 'number') SND.vol = Math.min(1, Math.max(0, d.vol)); }
+  } catch (e) { /* 저장값 없음 */ }
+}
+function sndSave() { try { localStorage.setItem(SND_KEY, JSON.stringify({ on: SND.on, vol: SND.vol })); } catch (e) { /* 무시 */ } }
+function sndInit() {
+  if (!HAS_DOM || SND.ctx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    const c = new AC();
+    const comp = c.createDynamicsCompressor();
+    const master = c.createGain();
+    master.gain.value = SND.vol * 0.6;
+    master.connect(comp); comp.connect(c.destination);
+    const buf = c.createBuffer(1, c.sampleRate, c.sampleRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+    SND.ctx = c; SND.master = master; SND.bus = master; SND.noiseBuf = buf;
+  } catch (e) { SND.ctx = null; }
+}
+function unlockAudio() {
+  if (!SND.on) return;
+  sndInit();
+  if (!SND.ctx) return;
+  if (SND.ctx.state !== 'running') SND.ctx.resume().then(sndUI).catch(() => {});
+  // 모바일 브라우저(특히 인앱 브라우저)는 resume()만으로는 완전히 깨어나지 않는 경우가 있어
+  // 제스처 안에서 무음 버퍼를 한 번 재생해 오디오 파이프라인을 확실히 깨운다.
+  try {
+    const c = SND.ctx, src = c.createBufferSource();
+    src.buffer = c.createBuffer(1, 1, c.sampleRate);
+    src.connect(c.destination);
+    src.start(0);
+  } catch (e) { /* 무시 */ }
+}
+function tone(f, dur, o) {
+  o = o || {};
+  const c = SND.ctx, t0 = c.currentTime + (o.delay || 0), v = o.vol == null ? 0.2 : o.vol;
+  const osc = c.createOscillator(), g = c.createGain();
+  osc.type = o.type || 'square';
+  osc.frequency.setValueAtTime(f, t0);
+  if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(v, t0 + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g); g.connect(SND.bus);
+  osc.start(t0); osc.stop(t0 + dur + 0.03);
+}
+function noise(dur, o) {
+  o = o || {};
+  const c = SND.ctx, t0 = c.currentTime + (o.delay || 0), v = o.vol == null ? 0.2 : o.vol;
+  const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+  src.buffer = SND.noiseBuf;
+  f.type = o.type || 'bandpass'; f.Q.value = o.q || 0.8;
+  f.frequency.setValueAtTime(o.f || 1500, t0);
+  if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(v, t0 + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f); f.connect(g); g.connect(SND.bus);
+  src.start(t0, Math.random() * 0.5); src.stop(t0 + dur + 0.03);
+}
+const SFX = {
+  hit() {
+    const j = S.job;
+    if (j === 'mage') { tone(880 * rnd(0.95, 1.05), 0.09, { type: 'sine', to: 1320, vol: 0.16 }); noise(0.05, { f: 3000, vol: 0.06 }); }
+    else if (j === 'archer') { tone(420, 0.07, { type: 'sawtooth', to: 180, vol: 0.11 }); noise(0.05, { type: 'highpass', f: 4000, vol: 0.1 }); }
+    else if (j === 'thief') { noise(0.05, { type: 'highpass', f: 5000, vol: 0.14 }); tone(1100, 0.04, { type: 'triangle', to: 700, vol: 0.1 }); }
+    else { noise(0.07, { f: 1400 * rnd(0.9, 1.1), vol: 0.18 }); tone(200 * rnd(0.9, 1.1), 0.08, { type: 'square', to: 90, vol: 0.13 }); }
+  },
+  crit() {
+    noise(0.09, { f: 2500, vol: 0.2 });
+    tone(150, 0.1, { type: 'square', to: 70, vol: 0.18 });
+    tone(1500, 0.09, { type: 'square', to: 2400, vol: 0.11 });
+    tone(2000, 0.12, { type: 'square', delay: 0.05, vol: 0.09 });
+  },
+  skill() {
+    noise(0.28, { f: 300, to: 4200, q: 1.2, vol: 0.22 });
+    tone(500, 0.22, { type: 'sine', to: 1100, vol: 0.18 });
+    tone(1320, 0.18, { type: 'triangle', delay: 0.14, vol: 0.12 });
+  },
+  coin() {
+    tone(320, 0.1, { type: 'triangle', to: 90, vol: 0.13 });
+    tone(1318, 0.06, { type: 'square', delay: 0.05, vol: 0.08 });
+    tone(1760, 0.14, { type: 'square', delay: 0.11, vol: 0.08 });
+  },
+  hurt() {
+    tone(160, 0.14, { type: 'sawtooth', to: 55, vol: 0.2 });
+    noise(0.08, { f: 600, vol: 0.14 });
+  },
+  down() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.2, { type: 'triangle', delay: i * 0.16, vol: 0.18 })); },
+  boss() {
+    tone(110, 0.55, { type: 'sawtooth', to: 52, vol: 0.2 });
+    tone(82, 0.6, { type: 'square', to: 41, vol: 0.1, delay: 0.05 });
+    noise(0.5, { type: 'lowpass', f: 500, to: 120, vol: 0.25 });
+  },
+  level() {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.12, { type: 'square', delay: i * 0.08, vol: 0.12 }));
+    tone(1319, 0.28, { type: 'triangle', delay: 0.34, vol: 0.14 });
+  },
+  item(r) {
+    if (r >= 4) SFX.fanfare();
+    else if (r >= 2) [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.12, { type: 'triangle', delay: i * 0.06, vol: 0.13 }));
+    else tone(880, 0.08, { type: 'sine', vol: 0.12 });
+  },
+  lamp() {
+    [523, 659, 784, 988, 1319].forEach((f, i) => tone(f, 0.1, { type: 'triangle', delay: i * 0.07, vol: 0.1 }));
+    noise(0.35, { type: 'highpass', f: 5000, vol: 0.05 });
+  },
+  buy() { tone(660, 0.05, { type: 'square', vol: 0.09 }); tone(990, 0.09, { type: 'square', delay: 0.05, vol: 0.09 }); },
+  tick() { tone(520, 0.035, { type: 'triangle', vol: 0.08 }); },
+  clear() { tone(660, 0.08, { type: 'sine', vol: 0.14 }); tone(880, 0.14, { type: 'sine', delay: 0.08, vol: 0.14 }); },
+  bossclear() {
+    [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.16, { type: 'square', delay: i * 0.09, vol: 0.12 }));
+    noise(0.3, { type: 'highpass', f: 5000, delay: 0.4, vol: 0.08 });
+  },
+  fail() {
+    tone(220, 0.25, { type: 'sawtooth', to: 110, vol: 0.15 });
+    tone(165, 0.3, { type: 'sawtooth', to: 82, vol: 0.15, delay: 0.15 });
+  },
+  fanfare() {
+    [523, 523, 523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i > 6 ? 0.45 : 0.12, { type: 'square', delay: i * 0.11, vol: 0.12 }));
+    tone(262, 0.95, { type: 'triangle', vol: 0.14 });
+  },
+};
+const SFX_GAP = { hit: 70, crit: 90, coin: 90, hurt: 120, tick: 40, buy: 30, item: 100, skill: 120 };
+function sfx(name, arg) {
+  if (!HAS_DOM || !SND.on || !SND.ctx || document.hidden) return;
+  if (SND.ctx.state !== 'running') { SND.ctx.resume().catch(() => {}); return; }
+  const now = performance.now(), gap = SFX_GAP[name] || 0;
+  if (gap && now - (SND.last[name] || 0) < gap) return;
+  SND.last[name] = now;
+  try { SFX[name](arg); } catch (e) { /* 소리 실패는 무시 */ }
+}
+function sndUI() {
+  if (!HAS_DOM) return;
+  const b = $('sndBtn'); if (!b) return;
+  b.textContent = SND.on ? '🔊' : '🔇';
+  b.setAttribute('aria-pressed', String(SND.on));
+  b.title = SND.on ? '효과음 끄기' : '효과음 켜기';
+  b.classList.toggle('pending', SND.on && !(SND.ctx && SND.ctx.state === 'running'));
+  const v = $('vol'); if (v && document.activeElement !== v) v.value = Math.round(SND.vol * 100);
+}
+
+/* ---------- 초기화 · 입력 ---------- */
+function initDom() {
+  buildUpgrades(); buildGear(); buildPets();
+  $('tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) { sfx('tick'); setTab(b.dataset.tab); } });
+  $('upgList').addEventListener('click', e => {
+    const b = e.target.closest('[data-upg]'); if (!b) return;
+    if (buy(b.dataset.upg)) { sfx('buy'); updateUI(); }
+  });
+  $('petList').addEventListener('click', e => {
+    const pk = e.target.closest('[data-pick]');
+    if (pk) { if (setPet(pk.dataset.pick)) { sfx('tick'); updateUI(); } return; }
+    const b = e.target.closest('[data-pet]'); if (!b) return;
+    if (buyPet(b.dataset.pet)) { sfx('buy'); updateUI(); }
+  });
+  $('lamp1').onclick = () => uiOpenLamps(1);
+  $('lamp10').onclick = () => uiOpenLamps(10);
+  $('modeSeg').addEventListener('click', e => {
+    const b = e.target.closest('[data-mode]'); if (!b) return;
+    S.mode = b.dataset.mode === 'max' ? 'max' : Number(b.dataset.mode); updateUpgrades();
+  });
+  $('jobBox').addEventListener('click', e => {
+    if (e.target.closest('[data-chjob]')) { openJobChange(); return; }
+    if (!e.target.closest('[data-adv]')) return;
+    if (S.tier === 0) openJobPick(); else advance();
+  });
+  $('mbody').addEventListener('click', e => {
+    const c = e.target.closest('[data-chg]');
+    if (c) { closeModal(); if (!changeJob(c.dataset.chg)) toast('골드가 부족해요', 'bad'); return; }
+    const b = e.target.closest('[data-job]'); if (!b) return;
+    closeModal(); advance(b.dataset.job);
+  });
+  const goStage = d => { S.stage += d; S.kills = 0; RT.mob = null; RT.deadT = 0; RT.spawnT = 0.25; uiMobGone(); updateUI(); };
+  $('prevStage').onclick = () => { if (S.stage > 1) goStage(-1); };
+  $('nextStage').onclick = () => { if (S.stage < S.best) goStage(1); };
+  $('autoAdv').onchange = e => { S.auto = e.target.checked; };
+  $('saveBtn').onclick = () => { save(); toast('저장했어요', 'good'); };
+  $('resetBtn').onclick = () => modal('처음부터 다시 할까요?', '<p>저장된 진행 상황이 모두 지워져요. 되돌릴 수 없어요.</p>',
+    [{ label: '취소', cls: 'ghost' }, { label: '모두 지우기', cls: 'danger', fn: () => {
+      try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 무시 */ }
+      S = defaultState(); resetRuntime(); recalc(); RT.hp = P.maxHp; uiAll(true); toast('새로 시작해요!', 'good');
+    } }]);
+  $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
+  $('sndBtn').onclick = () => {
+    SND.on = !SND.on; sndSave();
+    if (SND.on) { unlockAudio(); setTimeout(() => sfx('tick'), 40); }
+    sndUI();
+  };
+  $('vol').addEventListener('input', e => {
+    SND.vol = Number(e.target.value) / 100;
+    if (SND.master) SND.master.gain.value = SND.vol * 0.6;
+    sndSave();
+  });
+  $('vol').addEventListener('change', () => sfx('buy'));
+  document.addEventListener('pointerdown', unlockAudio, true);
+  document.addEventListener('touchend', unlockAudio, true);
+  document.addEventListener('mousedown', unlockAudio, true);
+  document.addEventListener('keydown', unlockAudio, true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) save();
+    else if (SND.on && SND.ctx && SND.ctx.state !== 'running') SND.ctx.resume().then(sndUI).catch(() => {});
+  });
+  window.addEventListener('pagehide', save);
+  initOnlineDom();
+}
+
+/* =====================================================
+   온라인 · 랭킹 (Supabase 익명 로그인)
+   SB_URL / SB_KEY 를 채우면 켜지고, 비워두면 지금처럼 완전 오프라인이에요.
+   ===================================================== */
+const SB_URL = 'https://ixvlyzieraxeiwhnvxix.supabase.co';
+const SB_KEY = 'sb_publishable_p8AINbIFNKoDbavsmiuj5w_v1JIykdV';   // publishable key (공개돼도 되는 키)
+const NICK_KEY = 'infinite-hunt-nick';
+const ON = { sb: null, ready: false, nick: '', err: '', busy: false, sentSig: '', sentAt: 0,
+  by: 'stage', board: null, tryKey: '', tryAt: 0, loading: false, ver: 0, paintSig: '' };
+const onlineOn = () => !!(SB_URL && SB_KEY);
+
+async function onlineInit() {
+  if (!HAS_DOM || !onlineOn() || ON.sb) return;
+  if (!window.supabase) { ON.err = '서버 라이브러리를 불러오지 못했어요'; ON.ver++; return; }
+  try {
+    try { ON.nick = localStorage.getItem(NICK_KEY) || ''; } catch (e) { /* 무시 */ }
+    ON.sb = window.supabase.createClient(SB_URL, SB_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, storageKey: 'infinite-hunt-auth' },
+    });
+    const cur = await ON.sb.auth.getSession();
+    if (!cur.data || !cur.data.session) {
+      const r = await ON.sb.auth.signInAnonymously();
+      if (r.error) throw r.error;
+    }
+    ON.ready = true; ON.err = '';
+  } catch (e) {
+    console.warn('[online] init 실패', e);
+    ON.sb = null; ON.err = '서버에 연결하지 못했어요';
+  }
+  ON.ver++;
+}
+
+function rankPayload(nick) {
+  return {
+    p_nickname: nick || '', p_stage: Math.floor(S.stats.bestEver), p_level: Math.floor(S.lv),
+    p_kills: Math.floor(S.stats.kills), p_job: S.job || 'novice', p_tier: S.tier,
+  };
+}
+function rankErrText(e) {
+  const m = String((e && e.message) || e || '');
+  if (m.includes('nick_taken')) return '이미 쓰고 있는 닉네임이에요';
+  if (m.includes('nick_invalid')) return '닉네임은 2~10자, 한글·영문·숫자·_ 만 쓸 수 있어요';
+  if (m.includes('nick_cooldown')) return '닉네임은 하루에 한 번만 바꿀 수 있어요';
+  return '처리하지 못했어요. 잠시 뒤에 다시 해 주세요';
+}
+
+/* 내 기록 올리기 — 값이 바뀌었을 때만, 30초 간격 이상으로 */
+async function rankSend(force) {
+  if (!ON.ready || !ON.nick || ON.busy) return;
+  const sig = [S.stats.bestEver, S.lv, S.job, S.tier].join('|');
+  const now = Date.now();
+  if (!force) {
+    if (now - ON.sentAt < 30000) return;
+    if (sig === ON.sentSig && now - ON.sentAt < 600000) return;
+  }
+  ON.busy = true;
+  try {
+    const r = await ON.sb.rpc('rank_submit', rankPayload(''));
+    if (!r.error) { ON.sentSig = sig; ON.sentAt = now; }
+    else if (String(r.error.message || '').includes('nick_invalid')) { ON.nick = ''; try { localStorage.removeItem(NICK_KEY); } catch (e) { /* 무시 */ } ON.ver++; }
+  } catch (e) { /* 다음 주기에 재시도 */ }
+  ON.busy = false;
+}
+
+async function rankRegister(nick) {
+  nick = String(nick || '').trim();
+  if (!/^[가-힣a-zA-Z0-9_]{2,10}$/.test(nick)) { openNickModal(nick, rankErrText('nick_invalid')); return; }
+  if (!ON.ready) { toast(ON.err || '서버에 연결 중이에요', 'bad'); return; }
+  if (ON.busy) return;
+  ON.busy = true;
+  let err = null;
+  try { const r = await ON.sb.rpc('rank_submit', Object.assign(rankPayload(), { p_nickname: nick })); err = r.error; }
+  catch (e) { err = e; }
+  ON.busy = false;
+  if (err) { openNickModal(nick, rankErrText(err)); return; }
+  ON.nick = nick; ON.sentSig = ''; ON.sentAt = Date.now();
+  try { localStorage.setItem(NICK_KEY, nick); } catch (e) { /* 무시 */ }
+  ON.ver++; toast('닉네임을 저장했어요', 'good');
+  rankLoad(true);
+}
+
+async function rankLoad(force) {
+  if (!ON.ready || ON.loading) return;
+  const by = ON.by;
+  if (!force && ON.tryKey === by && Date.now() - ON.tryAt < 15000) return;
+  ON.loading = true; ON.tryKey = by; ON.tryAt = Date.now();
+  try {
+    const r = await ON.sb.rpc('rank_top', { p_by: by, p_limit: 50 });
+    if (r.error) throw r.error;
+    ON.board = { by, rows: r.data || [] }; ON.err = '';
+  } catch (e) { ON.err = '랭킹을 불러오지 못했어요'; }
+  ON.loading = false; ON.ver++;
+  if (ON.by !== by) rankLoad(true);
+}
+
+function openNickModal(pre, msg) {
+  modal(ON.nick ? '닉네임 변경' : '닉네임 정하기',
+    (msg ? '<p style="color:var(--bad)">' + esc(msg) + '</p>' : '') +
+    '<input class="nickin" id="nickIn" maxlength="10" autocomplete="off" placeholder="닉네임" value="' + esc(pre || ON.nick) + '">' +
+    '<p class="hint" style="margin-top:6px">2~10자 · 한글, 영문, 숫자, _ 만 쓸 수 있어요.' + (ON.nick ? ' 하루에 한 번만 바꿀 수 있어요.' : '') + '</p>',
+    [{ label: '취소', cls: 'ghost' }, { label: ON.nick ? '바꾸기' : '등록', fn: () => rankRegister($('nickIn').value) }]);
+  setTimeout(() => { const i = $('nickIn'); if (i) i.focus(); }, 30);
+}
+
+/* 0.2초마다 불리므로, 바뀐 게 있을 때만 다시 그림 */
+function renderRank() {
+  if (!HAS_DOM || !onlineOn()) return;
+  rankLoad(false);
+  const sig = [ON.ver, ON.nick, ON.by, ON.ready ? 1 : 0].join('|');
+  if (sig === ON.paintSig) return;
+  ON.paintSig = sig;
+  document.querySelectorAll('#rankSeg button').forEach(b => b.classList.toggle('on', b.dataset.by === ON.by));
+  $('rankMe').innerHTML = ON.nick
+    ? '<span>내 닉네임 <b>' + esc(ON.nick) + '</b></span><button class="btn ghost" type="button" data-nick>변경</button>'
+    : '<span>닉네임을 정하면 랭킹에 올라가요</span><button class="btn" type="button" data-nick>닉네임 정하기</button>';
+  const L = $('rankList');
+  const b = ON.board && ON.board.by === ON.by ? ON.board : null;
+  if (!b) { L.innerHTML = '<li class="empty">' + esc(ON.err || (ON.ready ? '불러오는 중이에요…' : '서버에 연결하는 중이에요…')) + '</li>'; return; }
+  if (!b.rows.length) { L.innerHTML = '<li class="empty">아직 아무도 없어요. 첫 번째가 되어 보세요!</li>'; return; }
+  let html = '', prev = 0;
+  b.rows.forEach(r => {
+    const rk = Number(r.rk), lv = Number(r.level), st = Number(r.best_stage);
+    if (prev && rk - prev > 1) html += '<li class="gap">⋮</li>';
+    prev = rk;
+    const medal = rk === 1 ? '🥇' : rk === 2 ? '🥈' : rk === 3 ? '🥉' : rk + '위';
+    const J = JOBS[r.job] || JOBS.novice;
+    const jn = J.names[Math.min(Math.max(Number(r.tier) || 1, 1), J.names.length) - 1];
+    const stat = ON.by === 'level' ? 'Lv.' + lv + ' · 스테이지 ' + st : '스테이지 ' + st + ' · Lv.' + lv;
+    html += '<li' + (r.is_me ? ' class="me"' : '') + '><span><span class="rk">' + medal + '</span>' + esc(r.nickname) + ' <small>' + esc(jn) + '</small></span><small>' + stat + '</small></li>';
+  });
+  L.innerHTML = html;
+}
+
+function initOnlineDom() {
+  if (!onlineOn()) return;
+  $('tabRank').hidden = false;
+  $('rankMe').addEventListener('click', e => { if (e.target.closest('[data-nick]')) openNickModal('', ''); });
+  $('rankSeg').addEventListener('click', e => {
+    const b = e.target.closest('[data-by]'); if (!b || b.dataset.by === ON.by) return;
+    ON.by = b.dataset.by; ON.ver++; rankLoad(true); renderRank();
+  });
+  window.addEventListener('load', onlineInit);
+}
+
+function boot() {
+  const loaded = loadSave();
+  sndLoad();
+  recalc(); RT.hp = P.maxHp;
+  initDom();
+  uiAll(true);
+  if (loaded) { const n = checkAch(true); if (n > 0) setTimeout(() => toast('🏆 지금까지의 기록으로 업적 ' + n + '개를 달성했어요!', 'gold'), 600); }
+  setTimeout(() => { if (SND.on && !(SND.ctx && SND.ctx.state === 'running')) toast('🔊 화면을 한 번 누르면 효과음이 켜져요'); }, 1800);
+  if (loaded) {
+    const gone = (Date.now() - S.last) / 1000;
+    if (gone >= 60) { const r = awayProgress(gone); showAway(r); }
+    else setTimeout(checkDaily, 700);
+  } else {
+    setTimeout(checkDaily, 700);
+  }
+  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0;
+  setInterval(() => {
+    const now = Date.now();
+    let dt = Math.max(0, (now - lastT) / 1000); lastT = now;
+    if (dt > 5) {
+      const r = awayProgress(dt);
+      if (dt >= 60) showAway(r); else toast('잠시 멈춘 사이 ' + fmt(r.kills) + '마리를 처치했어요', 'good');
+    } else {
+      S.stats.playSec += dt;
+      let rem = dt;
+      while (rem > 0) { const step = Math.min(0.1, rem); tick(step); rem -= step; }
+    }
+    uiT += dt; if (uiT >= 0.2) { uiT = 0; updateUI(); }
+    saveT += dt; if (saveT >= 5) { saveT = 0; save(); }
+    achT += dt; if (achT >= 1) { achT = 0; if (checkAch()) uiPane(); }
+    onT += dt; if (onT >= 5) { onT = 0; rankSend(false); }
+  }, 50);
+}
+
+if (HAS_DOM) boot();
+if (typeof module !== 'undefined') {
+  module.exports = { get S() { return S; }, get P() { return P; }, RT, tick, recalc, buy, planBuy, UPG, unitCost, advance, canAdvance, changeJob, jobChangeCost,
+    PETS, ACH, openLamps, lampRoll, lampCost, buyPet, setPet, petBonus, achBonus, checkAch, petCost, petUnlocked, mobHp, mobDmg, mesoKill, expKill, expNeed, awayProgress, defaultState, enhanceGear, enhanceCost, itemPower, rollStone, ENH_MAX, setS: v => { S = v; } };
+}
+</script>
+</body>
+</html>

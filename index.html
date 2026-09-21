@@ -475,7 +475,7 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
 
       <div class="card pane" id="pane-lamp" hidden>
         <h2>나무상자</h2>
-        <p class="hint">전투 화면 바닥에 깔린 나무상자가 시간이 지나면 저절로 열려서 장비와 강화석이 나와요. 레벨을 올리면 상자가 하나씩 늘어나요.</p>
+        <p class="hint">전투 화면 바닥에 깔린 나무상자가 시간이 지나면 저절로 열려서 장비와 강화석이 나와요. 레벨을 올리면 상자가 하나씩 늘어나요. <b>화면을 켜 두는 동안에만</b> 열려요.</p>
         <div class="upg" id="wcRow">
           <div class="uicon">📦</div>
           <div><div class="uname">나무상자<span class="ulv" id="wcLv"></span></div><div class="udesc" id="wcDesc"></div></div>
@@ -608,6 +608,8 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
 const HAS_DOM = typeof document !== 'undefined';
 const $ = id => HAS_DOM ? document.getElementById(id) : null;
 const rnd = (a, b) => a + Math.random() * (b - a);
+/* 화면이 켜져 있는지 (화면이 꺼졌거나 다른 탭·앱에 가 있으면 false). 스테이지 진행과 나무상자는 이때만 돼요 */
+const screenOn = () => !HAS_DOM || !document.hidden;
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const REDUCED = HAS_DOM && window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SAVE_KEY = 'infinite-hunt-v1';
@@ -1112,6 +1114,7 @@ function killMob() {
 function clearStage() {
   sfx(S.stage % 10 === 0 ? 'bossclear' : 'clear');
   S.kills = 0;
+  if (!screenOn()) return;   // 🌙 화면이 꺼져 있는 동안은 스테이지가 안 올라가요 (골드·경험치는 계속 쌓여요)
   if (isGuest() && S.stage >= GUEST_MAX_STAGE) { guestCapHit(); return; }   // 맛보기는 여기까지 (기록은 그대로 남아요)
   if (S.stage === S.best) { S.best++; if (S.best > S.stats.bestEver) S.stats.bestEver = S.best; }
   if (S.auto && S.stage < S.best) S.stage++;
@@ -1368,7 +1371,8 @@ function openLamps(n) {
 
 /* ---------- 🪵 나무상자: 필드에 깔려서 알아서 열려요 ----------
    - 나무상자 레벨을 골드로 올리면 상자 개수(slotsAt)가 1 → 2 → 3 … 으로 늘고, 열리는 간격도 조금씩 짧아져요.
-   - 열릴 때마다 장비 1개(보물상자와 같은 확률·등급)와 강화석이 나와요. 로그인한 유저만 써요. */
+   - 열릴 때마다 장비 1개(보물상자와 같은 확률·등급)와 강화석이 나와요. 로그인한 유저만 써요.
+   - 화면이 켜져 있을 때만 진행돼요(자리 비움 보상에도 없어요). 매일 조금이라도 켜 둘 이유가 되게 하려는 거예요. */
 const WC = { maxLv: 30, slotsAt: [1, 5, 10, 16, 24], baseSec: 50, secMul: 0.97, minSec: 15, costBase: 50, costG: 1.25 };
 function wcEnsure() { const l = Math.floor(Number(S.wc && S.wc.lv)); S.wc = { lv: l >= 1 ? Math.min(WC.maxLv, l) : 1 }; }
 const wcActive = () => !isGuest();
@@ -1390,7 +1394,7 @@ function wcOpen(i, quiet) {
   return { it, st, gold: o.gold, mode: o.mode };
 }
 function wcTick(dt) {
-  if (!wcActive()) return;
+  if (!wcActive() || !screenOn()) return;   // 화면을 켜 둘 때만 진행 바가 차요
   wcEnsure0();
   const n = wcSlots(S.wc.lv), iv = wcInterval(S.wc.lv), ts = RT.wc || (RT.wc = []);
   while (ts.length < n) ts.push(iv * rnd(0, 0.6));   // 새로 깔린 상자는 서로 다른 때에 열리게 살짝 어긋나게 시작해요
@@ -1477,20 +1481,15 @@ function awayProgress(sec) {
   S.lamps += lamps;
   S.mesos += mesos; S.stats.mesosTotal += mesos; S.stats.kills += kills;
   gainExp(exp, true);
-  let wc = null;
-  if (wcActive()) {   // 🪵 자리를 비운 동안에도 나무상자가 열려요 (절반 효율)
-    const n = wcSlots(S.wc.lv), iv = wcInterval(S.wc.lv);
-    const opens = Math.min(300, Math.floor(sec * n / iv * 0.5));
-    if (opens > 0) { let stones = 0; for (let i = 0; i < opens; i++) stones += wcOpen(0, true).st; wc = { opens, stones }; }
-  }
   RT.hp = P.maxHp;
-  return { sec, kills, mesos, exp, lamps, levels: S.lv - lv0, stage: st, wc };
+  return { sec, kills, mesos, exp, lamps, levels: S.lv - lv0, stage: st };
 }
 function showAway(r) {
   modal('자리를 비운 사이에도 사냥했어요',
     '<p class="big">⏱ ' + fmtTime(r.sec) + ' 동안</p>' +
     '<p>' + zoneOf(r.stage).name + ' 스테이지 ' + r.stage + '에서 <b>' + fmt(r.kills) + '마리</b>를 처치했어요.</p>' +
-    '<p>🪙 골드 +' + fmt(r.mesos) + '<br>📈 경험치 +' + fmt(r.exp) + (r.levels > 0 ? ' (레벨 +' + r.levels + ')' : '') + (r.lamps > 0 ? '<br>📦 상자 +' + r.lamps : '') + (r.wc ? '<br>🪵 나무상자 ' + r.wc.opens + '번 열림 · 🔩 +' + fmt(r.wc.stones) : '') + '</p>',
+    '<p>🪙 골드 +' + fmt(r.mesos) + '<br>📈 경험치 +' + fmt(r.exp) + (r.levels > 0 ? ' (레벨 +' + r.levels + ')' : '') + (r.lamps > 0 ? '<br>📦 상자 +' + r.lamps : '') + '</p>' +
+    '<p class="hint">💡 스테이지 진행과 🪵 나무상자는 화면을 켜 둘 때만 돼요. 자리를 비운 동안에는 골드·경험치만 쌓여요.</p>',
     [{ label: '좋아요', cls: '', fn: checkDaily }]);
 }
 
@@ -1843,7 +1842,7 @@ function uiOpenLamps(n) {
 function updateWc() {
   const lv = S.wc.lv, n = wcSlots(lv), iv = wcInterval(lv), maxed = lv >= WC.maxLv;
   $('wcLv').textContent = ' Lv.' + lv + '/' + WC.maxLv;
-  $('wcDesc').textContent = '상자 ' + n + '개 · ' + Math.round(iv) + '초마다 열려요';
+  $('wcDesc').textContent = '상자 ' + n + '개 · 화면 켜진 채 ' + Math.round(iv) + '초마다 열려요';
   const nx = WC.slotsAt.find(x => x > lv);
   $('wcNext').textContent = nx ? 'Lv.' + nx + '이 되면 상자가 ' + (n + 1) + '개로 늘어나요' : '상자가 최대 ' + n + '개까지 늘었어요';
   const b = $('wcUp'), bc = b.querySelector('.bc'), bn = b.querySelector('small');

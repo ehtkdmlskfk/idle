@@ -1863,7 +1863,7 @@ function renderInfo() {
 let curTab = 'train';
 const MORE_TABS = ['lamp', 'pet', 'quest', 'rank', 'chat', 'info'];
 function setTab(t) {
-  if (tabLocked(t)) { loginGate((TAB_NAME[t] || '이 기능') + '은(는) 로그인 후에 쓸 수 있어요.'); return; }
+  if (tabLocked(t)) { loginGate((TAB_NAME[t] || '이 기능') + '은(는) 로그인 후에 쓸 수 있어요.', t); return; }
   curTab = t;
   if (t === 'chat') { CH.paintSig = ''; CH.bottom = true; }
   document.querySelectorAll('.tab[data-tab]').forEach(b => {
@@ -2541,7 +2541,7 @@ async function chatSend() {
   const inp = $('chatIn');
   const text = inp.value.replace(/\s+/g, ' ').trim();
   if (!text) return;
-  if (isGuest()) { loginGate('채팅은 로그인 후에 쓸 수 있어요.'); return; }
+  if (isGuest()) { loginGate('채팅은 로그인 후에 쓸 수 있어요.', 'chat_send'); return; }
   if (!ON.ready) { toast(ON.err || '서버에 연결 중이에요', 'bad'); return; }
   if (!ON.nick) { openNickModal('', '채팅을 하려면 닉네임이 필요해요'); return; }
   if (CH.busy) return;
@@ -2613,6 +2613,7 @@ function accountApply(session) {
   if (linked !== CL.linked || uid !== CL.uid) { CL.synced = false; CL.deferred = false; CL.at = 0; CL.err = ''; }
   const changed = linked !== CL.linked || uid !== CL.uid || name !== CL.name;
   CL.linked = linked; CL.uid = uid; CL.name = name;
+  if (linked) loginDone();
   if (changed) CL.ver++;
   if (linked && !CL.synced) cloudSync();
 }
@@ -2625,7 +2626,7 @@ const GUEST_MAX_STAGE = 10;
 const GUEST_TABS = ['train', 'gear', 'info'];
 const TAB_NAME = { job: '⚔️ 전직', dungeon: '🏰 던전', lamp: '📦 보물상자', pet: '🐾 펫', quest: '📅 퀘스트', rank: '🏆 랭킹', chat: '💬 채팅' };
 const AUTH_STORE_KEY = 'infinite-hunt-auth';   // onlineInit 의 storageKey 와 같아야 해요
-const GATE = { sig: '', capShown: false };
+const GATE = { sig: '', capShown: false, sess: false, gs: false };
 /* 서버 확인 전에는 브라우저에 남은 로그인 정보를 보고 미리 짐작해요 (새로고침할 때 잠깐 잠기는 걸 막아요) */
 function loginHint() {
   try { const d = JSON.parse(localStorage.getItem(AUTH_STORE_KEY) || 'null'); return !!(d && d.user && !d.user.is_anonymous); } catch (e) { return false; }
@@ -2633,10 +2634,12 @@ function loginHint() {
 const isGuest = () => HAS_DOM && onlineOn() && !(CL.known ? CL.linked : loginHint());
 const tabLocked = t => isGuest() && !GUEST_TABS.includes(t);
 
-function loginGate(why) {
+function loginGate(why, src) {
+  track('gate_open', { src: src || '' });
   modal('🔒 로그인이 필요해요',
     '<p>' + why + '</p>' +
     '<p>로그인 전에는 <b>맛보기</b>(훈련·장비 · 스테이지 ' + GUEST_MAX_STAGE + '까지)만 할 수 있어요. 카카오 계정을 연결하면 모든 기능이 열려요.</p>' +
+    '<p>🎁 <b>첫 로그인 보상</b> ' + qRwText(LOGIN_BONUS) + '</p>' +
     '<p class="hint">지금까지의 기록은 그대로 이어져요.</p>',
     [{ label: '나중에', cls: 'ghost' },
      { label: '기존 계정 로그인', cls: 'ghost', fn: kakaoLoginAsk },
@@ -2645,7 +2648,12 @@ function loginGate(why) {
 function guestCapHit() {
   if (GATE.capShown) return;
   GATE.capShown = true;
-  setTimeout(() => loginGate('🎉 맛보기 마지막 스테이지 ' + GUEST_MAX_STAGE + '을(를) 클리어했어요! 더 진행하려면 로그인이 필요해요.'), 900);
+  trackOnce('guest_cap');
+  const open = () => {
+    if (!$('modal').hidden) { setTimeout(open, 1500); return; }   // 다른 창이 열려 있으면 닫힐 때까지 기다려요
+    loginGate('🎉 맛보기 마지막 스테이지 ' + GUEST_MAX_STAGE + '을(를) 클리어했어요! 더 진행하려면 로그인이 필요해요.', 'cap');
+  };
+  setTimeout(open, 900);
 }
 /* 안내 줄 · 잠금 표시 · (예전 기록이 맛보기보다 멀리 가 있으면) 현재 스테이지만 되돌리기 */
 function renderGuest() {
@@ -2655,14 +2663,89 @@ function renderGuest() {
     S.stage = GUEST_MAX_STAGE; S.kills = 0; RT.mob = null; RT.deadT = 0; RT.spawnT = 0.25; uiMobGone();
   }
   const atCap = g && S.stage >= GUEST_MAX_STAGE;
+  if (CL.known) {
+    if (!GATE.sess) { GATE.sess = true; track('session'); }
+    if (g && !GATE.gs) { GATE.gs = true; trackOnce('guest_start'); }
+  }
   const sig = g + '|' + atCap;
   if (sig === GATE.sig) return;
   GATE.sig = sig;
   document.querySelectorAll('.tab[data-tab]').forEach(b => b.classList.toggle('lock', tabLocked(b.dataset.tab)));
   $('guestBar').hidden = !g;
   $('guestTxt').innerHTML = atCap
-    ? '🎉 <b>맛보기 끝!</b> 스테이지 ' + GUEST_MAX_STAGE + '까지 왔어요. 로그인하면 계속할 수 있어요.'
-    : '🔒 <b>맛보기 모드</b> · 스테이지 ' + GUEST_MAX_STAGE + '까지 · 로그인하면 모든 기능이 열려요';
+    ? '🎉 <b>맛보기 끝!</b> 스테이지 ' + GUEST_MAX_STAGE + '까지 왔어요. 로그인하면 계속할 수 있고 🎁 보상도 받아요.'
+    : '🔒 <b>맛보기 모드</b> · 스테이지 ' + GUEST_MAX_STAGE + '까지 · 로그인하면 모든 기능이 열리고 🎁 보상도 받아요';
+}
+
+/* ----- 📊 이용 기록 (맛보기 → 로그인 전환을 보기 위한 최소한의 기록) -----
+   growth.sql 을 Supabase 에서 한 번 실행해야 해요. 없으면 조용히 꺼져요.
+   보내는 것: 사용자 번호(익명 포함) · 사건 이름 · 스테이지/레벨/맛보기 여부/인앱 브라우저 여부 */
+const TK_KEY = 'infinite-hunt-tk';   // 이 기기에서 한 번만 기록할 사건 표시
+const LP_KEY = 'infinite-hunt-lp';   // 카카오 로그인을 시작했다는 표시 (돌아왔을 때 성공/실패를 기록)
+const TRK = { q: [], p: null, off: false, fails: 0 };
+const inAppBrowser = () => /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|; wv\)/i.test((typeof navigator !== 'undefined' && navigator.userAgent) || '');
+function track(name, data) {
+  if (!HAS_DOM || !onlineOn() || TRK.off) return;
+  if (TRK.q.length >= 30) TRK.q.shift();
+  TRK.q.push({ n: name, d: Object.assign({ g: isGuest() ? 1 : 0, st: S.stage, best: S.best, lv: S.lv, app: inAppBrowser() ? 1 : 0 }, data || {}) });
+}
+function trackOnce(name, data) {
+  let m = {};
+  try { m = JSON.parse(localStorage.getItem(TK_KEY) || '{}') || {}; } catch (e) { /* 무시 */ }
+  if (m[name]) return;
+  m[name] = 1;
+  try { localStorage.setItem(TK_KEY, JSON.stringify(m)); } catch (e) { /* 무시 */ }
+  track(name, data);
+}
+function trackFlush() {
+  if (TRK.p) return TRK.p;
+  if (TRK.off || !ON.ready || !TRK.q.length) return Promise.resolve();
+  TRK.p = (async () => {
+    while (TRK.q.length && !TRK.off) {
+      const ev = TRK.q[0];
+      let err = null;
+      try { const r = await ON.sb.rpc('log_event', { p_name: ev.n, p_data: ev.d }); err = r.error; } catch (e) { err = e; }
+      if (err) {
+        TRK.fails++;
+        if (TRK.fails >= 3 || String(err.code || '') === 'PGRST202') TRK.off = true;   // 서버 준비 전이면 이번 방문은 그만둬요
+        break;
+      }
+      TRK.fails = 0; TRK.q.shift();
+    }
+  })().finally(() => { TRK.p = null; });
+  return TRK.p;
+}
+function loginDone() {
+  let k = '';
+  try { k = localStorage.getItem(LP_KEY) || ''; if (k) localStorage.removeItem(LP_KEY); } catch (e) { /* 무시 */ }
+  if (k) track('login_ok', { kind: k });
+}
+
+/* ----- 🎁 첫 카카오 로그인 보상 (계정당 한 번 · growth.sql 의 claim_login_bonus 가 확인해요) ----- */
+const LOGIN_BONUS = { lamps: 10, stones: 30 };
+const BN_KEY = 'infinite-hunt-bonus';   // 이 기기에서 이미 확인한 계정 번호
+const BN = { busy: false, uid: '', retryAt: 0 };
+async function bonusTick() {
+  if (!HAS_DOM || !onlineOn() || !ON.ready || !CL.linked || !CL.synced || CL.checking || CL.asking || BN.busy) return;
+  if (Date.now() < BN.retryAt || !$('modal').hidden) return;   // 다른 창이 열려 있으면 닫힌 뒤에
+  let done = '';
+  try { done = localStorage.getItem(BN_KEY) || ''; } catch (e) { /* 무시 */ }
+  if (done === CL.uid || BN.uid === CL.uid) return;
+  BN.busy = true;
+  const uid = CL.uid;
+  try {
+    const r = await ON.sb.rpc('claim_login_bonus');
+    if (r.error) throw r.error;
+    BN.uid = uid;
+    try { localStorage.setItem(BN_KEY, uid); } catch (e) { /* 무시 */ }
+    if (r.data === true && CL.uid === uid) {
+      const txt = qGrant(LOGIN_BONUS);
+      save(); sfx('fanfare'); track('bonus_claim');
+      modal('🎁 카카오 로그인 보상', '<p class="big">' + txt + '</p><p>카카오 계정을 연결해 줘서 고마워요! 보물상자 탭과 장비 강화에 써 보세요.</p>', [{ label: '받았어요' }]);
+      updateUI(); cloudPush(true);
+    }
+  } catch (e) { BN.retryAt = Date.now() + 300000; }   // 서버가 준비되기 전이거나 잠깐 실패 → 5분 뒤 다시
+  BN.busy = false;
 }
 
 /* ----- 카카오 로그인 시작 ----- */
@@ -2676,14 +2759,23 @@ function accErrText(e) {
 async function kakaoOAuth(kind) {
   if (!ON.ready) { toast(ON.err || '서버에 연결 중이에요', 'bad'); return; }
   save();
+  track('login_click', { kind });
+  try { localStorage.setItem(LP_KEY, kind); } catch (e) { /* 무시 */ }
   try {
     const opt = { redirectTo: authRedirect() };
     const r = kind === 'link'
       ? await ON.sb.auth.linkIdentity({ provider: 'kakao', options: opt })
       : await ON.sb.auth.signInWithOAuth({ provider: 'kakao', options: opt });
     if (r.error) throw r.error;
-    if (r.data && r.data.url) location.assign(r.data.url);
-  } catch (e) { toast(accErrText(e), 'bad'); }
+    if (r.data && r.data.url) {
+      await Promise.race([trackFlush(), sleep(1500)]);   // 카카오 화면으로 넘어가기 전에 기록을 보내 둬요
+      location.assign(r.data.url);
+    }
+  } catch (e) {
+    try { localStorage.removeItem(LP_KEY); } catch (e2) { /* 무시 */ }
+    track('login_fail', { kind, code: 'start' });
+    toast(accErrText(e), 'bad');
+  }
 }
 function kakaoLoginAsk() {
   modal('카카오로 로그인',
@@ -2706,6 +2798,9 @@ function authUrlError() {
 }
 function showAuthError(e) {
   const t = (e.code + ' ' + e.desc).toLowerCase();
+  let kind = '';
+  try { kind = localStorage.getItem(LP_KEY) || ''; localStorage.removeItem(LP_KEY); } catch (e2) { /* 무시 */ }
+  track(t.includes('access_denied') ? 'login_cancel' : 'login_fail', { kind, code: String(e.code || '').slice(0, 40) });
   if (t.includes('access_denied')) { toast('카카오 로그인을 취소했어요'); return; }
   if (t.includes('identity_already_exists') || t.includes('already linked')) {
     modal('이미 연결된 카카오 계정이에요',
@@ -2882,7 +2977,7 @@ function initOnlineDom() {
   $('tabRank').hidden = false;
   $('tabChat').hidden = false;
   $('accCard').hidden = false;
-  $('guestBtn').addEventListener('click', () => loginGate('카카오 계정을 연결하면 스테이지 제한이 풀리고 모든 기능을 쓸 수 있어요.'));
+  $('guestBtn').addEventListener('click', () => loginGate('카카오 계정을 연결하면 스테이지 제한이 풀리고 모든 기능을 쓸 수 있어요.', 'bar'));
   $('accBox').addEventListener('click', e => {
     const b = e.target.closest('[data-acc]'); if (!b) return;
     const a = b.dataset.acc;
@@ -2893,6 +2988,7 @@ function initOnlineDom() {
     else if (a === 'logout') accLogoutAsk();
   });
   document.addEventListener('visibilitychange', () => { if (document.hidden && CL.synced) cloudPush(true); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) trackFlush(); });
   $('chatMe').addEventListener('click', e => { if (e.target.closest('[data-nick]')) openNickModal('', ''); });
   $('chatForm').addEventListener('submit', e => { e.preventDefault(); chatSend(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && CH.started) chatPoll(false); });
@@ -2920,7 +3016,7 @@ function boot() {
   } else {
     afterTimeSync(checkDaily);
   }
-  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0, dayT = 0, syncT = 0, chT = 0, cT = 0;
+  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0, dayT = 0, syncT = 0, chT = 0, cT = 0, tkT = 0;
   setInterval(() => {
     const now = Date.now();
     let dt = Math.max(0, (now - lastT) / 1000); lastT = now;
@@ -2941,6 +3037,7 @@ function boot() {
     syncT += dt; if (syncT >= 600) { syncT = 0; if (ON.sb) syncServerTime(); }
     chT += dt; if (chT >= 1) { chT = 0; chatTick(); }
     cT += dt; if (cT >= 20) { cT = 0; cloudTick(); }
+    tkT += dt; if (tkT >= 5) { tkT = 0; trackFlush(); bonusTick(); }
   }, 50);
 }
 

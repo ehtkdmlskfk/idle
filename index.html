@@ -31,10 +31,11 @@
   --r0:#a9b7cf; --r1:#5ea3ff; --r2:#c08bff; --r3:#ffb04d; --r4:#4fe0a0;
   --shadow:0 4px 0 rgba(0,0,0,.45);
 }
+:root{--headh:56px;--navh:84px}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+html{scroll-padding-top:calc(var(--headh) + 8px + env(safe-area-inset-top,0px));-webkit-text-size-adjust:100%}
 body{
   margin:0;min-height:100vh;
   font-family:'Jua','Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;
@@ -45,26 +46,29 @@ body{
 }
 button{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
-.app{max-width:1120px;margin:0 auto;padding:12px 12px 32px}
+.app{max-width:1120px;margin:0 auto;padding:0 12px calc(var(--navh) + 16px + env(safe-area-inset-bottom,0px))}
 
 /* 헤더 */
-.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px 12px}
+/* 위쪽 바: 스크롤해도 골드가 계속 보여요 */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;height:var(--headh);margin:0 -12px 12px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg-top);border-bottom:2px solid var(--line-soft)}
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
-.logo{font-size:34px;line-height:1;filter:drop-shadow(0 3px 0 rgba(31,51,88,.25))}
+.logo{font-size:30px;line-height:1;filter:drop-shadow(0 3px 0 rgba(31,51,88,.25))}
 .brand h1{margin:0;font-size:22px;line-height:1.1;font-weight:400}
 .brand p{margin:0;font-size:12px;color:var(--ink2)}
 .tools{display:flex;align-items:center;gap:8px}
-.snd{width:46px;height:46px;border-radius:50%;border:3px solid var(--line);background:var(--panel);box-shadow:var(--shadow);font-size:20px;cursor:pointer;line-height:1}
+.snd{width:42px;height:42px;border-radius:50%;border:3px solid var(--line);background:var(--panel);box-shadow:var(--shadow);font-size:20px;cursor:pointer;line-height:1}
 .snd:active{transform:translateY(2px)}
 .snd.pending{animation:pulse 1.2s ease-in-out infinite;border-color:var(--accent)}
-.wallet{display:flex;gap:8px;align-items:center;background:var(--panel);border:3px solid var(--line);border-radius:999px;padding:4px 14px 4px 8px;box-shadow:var(--shadow);font-size:20px;white-space:nowrap}
+.wallet{display:flex;gap:8px;align-items:center;background:var(--panel);border:3px solid var(--line);border-radius:999px;padding:2px 14px 2px 8px;box-shadow:var(--shadow);font-size:19px;white-space:nowrap}
 .wallet .souls{font-size:14px;color:var(--r2);margin-right:4px}
 
 @media (max-width:430px){.brand p{display:none}.brand h1{font-size:19px}.wallet{font-size:17px}}
 .layout{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
 @media (min-width:900px){
   .layout{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}
-  .left{position:sticky;top:calc(12px + env(safe-area-inset-top,0px))}
+}
+@media (min-width:900px) and (min-height:700px){
+  .left{position:sticky;top:calc(var(--headh) + 12px + env(safe-area-inset-top,0px))}
 }
 .left,.right{display:grid;gap:12px;min-width:0}
 .card{background:var(--panel);border:3px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:12px}
@@ -77,7 +81,7 @@ button{font:inherit;color:inherit}
 .dps{margin-left:auto;font-size:15px;color:var(--ink2)}
 .dps b{color:var(--ink);font-weight:400;font-size:18px}
 .chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-.chip{background:var(--panel2);border-radius:10px;padding:4px 6px;text-align:center;font-size:12px;color:var(--ink2);min-width:0}
+.chip{background:var(--panel2);border-radius:10px;padding:4px 6px;text-align:center;font-size:12px;color:var(--ink2);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chip b{display:block;font-weight:400;font-size:15px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar{position:relative;height:20px;background:rgba(31,51,88,.18);border:2px solid var(--line);border-radius:999px;overflow:hidden}
 .bar i{display:block;height:100%;width:0;transition:width .15s linear}
@@ -94,7 +98,7 @@ button{font:inherit;color:inherit}
   --sky1:#8fd3ff;--sky2:#e6f7ff;--hill1:#9ad96b;--hill2:#7cc455;--ground:#5da83a;--top:#7ed957;
   background:var(--sky2);user-select:none;-webkit-user-select:none;
 }
-@media (max-width:520px){.scene{aspect-ratio:4/3}}
+@media (max-width:520px){.scene{aspect-ratio:16/10}}
 .sky{position:absolute;inset:0;background:linear-gradient(var(--sky1),var(--sky2));transition:background .6s}
 .cloud{position:absolute;left:-90px;top:12%;height:20px;width:64px;background:rgba(255,255,255,.85);border-radius:999px;animation:drift 46s linear infinite}
 .cloud::before,.cloud::after{content:"";position:absolute;background:inherit;border-radius:50%}
@@ -161,12 +165,31 @@ button{font:inherit;color:inherit}
 .switch input:focus-visible + .knob{outline:3px solid var(--gold);outline-offset:2px}
 .best{color:var(--ink2);font-size:13px}
 
-/* 탭 */
-.tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{flex:1 1 auto;min-height:46px;padding:6px 9px;border-radius:14px 14px 4px 4px;border:3px solid var(--line);background:var(--panel2);cursor:pointer;font-size:16px;position:relative;white-space:nowrap;color:var(--ink2)}
+/* 하단 메뉴 (앱처럼 아래에 고정) + 더보기 */
+.bwrap{width:100%;max-width:1120px;margin:0 auto;padding:0 12px;display:grid;grid-template-columns:minmax(0,1fr)}
+.bcell{width:100%;max-width:560px;justify-self:center}
+@media (min-width:900px){
+  .bwrap{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px}
+  .bcell{grid-column:2;max-width:none;justify-self:stretch}
+}
+.bnav{position:fixed;left:0;right:0;bottom:0;z-index:45;pointer-events:none;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.bnav .bcell{pointer-events:auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:6px;background:var(--panel);border:3px solid var(--line);border-radius:20px;box-shadow:var(--shadow),0 10px 24px rgba(0,0,0,.18)}
+.tab{position:relative;display:grid;justify-items:center;align-content:center;gap:1px;min-height:54px;padding:3px 2px;border:0;border-radius:14px;background:transparent;color:var(--ink2);cursor:pointer;font:inherit;-webkit-tap-highlight-color:transparent}
+.tab .ti{font-size:24px;line-height:1.1}
+.tab .tl{font-size:12px;line-height:1.1;white-space:nowrap}
+.tab:active{transform:translateY(1px)}
 .tab.on{background:var(--accent);color:var(--accent-ink);box-shadow:0 3px 0 var(--accent-dark)}
-.tab .dot{position:absolute;top:-4px;right:-2px;width:14px;height:14px;border-radius:50%;background:var(--bad);border:2px solid #fff;animation:pulse 1s ease-in-out infinite}
+.tab .dot{position:absolute;top:2px;right:calc(50% - 24px);width:13px;height:13px;border-radius:50%;background:var(--bad);border:2px solid #fff;animation:pulse 1s ease-in-out infinite}
+.sheet{position:fixed;inset:0;z-index:40;background:rgba(10,20,45,.45);display:flex;align-items:flex-end}
+.sheet .bwrap{padding-bottom:calc(var(--navh) + env(safe-area-inset-bottom,0px))}
+.sheetcard{padding:10px;background:var(--panel);border:3px solid var(--line);border-radius:20px;box-shadow:var(--shadow);animation:sheetup .18s ease-out}
+@keyframes sheetup{from{opacity:0;transform:translateY(14px)}}
+.moregrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.moregrid .tab{min-height:78px;border:3px solid var(--line-soft);background:var(--panel2);color:var(--ink)}
+.moregrid .tab.on{border-color:var(--line);background:var(--accent);color:var(--accent-ink)}
+.moregrid .tab .ti{font-size:28px}
+.moregrid .tab .tl{font-size:14px}
+.moregrid .tab .dot{top:8px;right:10px}
 @keyframes pulse{50%{transform:scale(1.3)}}
 .pane{display:grid;gap:10px}
 .pane h2{margin:0;font-size:19px;font-weight:400}
@@ -351,10 +374,10 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
         </div>
         <div class="bar exp"><i id="expFill"></i><span id="expText"></span></div>
         <div class="chips">
-          <div class="chip">공격력<b id="cAtk">0</b></div>
-          <div class="chip">공격 속도<b id="cSpd">0</b></div>
-          <div class="chip">치명타<b id="cCrit">0</b></div>
-          <div class="chip">최대 체력<b id="cHp">0</b></div>
+          <div class="chip">⚔️ 공격력<b id="cAtk">0</b></div>
+          <div class="chip">⚡ 속도<b id="cSpd">0</b></div>
+          <div class="chip">🎯 치명타<b id="cCrit">0</b></div>
+          <div class="chip">❤️ 체력<b id="cHp">0</b></div>
         </div>
       </div>
 
@@ -391,19 +414,6 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
     </section>
 
     <section class="right">
-      <nav class="tabs" id="tabs" role="tablist" aria-label="메뉴">
-        <button class="tab on" role="tab" data-tab="train">🏋️ 훈련</button>
-        <button class="tab" role="tab" data-tab="gear">🛡️ 장비</button>
-        <button class="tab" role="tab" data-tab="lamp">📦 보물상자<i class="dot" id="lampDot" hidden></i></button>
-        <button class="tab" role="tab" data-tab="pet">🐾 펫</button>
-        <button class="tab" role="tab" data-tab="job">⚔️ 전직<i class="dot" id="advDot" hidden></i></button>
-        <button class="tab" role="tab" data-tab="quest">📅 퀘스트<i class="dot" id="qDot" hidden></i></button>
-        <button class="tab" role="tab" data-tab="dungeon">🏰 던전</button>
-        <button class="tab" role="tab" data-tab="rank" id="tabRank" hidden>🏆 랭킹</button>
-        <button class="tab" role="tab" data-tab="chat" id="tabChat" hidden>💬 채팅<i class="dot" id="chatDot" hidden></i></button>
-        <button class="tab" role="tab" data-tab="info">📜 기록</button>
-      </nav>
-
       <div class="card pane" id="pane-train">
         <div class="rowtop">
           <h2>훈련</h2>
@@ -508,6 +518,28 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
   </main>
 
   <footer>모든 그래픽은 이모지·CSS·SVG로 직접 그렸어요.</footer>
+</div>
+
+<nav class="bnav" id="tabs" aria-label="메뉴">
+  <div class="bwrap"><div class="bcell">
+    <button class="tab on" type="button" data-tab="train" aria-current="page"><span class="ti">🏋️</span><span class="tl">훈련</span></button>
+    <button class="tab" type="button" data-tab="gear"><span class="ti">🛡️</span><span class="tl">장비</span></button>
+    <button class="tab" type="button" data-tab="job"><span class="ti">⚔️</span><span class="tl">전직</span><i class="dot" id="advDot" hidden></i></button>
+    <button class="tab" type="button" data-tab="dungeon"><span class="ti">🏰</span><span class="tl">던전</span></button>
+    <button class="tab" type="button" id="moreBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="moreSheet"><span class="ti">☰</span><span class="tl">더보기</span><i class="dot" id="moreDot" hidden></i></button>
+  </div></div>
+</nav>
+<div class="sheet" id="moreSheet" hidden>
+  <div class="bwrap"><div class="bcell sheetcard" role="dialog" aria-modal="true" aria-label="더보기">
+    <div class="moregrid">
+      <button class="tab" type="button" data-tab="lamp"><span class="ti">📦</span><span class="tl">보물상자</span><i class="dot" id="lampDot" hidden></i></button>
+      <button class="tab" type="button" data-tab="pet"><span class="ti">🐾</span><span class="tl">펫</span></button>
+      <button class="tab" type="button" data-tab="quest"><span class="ti">📅</span><span class="tl">퀘스트</span><i class="dot" id="qDot" hidden></i></button>
+      <button class="tab" type="button" data-tab="rank" id="tabRank" hidden><span class="ti">🏆</span><span class="tl">랭킹</span></button>
+      <button class="tab" type="button" data-tab="chat" id="tabChat" hidden><span class="ti">💬</span><span class="tl">채팅</span><i class="dot" id="chatDot" hidden></i></button>
+      <button class="tab" type="button" data-tab="info"><span class="ti">📜</span><span class="tl">기록</span></button>
+    </div>
+  </div></div>
 </div>
 
 <div id="toasts" aria-live="polite"></div>
@@ -1801,13 +1833,39 @@ function renderInfo() {
 
 /* ----- 공통 갱신 ----- */
 let curTab = 'train';
+const MORE_TABS = ['lamp', 'pet', 'quest', 'rank', 'chat', 'info'];
 function setTab(t) {
   curTab = t;
   if (t === 'chat') { CH.paintSig = ''; CH.bottom = true; }
-  document.querySelectorAll('.tab').forEach(b => { const on = b.dataset.tab === t; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  document.querySelectorAll('.tab[data-tab]').forEach(b => {
+    const on = b.dataset.tab === t;
+    b.classList.toggle('on', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  const mb = $('moreBtn'); if (mb) mb.classList.toggle('on', MORE_TABS.includes(t));
   document.querySelectorAll('.pane').forEach(p => { p.hidden = p.id !== 'pane-' + t; });
   RT.jobSig = '';
   uiPane();
+  /* 휴대폰에서 아래로 많이 내려가 있었다면, 새 화면의 맨 위가 보이게 올려 줘요 */
+  if (window.matchMedia && matchMedia('(max-width:899px)').matches) {
+    const p = $('pane-' + t), top = p ? p.getBoundingClientRect().top : 0;
+    if (top < 70) window.scrollBy(0, top - 70);
+  }
+}
+function openMore() {
+  const sh = $('moreSheet'); if (!sh) return;
+  sh.hidden = false; $('moreBtn').setAttribute('aria-expanded', 'true');
+  const f = sh.querySelector('.tab:not([hidden])'); if (f) f.focus({ preventScroll: true });
+}
+function closeMore(refocus) {
+  const sh = $('moreSheet'); if (!sh || sh.hidden) return;
+  sh.hidden = true; $('moreBtn').setAttribute('aria-expanded', 'false');
+  if (refocus) $('moreBtn').focus({ preventScroll: true });
+}
+/* 더보기 안에 알림 점이 하나라도 있으면 더보기 버튼에도 점을 보여줘요 */
+function uiMoreDot() {
+  const m = $('moreDot'); if (!m) return;
+  m.hidden = !['lampDot', 'qDot', 'chatDot'].some(id => { const d = $(id); return d && !d.hidden; });
 }
 let qSig = '';
 function renderQuests() {
@@ -1944,7 +2002,7 @@ function uiHud() {
 function updateUI() {
   if (!HAS_DOM) return;
   if (!P) recalc();
-  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI(); uiUlt(); uiQuestDot();
+  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI(); uiUlt(); uiQuestDot(); uiMoreDot();
 }
 function uiAll(force) {
   if (!HAS_DOM) return;
@@ -2120,7 +2178,17 @@ function sndUI() {
 /* ---------- 초기화 · 입력 ---------- */
 function initDom() {
   buildUpgrades(); buildGear(); buildPets();
-  $('tabs').addEventListener('click', e => { const b = e.target.closest('.tab'); if (b) { sfx('tick'); setTab(b.dataset.tab); } });
+  $('tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]');
+    if (b) { sfx('tick'); closeMore(); setTab(b.dataset.tab); return; }
+    if (e.target.closest('#moreBtn')) { sfx('tick'); if ($('moreSheet').hidden) openMore(); else closeMore(); }
+  });
+  $('moreSheet').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]');
+    if (b) { sfx('tick'); closeMore(); setTab(b.dataset.tab); return; }
+    if (!e.target.closest('.sheetcard')) closeMore(true);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMore(true); });
   $('upgList').addEventListener('click', e => {
     const b = e.target.closest('[data-upg]'); if (!b) return;
     if (buy(b.dataset.upg)) { sfx('buy'); updateUI(); }

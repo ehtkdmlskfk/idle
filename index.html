@@ -334,6 +334,20 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
 .tab.lock::after{content:'🔒';position:absolute;top:1px;right:calc(50% - 24px);font-size:12px;line-height:1}
 .moregrid .tab.lock::after{top:8px;right:10px}
 
+/* 🪵 나무상자 (전투 화면 바닥에 깔려 있어요) */
+.wcbox{position:absolute;left:50%;bottom:21%;transform:translateX(-50%);z-index:2;display:flex;align-items:flex-end;gap:clamp(4px,1.6cqw,10px);pointer-events:none}
+.wc{position:relative;display:grid;justify-items:center;gap:2px;width:clamp(20px,6cqw,34px)}
+.wce{font-size:clamp(18px,5.6cqw,30px);line-height:1;filter:drop-shadow(0 2px 0 rgba(0,0,0,.25))}
+.wcbar{display:block;width:100%;height:4px;border-radius:4px;background:rgba(0,0,0,.4);overflow:hidden}
+.wcbar b{display:block;height:100%;width:0;background:#ffd166}
+.wcpop{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);white-space:nowrap;font-size:13px;text-shadow:0 1px 2px rgba(0,0,0,.9);opacity:0;pointer-events:none;background:rgba(0,0,0,.5);border-radius:999px;padding:0 7px}
+.wcpop.r0{color:#fff}
+.wc.pop .wce{animation:wcopen .5s ease-out}
+.wc.pop .wcpop{animation:wcpop 1s ease-out}
+@keyframes wcopen{0%{transform:scale(1) rotate(0)}20%{transform:scale(1.15) rotate(-12deg)}40%{transform:scale(1.15) rotate(12deg)}60%{transform:scale(1.2) rotate(-8deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes wcpop{0%{opacity:0;transform:translate(-50%,4px)}18%{opacity:1}100%{opacity:0;transform:translate(-50%,-26px)}}
+@media (prefers-reduced-motion:reduce){.wc.pop .wce{animation:none}.wc.pop .wcpop{animation:none;opacity:1}}
+
 /* 황금 몬스터 */
 .mob{touch-action:manipulation}
 .mob.golden{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -411,6 +425,7 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
           <div class="mobbar"><i id="mobFill"></i></div>
           <div class="mobbody"><div class="crown">👑</div><div class="mobface" id="mobFace"></div></div>
         </div>
+        <div class="wcbox" id="wcBox" hidden></div>
         <div class="fx" id="fx"></div>
         <button class="ult" id="ultBtn" type="button" disabled><span id="ultTxt">🔥 0%</span></button>
         <div class="banner" id="banner"></div>
@@ -459,7 +474,15 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
       </div>
 
       <div class="card pane" id="pane-lamp" hidden>
-        <h2>보물상자</h2>
+        <h2>나무상자</h2>
+        <p class="hint">전투 화면 바닥에 깔린 나무상자가 시간이 지나면 저절로 열려서 장비와 강화석이 나와요. 레벨을 올리면 상자가 하나씩 늘어나요.</p>
+        <div class="upg" id="wcRow">
+          <div class="uicon">📦</div>
+          <div><div class="uname">나무상자<span class="ulv" id="wcLv"></span></div><div class="udesc" id="wcDesc"></div></div>
+          <button class="buy" id="wcUp" type="button"><span class="bc"></span><small></small></button>
+        </div>
+        <p class="hint" id="wcNext"></p>
+        <h2 style="margin-top:10px">보물상자 (직접 열기)</h2>
         <p class="hint">상자를 열면 지금까지 도달한 최고 스테이지 기준의 장비가 나와요. 보스를 잡거나 몬스터를 처치하다 보면 가끔 떨어져요.</p>
         <div class="lampart" aria-hidden="true">📦</div>
         <dl class="stats" id="lampStats"></dl>
@@ -805,8 +828,8 @@ function defaultState() {
     gear: { weapon: null, gloves: null, hat: null, armor: null, shoes: null },
     job: null, tier: 0, souls: 0,
     pets: {}, pet: null, ach: {},
-    lamps: 3, lampOpened: 0, stones: 0,
-    stats: { kills: 0, bosses: 0, items: 0, legend: 0, maxHit: 0, playSec: 0, mesosTotal: 0, bestEver: 1, golden: 0, dgRuns: 0, enh: 0 },
+    lamps: 3, lampOpened: 0, stones: 0, wc: { lv: 1 },
+    stats: { kills: 0, bosses: 0, items: 0, legend: 0, maxHit: 0, playSec: 0, mesosTotal: 0, bestEver: 1, golden: 0, dgRuns: 0, enh: 0, wcOpened: 0 },
     q: { dn: 0, ids: [], base: {}, claim: [0, 0, 0], bonus: 0 },
     dg: { dn: 0, left: { gold: DG_DAILY, stone: DG_DAILY, chest: DG_DAILY }, rec: { gold: 0, stone: 0, chest: 0 } },
     dailyStreak: 0, dailyLast: '', dailyN: 0, dayHi: 0,
@@ -1124,6 +1147,7 @@ function retreat(msg) {
 
 function tick(dt) {
   if (!P) recalc();
+  wcTick(dt);
   if (RT.deadT > 0) {
     RT.deadT -= dt;
     if (RT.deadT <= 0) retreat('쓰러졌어요! 자동 진행이 꺼졌어요. 더 강해진 뒤 ▶로 다시 도전하세요.');
@@ -1342,6 +1366,77 @@ function openLamps(n) {
   return res;
 }
 
+/* ---------- 🪵 나무상자: 필드에 깔려서 알아서 열려요 ----------
+   - 나무상자 레벨을 골드로 올리면 상자 개수(slotsAt)가 1 → 2 → 3 … 으로 늘고, 열리는 간격도 조금씩 짧아져요.
+   - 열릴 때마다 장비 1개(보물상자와 같은 확률·등급)와 강화석이 나와요. 로그인한 유저만 써요. */
+const WC = { maxLv: 30, slotsAt: [1, 5, 10, 16, 24], baseSec: 50, secMul: 0.97, minSec: 15, costBase: 50, costG: 1.25 };
+function wcEnsure() { const l = Math.floor(Number(S.wc && S.wc.lv)); S.wc = { lv: l >= 1 ? Math.min(WC.maxLv, l) : 1 }; }
+const wcActive = () => !isGuest();
+const wcSlots = lv => WC.slotsAt.filter(x => lv >= x).length;
+const wcInterval = lv => Math.max(WC.minSec, WC.baseSec * Math.pow(WC.secMul, lv - 1));
+const wcCost = lv => Math.ceil(mesoKill(Math.max(1, S.best)) * WC.costBase * Math.pow(WC.costG, lv - 1));   // 지금 레벨 → 다음 레벨
+function wcRoll() {   // 보물상자와 같은 확률. 단, '연 상자 수'(퀘스트·업적)에는 세지 않아요
+  let t = LAMP_W.reduce((a, b) => a + b, 0) * Math.random();
+  for (let i = 0; i < LAMP_W.length; i++) { t -= LAMP_W[i]; if (t <= 0) return i; }
+  return LAMP_W.length - 1;
+}
+function wcOpen(i, quiet) {
+  const r = wcRoll();
+  const it = genLampItem(r);
+  const o = handleItem(it, !!quiet);
+  const st = 1 + (Math.random() < 0.35 ? 1 : 0) + (r >= 2 ? 2 : 0);
+  S.stones += st; S.stats.wcOpened = (S.stats.wcOpened || 0) + 1;
+  if (!quiet) wcPop(i, r, st);
+  return { it, st, gold: o.gold, mode: o.mode };
+}
+function wcTick(dt) {
+  if (!wcActive()) return;
+  wcEnsure0();
+  const n = wcSlots(S.wc.lv), iv = wcInterval(S.wc.lv), ts = RT.wc || (RT.wc = []);
+  while (ts.length < n) ts.push(iv * rnd(0, 0.6));   // 새로 깔린 상자는 서로 다른 때에 열리게 살짝 어긋나게 시작해요
+  for (let i = 0; i < n; i++) {
+    ts[i] += dt;
+    if (ts[i] >= iv) { ts[i] = ts[i] >= iv * 2 ? 0 : ts[i] - iv; wcOpen(i); }
+  }
+}
+function wcEnsure0() { if (!S.wc || !(S.wc.lv >= 1)) wcEnsure(); }
+function wcUpgrade() {
+  if (!wcActive()) return false;
+  wcEnsure0();
+  const lv = S.wc.lv;
+  if (lv >= WC.maxLv) return false;
+  const c = wcCost(lv);
+  if (S.mesos < c) return false;
+  S.mesos -= c; S.wc.lv = lv + 1;
+  if (wcSlots(lv + 1) > wcSlots(lv)) { toast('📦 나무상자가 ' + wcSlots(lv + 1) + '개로 늘어났어요!', 'gold'); sfx('fanfare'); }
+  save();
+  return true;
+}
+/* 화면: 바닥에 깔린 상자 + 열릴 때 효과 */
+const WCUI = { n: -1 };
+function wcRender() {
+  if (!HAS_DOM) return;
+  const box = $('wcBox'); if (!box) return;
+  const on = wcActive(), n = on ? wcSlots((S.wc && S.wc.lv) || 1) : 0;
+  if (WCUI.n !== n) {
+    WCUI.n = n;
+    box.innerHTML = Array.from({ length: n }, () => '<div class="wc"><span class="wcpop"></span><span class="wce">📦</span><i class="wcbar"><b></b></i></div>').join('');
+  }
+  box.hidden = n === 0;
+  if (n === 0) return;
+  const iv = wcInterval(S.wc.lv), ts = RT.wc || [];
+  box.querySelectorAll('.wcbar b').forEach((b, i) => { b.style.width = Math.min(100, (ts[i] || 0) / iv * 100).toFixed(1) + '%'; });
+}
+function wcPop(i, r, st) {
+  if (!HAS_DOM || !fxOK()) return;
+  const box = $('wcBox'), el = box && box.children[i]; if (!el) return;
+  const pop = el.querySelector('.wcpop');
+  pop.textContent = (r >= 2 ? RARITY[r].n + ' ' : '') + '🔩+' + st;
+  pop.className = 'wcpop r' + r;
+  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('pop'), 1100);
+}
+
 /* ---------- 전직 ---------- */
 const canAdvance = () => S.tier < 4 && S.lv >= ADV_LV[S.tier];
 function advance(jobId) {
@@ -1365,7 +1460,7 @@ function changeJob(jobId) {
 }
 function resetRuntime() {
   RT.mob = null; RT.atkT = 0; RT.skT = 0; RT.mobT = 0; RT.spawnT = 0.3; RT.deadT = 0; RT.bossT = 0; RT.goldT = 0; RT.dg = null; RT.ult = 0;
-  RT.log = []; RT.logDirty = true; RT.jobSig = ''; RT.heroSig = ''; RT.zoneKey = -1; RT.advSeen = false;
+  RT.log = []; RT.logDirty = true; RT.jobSig = ''; RT.heroSig = ''; RT.zoneKey = -1; RT.advSeen = false; RT.wc = [];
 }
 
 /* ---------- 자리 비움 보상 ---------- */
@@ -1382,14 +1477,20 @@ function awayProgress(sec) {
   S.lamps += lamps;
   S.mesos += mesos; S.stats.mesosTotal += mesos; S.stats.kills += kills;
   gainExp(exp, true);
+  let wc = null;
+  if (wcActive()) {   // 🪵 자리를 비운 동안에도 나무상자가 열려요 (절반 효율)
+    const n = wcSlots(S.wc.lv), iv = wcInterval(S.wc.lv);
+    const opens = Math.min(300, Math.floor(sec * n / iv * 0.5));
+    if (opens > 0) { let stones = 0; for (let i = 0; i < opens; i++) stones += wcOpen(0, true).st; wc = { opens, stones }; }
+  }
   RT.hp = P.maxHp;
-  return { sec, kills, mesos, exp, lamps, levels: S.lv - lv0, stage: st };
+  return { sec, kills, mesos, exp, lamps, levels: S.lv - lv0, stage: st, wc };
 }
 function showAway(r) {
   modal('자리를 비운 사이에도 사냥했어요',
     '<p class="big">⏱ ' + fmtTime(r.sec) + ' 동안</p>' +
     '<p>' + zoneOf(r.stage).name + ' 스테이지 ' + r.stage + '에서 <b>' + fmt(r.kills) + '마리</b>를 처치했어요.</p>' +
-    '<p>🪙 골드 +' + fmt(r.mesos) + '<br>📈 경험치 +' + fmt(r.exp) + (r.levels > 0 ? ' (레벨 +' + r.levels + ')' : '') + (r.lamps > 0 ? '<br>📦 상자 +' + r.lamps : '') + '</p>',
+    '<p>🪙 골드 +' + fmt(r.mesos) + '<br>📈 경험치 +' + fmt(r.exp) + (r.levels > 0 ? ' (레벨 +' + r.levels + ')' : '') + (r.lamps > 0 ? '<br>📦 상자 +' + r.lamps : '') + (r.wc ? '<br>🪵 나무상자 ' + r.wc.opens + '번 열림 · 🔩 +' + fmt(r.wc.stones) : '') + '</p>',
     [{ label: '좋아요', cls: '', fn: checkDaily }]);
 }
 
@@ -1422,6 +1523,7 @@ function loadSave() {
     S.dailyN = Math.floor(Number(d.dailyN)) > 0 ? Math.floor(Number(d.dailyN)) : dayKeyToNum(S.dailyLast);
     S.dayHi = Math.max(0, Math.floor(Number(d.dayHi)) || 0);
     S.q = qSanitize(d.q);
+    wcEnsure();
     return true;
   } catch (e) { return false; }
 }
@@ -1738,7 +1840,20 @@ function uiOpenLamps(n) {
   if (REDUCED) show();
   else { modal('📦 상자를 여는 중…', '<div class="lampshake">📦</div>', []); setTimeout(show, 750); }
 }
+function updateWc() {
+  const lv = S.wc.lv, n = wcSlots(lv), iv = wcInterval(lv), maxed = lv >= WC.maxLv;
+  $('wcLv').textContent = ' Lv.' + lv + '/' + WC.maxLv;
+  $('wcDesc').textContent = '상자 ' + n + '개 · ' + Math.round(iv) + '초마다 열려요';
+  const nx = WC.slotsAt.find(x => x > lv);
+  $('wcNext').textContent = nx ? 'Lv.' + nx + '이 되면 상자가 ' + (n + 1) + '개로 늘어나요' : '상자가 최대 ' + n + '개까지 늘었어요';
+  const b = $('wcUp'), bc = b.querySelector('.bc'), bn = b.querySelector('small');
+  if (maxed) { bc.textContent = 'MAX'; bn.textContent = ''; b.disabled = true; b.className = 'buy no'; return; }
+  const c = wcCost(lv), ok = S.mesos >= c;
+  bc.textContent = '🪙 ' + fmt(c); bn.textContent = '+1 레벨';
+  b.disabled = !ok; b.className = 'buy' + (ok ? '' : ' no');
+}
 function updateLamp() {
+  updateWc();
   const w = LAMP_W, tot = w.reduce((a, b) => a + b, 0);
   const rows = [['보유 상자', S.lamps + '개'], ['지금까지 연 상자', fmt(S.lampOpened) + '개']];
   $('lampStats').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('');
@@ -1851,7 +1966,7 @@ function renderInfo() {
   const st = S.stats;
   const rows = [['플레이 시간', fmtTime(st.playSec)], ['처치한 몬스터', fmt(st.kills) + '마리'], ['처치한 보스', fmt(st.bosses) + '마리'], ['잡은 황금 몬스터', fmt(st.golden || 0) + '마리'], ['던전 도전', fmt(st.dgRuns || 0) + '회'],
     ['얻은 장비', fmt(st.items) + '개'], ['레전더리 장비', st.legend + '개'], ['최고 한 방 피해', fmt(st.maxHit)],
-    ['누적 골드', fmt(st.mesosTotal)], ['연 상자', fmt(S.lampOpened) + '개'], ['역대 최고 스테이지', st.bestEver], ['연속 출석', S.dailyStreak + '일']];
+    ['누적 골드', fmt(st.mesosTotal)], ['연 상자', fmt(S.lampOpened) + '개'], ['나무상자 개봉', fmt(st.wcOpened || 0) + '번'], ['역대 최고 스테이지', st.bestEver], ['연속 출석', S.dailyStreak + '일']];
   $('statList').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('');
   const n = achCount();
   $('achHint').textContent = '🏆 ' + n + ' / ' + ACH.length + ' 달성 · 공격력·골드·경험치 +' + n + '% · 달성마다 📦 상자 +2';
@@ -2033,7 +2148,7 @@ function uiHud() {
 function updateUI() {
   if (!HAS_DOM) return;
   if (!P) recalc();
-  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI(); uiUlt(); uiQuestDot(); uiMoreDot(); renderGuest();
+  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI(); uiUlt(); uiQuestDot(); uiMoreDot(); renderGuest(); wcRender();
 }
 function uiAll(force) {
   if (!HAS_DOM) return;
@@ -2232,6 +2347,7 @@ function initDom() {
   });
   $('lamp1').onclick = () => uiOpenLamps(1);
   $('lamp10').onclick = () => uiOpenLamps(10);
+  $('wcUp').onclick = () => { if (wcUpgrade()) { sfx('buy'); updateUI(); } };
   $('modeSeg').addEventListener('click', e => {
     const b = e.target.closest('[data-mode]'); if (!b) return;
     S.mode = b.dataset.mode === 'max' ? 'max' : Number(b.dataset.mode); updateUpgrades();
@@ -2984,7 +3100,7 @@ function renderAccount() {
   let h;
   if (!ON.ready) h = '<p class="hint">' + esc(ON.err || '서버에 연결하는 중이에요…') + '</p>';
   else if (!CL.linked) {
-    h = '<p>지금은 <b>이 브라우저에만</b> 기록이 저장돼요. 카카오 계정을 연결하면 <b>모든 기능(전직·던전·펫·퀘스트·랭킹·채팅)</b>이 열리고, 클라우드에도 저장돼서 다른 기기에서도 이어서 할 수 있어요.</p>' +
+    h = '<p>지금은 <b>이 브라우저에만</b> 기록이 저장돼요. 카카오 계정을 연결하면 <b>모든 기능(전직·던전·나무상자·펫·퀘스트·랭킹·채팅)</b>이 열리고, 클라우드에도 저장돼서 다른 기기에서도 이어서 할 수 있어요.</p>' +
       '<button class="btn kakao" type="button" data-acc="link">💬 카카오로 계정 연결</button>' +
       '<p class="hint">이미 연결한 적이 있나요? <button class="linkbtn" type="button" data-acc="login">카카오로 로그인</button></p>';
   } else {

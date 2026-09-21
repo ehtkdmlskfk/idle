@@ -324,6 +324,14 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
 .btn.kakao{background:#fee500;color:#191919;box-shadow:0 4px 0 #b39d00}
 .linkbtn{background:none;border:0;padding:2px 0;color:var(--r1);text-decoration:underline;cursor:pointer;font:inherit}
 
+/* 맛보기(비로그인) 안내 · 잠긴 탭 */
+.guestbar{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;padding:10px 12px;font-size:14px}
+.guestbar span{flex:1 1 200px;min-width:0}
+.guestbar .btn{min-height:40px;padding:4px 14px;font-size:15px}
+.tab.lock{opacity:.6}
+.tab.lock::after{content:'🔒';position:absolute;top:1px;right:calc(50% - 24px);font-size:12px;line-height:1}
+.moregrid .tab.lock::after{top:8px;right:10px}
+
 /* 황금 몬스터 */
 .mob{touch-action:manipulation}
 .mob.golden{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -417,6 +425,11 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
           <label class="switch"><input type="checkbox" id="autoAdv"><span class="knob"></span><span>자동 진행</span></label>
           <span class="best" id="bestText"></span>
         </div>
+      </div>
+
+      <div class="card guestbar" id="guestBar" hidden>
+        <span id="guestTxt"></span>
+        <button class="btn kakao" type="button" id="guestBtn">💬 카카오로 계속하기</button>
       </div>
     </section>
 
@@ -960,7 +973,7 @@ function dgRewardText(r) {
 }
 function startDungeon(id) {
   const def = dgDef(id); dgEnsure();
-  if (!def || RT.dg || RT.deadT > 0 || S.best < def.need || S.dg.left[id] <= 0) return false;
+  if (!def || RT.dg || RT.deadT > 0 || S.best < def.need || S.dg.left[id] <= 0 || isGuest()) return false;
   S.dg.left[id]--; S.stats.dgRuns++;
   RT.dg = { id, t: DG_TIME, kills: 0, ref: dgRef() };
   RT.mob = null; RT.spawnT = 0.5; RT.hp = P.maxHp; RT.atkT = 0; RT.skT = 0;
@@ -1074,6 +1087,7 @@ function killMob() {
 function clearStage() {
   sfx(S.stage % 10 === 0 ? 'bossclear' : 'clear');
   S.kills = 0;
+  if (isGuest() && S.stage >= GUEST_MAX_STAGE) { guestCapHit(); return; }   // 맛보기는 여기까지 (기록은 그대로 남아요)
   if (S.stage === S.best) { S.best++; if (S.best > S.stats.bestEver) S.stats.bestEver = S.best; }
   if (S.auto && S.stage < S.best) S.stage++;
 }
@@ -1329,7 +1343,7 @@ function openLamps(n) {
 /* ---------- 전직 ---------- */
 const canAdvance = () => S.tier < 4 && S.lv >= ADV_LV[S.tier];
 function advance(jobId) {
-  if (!canAdvance()) return;
+  if (!canAdvance() || isGuest()) return;
   if (S.tier === 0) { if (!JOBS[jobId] || jobId === 'novice') return; S.job = jobId; S.tier = 1; }
   else S.tier++;
   recalc(); RT.hp = P.maxHp; RT.jobSig = ''; RT.advSeen = false;
@@ -1849,6 +1863,7 @@ function renderInfo() {
 let curTab = 'train';
 const MORE_TABS = ['lamp', 'pet', 'quest', 'rank', 'chat', 'info'];
 function setTab(t) {
+  if (tabLocked(t)) { loginGate((TAB_NAME[t] || '이 기능') + '은(는) 로그인 후에 쓸 수 있어요.'); return; }
   curTab = t;
   if (t === 'chat') { CH.paintSig = ''; CH.bottom = true; }
   document.querySelectorAll('.tab[data-tab]').forEach(b => {
@@ -1981,7 +1996,7 @@ function uiStage() {
   $('killText').textContent = boss ? '보스 처치' : S.kills + ' / ' + need;
   $('killBar').classList.toggle('boss', boss);
   $('prevStage').disabled = s <= 1;
-  $('nextStage').disabled = s >= S.best;
+  $('nextStage').disabled = s >= S.best || (isGuest() && s >= GUEST_MAX_STAGE);
   $('bestText').textContent = '최고 스테이지 ' + S.best;
   const key = zoneIdx(s);
   if (RT.zoneKey !== key) {
@@ -2009,14 +2024,14 @@ function uiHud() {
   $('cHp').textContent = fmt(P.maxHp);
   $('hpFill').style.width = Math.max(0, RT.hp / P.maxHp * 100) + '%';
   const can = canAdvance();
-  $('advDot').hidden = !can;
+  $('advDot').hidden = !can || isGuest();
   const ld = $('lampDot'); if (ld) ld.hidden = S.lamps < 1;
-  if (can && !RT.advSeen) { RT.advSeen = true; toast('⚔️ 전직할 수 있어요! 전직 탭을 확인하세요.', 'gold'); }
+  if (can && !isGuest() && !RT.advSeen) { RT.advSeen = true; toast('⚔️ 전직할 수 있어요! 전직 탭을 확인하세요.', 'gold'); }
 }
 function updateUI() {
   if (!HAS_DOM) return;
   if (!P) recalc();
-  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI(); uiUlt(); uiQuestDot(); uiMoreDot();
+  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI(); uiUlt(); uiQuestDot(); uiMoreDot(); renderGuest();
 }
 function uiAll(force) {
   if (!HAS_DOM) return;
@@ -2248,7 +2263,7 @@ function initDom() {
     dgSig = ''; updateUI();
   });
   $('prevStage').onclick = () => { if (S.stage > 1) goStage(-1); };
-  $('nextStage').onclick = () => { if (S.stage < S.best) goStage(1); };
+  $('nextStage').onclick = () => { if (S.stage < S.best && !(isGuest() && S.stage >= GUEST_MAX_STAGE)) goStage(1); };
   $('autoAdv').onchange = e => { S.auto = e.target.checked; };
   $('saveBtn').onclick = () => { save(); toast('저장했어요', 'good'); };
   $('resetBtn').onclick = () => modal('처음부터 다시 할까요?', '<p>저장된 진행 상황이 모두 지워져요. 되돌릴 수 없어요.</p>',
@@ -2360,7 +2375,7 @@ function rankErrText(e) {
 
 /* 내 기록 올리기 — 값이 바뀌었을 때만, 30초 간격 이상으로 */
 async function rankSend(force) {
-  if (!ON.ready || !ON.nick || ON.busy) return;
+  if (!ON.ready || !ON.nick || ON.busy || isGuest()) return;
   const sig = [S.stats.bestEver, S.lv, S.job, S.tier].join('|');
   const now = Date.now();
   if (!force) {
@@ -2515,7 +2530,7 @@ async function chatStart() {
 
 /* 1초마다 불려요: 채팅 탭을 보고 있으면 자주, 아니면 드물게 확인 */
 function chatTick() {
-  if (!HAS_DOM || !onlineOn() || !ON.ready) return;
+  if (!HAS_DOM || !onlineOn() || !ON.ready || isGuest()) return;
   if (!CH.started) { chatStart(); return; }
   if (document.hidden) return;
   const every = curTab === 'chat' ? (CH.live ? 15000 : 4000) : (CH.live ? 60000 : 20000);
@@ -2526,6 +2541,7 @@ async function chatSend() {
   const inp = $('chatIn');
   const text = inp.value.replace(/\s+/g, ' ').trim();
   if (!text) return;
+  if (isGuest()) { loginGate('채팅은 로그인 후에 쓸 수 있어요.'); return; }
   if (!ON.ready) { toast(ON.err || '서버에 연결 중이에요', 'bad'); return; }
   if (!ON.nick) { openNickModal('', '채팅을 하려면 닉네임이 필요해요'); return; }
   if (CH.busy) return;
@@ -2576,7 +2592,7 @@ function renderChat() {
    - 기록은 1분마다 자동으로 올라가고, 다른 기기에서 더 최근에 저장했다면 덮어쓰기 전에 물어봐요.
    ===================================================== */
 const CLOUD_KEY = 'infinite-hunt-cloud';   // { uid, at } 이 기기가 마지막으로 클라우드와 맞춘 시각
-const CL = { inited: false, linked: false, uid: '', name: '', synced: false, checking: false, busy: false, asking: false,
+const CL = { inited: false, known: false, linked: false, uid: '', name: '', synced: false, checking: false, busy: false, asking: false,
   deferred: false, at: 0, lastPush: 0, okAt: 0, retryAt: 0, err: '', ver: 0, paintSig: '' };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const authRedirect = () => location.origin + location.pathname;
@@ -2591,6 +2607,7 @@ function accountApply(session) {
   const u = session && session.user;
   const linked = !!(u && !u.is_anonymous);
   const uid = u ? u.id : '';
+  if (!CL.known) { CL.known = true; CL.ver++; }
   const md = (u && u.user_metadata) || {};
   const name = String(md.name || md.preferred_username || md.nickname || '').slice(0, 20);
   if (linked !== CL.linked || uid !== CL.uid) { CL.synced = false; CL.deferred = false; CL.at = 0; CL.err = ''; }
@@ -2598,6 +2615,54 @@ function accountApply(session) {
   CL.linked = linked; CL.uid = uid; CL.name = name;
   if (changed) CL.ver++;
   if (linked && !CL.synced) cloudSync();
+}
+
+/* ----- 🔒 맛보기(비로그인) 제한 -----
+   - 로그인 전에는 훈련·장비·기록 탭과 스테이지 GUEST_MAX_STAGE 까지만 할 수 있어요.
+   - 진행 기록은 지우지 않고 그대로 두기 때문에, 로그인하면 바로 이어서 할 수 있어요.
+   - SB_URL / SB_KEY 를 비워 두면(오프라인) 이 제한도 꺼져요. */
+const GUEST_MAX_STAGE = 10;
+const GUEST_TABS = ['train', 'gear', 'info'];
+const TAB_NAME = { job: '⚔️ 전직', dungeon: '🏰 던전', lamp: '📦 보물상자', pet: '🐾 펫', quest: '📅 퀘스트', rank: '🏆 랭킹', chat: '💬 채팅' };
+const AUTH_STORE_KEY = 'infinite-hunt-auth';   // onlineInit 의 storageKey 와 같아야 해요
+const GATE = { sig: '', capShown: false };
+/* 서버 확인 전에는 브라우저에 남은 로그인 정보를 보고 미리 짐작해요 (새로고침할 때 잠깐 잠기는 걸 막아요) */
+function loginHint() {
+  try { const d = JSON.parse(localStorage.getItem(AUTH_STORE_KEY) || 'null'); return !!(d && d.user && !d.user.is_anonymous); } catch (e) { return false; }
+}
+const isGuest = () => HAS_DOM && onlineOn() && !(CL.known ? CL.linked : loginHint());
+const tabLocked = t => isGuest() && !GUEST_TABS.includes(t);
+
+function loginGate(why) {
+  modal('🔒 로그인이 필요해요',
+    '<p>' + why + '</p>' +
+    '<p>로그인 전에는 <b>맛보기</b>(훈련·장비 · 스테이지 ' + GUEST_MAX_STAGE + '까지)만 할 수 있어요. 카카오 계정을 연결하면 모든 기능이 열려요.</p>' +
+    '<p class="hint">지금까지의 기록은 그대로 이어져요.</p>',
+    [{ label: '나중에', cls: 'ghost' },
+     { label: '기존 계정 로그인', cls: 'ghost', fn: kakaoLoginAsk },
+     { label: '💬 카카오로 계정 연결', cls: 'kakao', fn: () => kakaoOAuth('link') }]);
+}
+function guestCapHit() {
+  if (GATE.capShown) return;
+  GATE.capShown = true;
+  setTimeout(() => loginGate('🎉 맛보기 마지막 스테이지 ' + GUEST_MAX_STAGE + '을(를) 클리어했어요! 더 진행하려면 로그인이 필요해요.'), 900);
+}
+/* 안내 줄 · 잠금 표시 · (예전 기록이 맛보기보다 멀리 가 있으면) 현재 스테이지만 되돌리기 */
+function renderGuest() {
+  if (!HAS_DOM || !onlineOn()) return;
+  const g = isGuest();
+  if (g && CL.known && S.stage > GUEST_MAX_STAGE && !RT.dg) {
+    S.stage = GUEST_MAX_STAGE; S.kills = 0; RT.mob = null; RT.deadT = 0; RT.spawnT = 0.25; uiMobGone();
+  }
+  const atCap = g && S.stage >= GUEST_MAX_STAGE;
+  const sig = g + '|' + atCap;
+  if (sig === GATE.sig) return;
+  GATE.sig = sig;
+  document.querySelectorAll('.tab[data-tab]').forEach(b => b.classList.toggle('lock', tabLocked(b.dataset.tab)));
+  $('guestBar').hidden = !g;
+  $('guestTxt').innerHTML = atCap
+    ? '🎉 <b>맛보기 끝!</b> 스테이지 ' + GUEST_MAX_STAGE + '까지 왔어요. 로그인하면 계속할 수 있어요.'
+    : '🔒 <b>맛보기 모드</b> · 스테이지 ' + GUEST_MAX_STAGE + '까지 · 로그인하면 모든 기능이 열려요';
 }
 
 /* ----- 카카오 로그인 시작 ----- */
@@ -2796,7 +2861,7 @@ function renderAccount() {
   let h;
   if (!ON.ready) h = '<p class="hint">' + esc(ON.err || '서버에 연결하는 중이에요…') + '</p>';
   else if (!CL.linked) {
-    h = '<p>지금은 <b>이 브라우저에만</b> 기록이 저장돼요. 카카오 계정을 연결하면 클라우드에도 저장돼서, 다른 기기에서도 이어서 할 수 있어요.</p>' +
+    h = '<p>지금은 <b>이 브라우저에만</b> 기록이 저장돼요. 카카오 계정을 연결하면 <b>모든 기능(전직·던전·펫·퀘스트·랭킹·채팅)</b>이 열리고, 클라우드에도 저장돼서 다른 기기에서도 이어서 할 수 있어요.</p>' +
       '<button class="btn kakao" type="button" data-acc="link">💬 카카오로 계정 연결</button>' +
       '<p class="hint">이미 연결한 적이 있나요? <button class="linkbtn" type="button" data-acc="login">카카오로 로그인</button></p>';
   } else {
@@ -2817,6 +2882,7 @@ function initOnlineDom() {
   $('tabRank').hidden = false;
   $('tabChat').hidden = false;
   $('accCard').hidden = false;
+  $('guestBtn').addEventListener('click', () => loginGate('카카오 계정을 연결하면 스테이지 제한이 풀리고 모든 기능을 쓸 수 있어요.'));
   $('accBox').addEventListener('click', e => {
     const b = e.target.closest('[data-acc]'); if (!b) return;
     const a = b.dataset.acc;

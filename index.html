@@ -639,6 +639,7 @@ function fmt(n) {
   return x.toFixed(x < 10 ? 2 : x < 100 ? 1 : 0) + UNITS[i];
 }
 const fx2 = x => x < 1000 ? x.toFixed(2) : fmt(x);
+const fx1 = x => Number.isInteger(x) ? String(x) : x.toFixed(1);
 function fmtTime(sec) {
   sec = Math.floor(sec);
   const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
@@ -717,15 +718,17 @@ const JOBS = {
     skill: { name: '럭키 세븐', e: '⭐', cd: 5, mult: 2, hits: 2, crit: true } },
 };
 
+/* 🏋️ 훈련: 최종 효과는 예전과 비슷하게 맞추고, 그 대신 단계 수를 2배로 늘려서 훨씬 촘촘하고 오래 걸리도록 했어요.
+   (레벨당 효과를 절반으로 줄이고 최대 레벨을 2배로 늘려서 도달 효과는 같게, 성장 곡선(g)도 같은 방식으로 완만하게 늘려 최종 비용은 비슷하게 유지) */
 const UPG = [
   { id: 'atk',  name: '공격력 훈련',   e: '💪', base: 80,  g: 1.15, max: Infinity, eff: l => '공격력 ×' + fx2(Math.pow(1.10, l)) },
-  { id: 'spd',  name: '공격 속도',     e: '⚡', base: 240,  g: 1.24, max: 30,  eff: l => '공격 속도 +' + l * 5 + '%' },
-  { id: 'crit', name: '치명타 확률',   e: '🎯', base: 320,  g: 1.22, max: 60,  eff: l => '치명타 확률 +' + l + '%' },
-  { id: 'cdmg', name: '치명타 피해',   e: '💢', base: 400, g: 1.18, max: 100, eff: l => '치명타 피해 +' + l * 8 + '%' },
+  { id: 'spd',  name: '공격 속도',     e: '⚡', base: 240,  g: 1.1136, max: 60,  eff: l => '공격 속도 +' + fx1(l * 2.5) + '%' },
+  { id: 'crit', name: '치명타 확률',   e: '🎯', base: 320,  g: 1.1045, max: 120, eff: l => '치명타 확률 +' + fx1(l * 0.5) + '%' },
+  { id: 'cdmg', name: '치명타 피해',   e: '💢', base: 400, g: 1.0863, max: 200, eff: l => '치명타 피해 +' + l * 4 + '%' },
   { id: 'hp',   name: '체력 단련',     e: '❤️', base: 80,  g: 1.15, max: Infinity, eff: l => '최대 체력 ×' + fx2(Math.pow(1.08, l)) },
-  { id: 'meso', name: '골드 획득',     e: '🪙', base: 200,  g: 1.2,  max: 100, eff: l => '골드 +' + l * 6 + '%' },
-  { id: 'exp',  name: '경험치 획득',   e: '📈', base: 200,  g: 1.2,  max: 100, eff: l => '경험치 +' + l * 6 + '%' },
-  { id: 'luck', name: '행운',          e: '🍀', base: 480, g: 1.22, max: 50,  eff: l => '드랍률·장비 등급 +' + l * 4 + '%' },
+  { id: 'meso', name: '골드 획득',     e: '🪙', base: 200,  g: 1.0954,  max: 200, eff: l => '골드 +' + l * 3 + '%' },
+  { id: 'exp',  name: '경험치 획득',   e: '📈', base: 200,  g: 1.0954,  max: 200, eff: l => '경험치 +' + l * 3 + '%' },
+  { id: 'luck', name: '행운',          e: '🍀', base: 480, g: 1.1045, max: 100,  eff: l => '드랍률·장비 등급 +' + l * 2 + '%' },
 ];
 const unitCost = (u, lv) => Math.ceil(u.base * Math.pow(u.g, lv));
 
@@ -771,6 +774,8 @@ const ACH = [
   { id: 'dg10',    name: '던전 탐험가',   desc: '던전 10번 도전',          ok: s => s.stats.dgRuns >= 10 },
   { id: 'lamp30',   name: '상자 수집가',   desc: '보물상자 30개 열기',          ok: s => s.lampOpened >= 30 },
   { id: 'lamp200',  name: '상자의 주인',   desc: '보물상자 200개 열기',         ok: s => s.lampOpened >= 200 },
+  { id: 'enh30',    name: '강화의 달인',   desc: '모든 칸 +30 달성',            ok: s => SLOTS.every(sl => ((s.enh && s.enh[sl.id]) || 0) >= 30) },
+  { id: 'enh60',    name: '강화의 극한',   desc: '모든 칸 +60 달성',            ok: s => SLOTS.every(sl => ((s.enh && s.enh[sl.id]) || 0) >= 60) },
 ];
 
 /* ---------- 밸런스 공식 ---------- */
@@ -778,11 +783,11 @@ const ACH = [
    - hpA·hpB: 스테이지마다 몬스터 체력이 늘어나는 비율 (KNEE 전 · 후) / dmA·dmB: 몬스터 공격력이 늘어나는 비율. 클수록 벽이 빨리 와요.
    - expK·expE: 레벨업에 필요한 경험치 = 20 × expK × Lv^expE. 클수록 레벨이 느려요.
    - 전직 레벨은 ADV_LV 에서 조절해요.
-   (자동 플레이 봇으로 잰 대략: 1차 전직 30분 · 2차 5시간 · 3차 18시간 · 4차 47시간 / 스테이지 50 → 5.5시간 · 100 → 23시간)
+   (v3: 강화·훈련 최대치를 늘린 것과 함께 진행 속도도 예전보다 더 천천히 늘어나도록 다시 맞췄어요 — 게임을 더 오래 즐길 수 있도록)
    - BAL: 밸런스를 크게 바꿀 때마다 올려요. 올리면 옛 저장은 처음 켤 때 지금 능력으로 버틸 수 있는 스테이지로 옮겨져요. */
-const BAL = 2;
+const BAL = 3;
 const KNEE = 40;
-const PACE = { hpA: 1.36, hpB: 1.28, dmA: 1.28, dmB: 1.215, expK: 6, expE: 2.4 };
+const PACE = { hpA: 1.40, hpB: 1.31, dmA: 1.31, dmB: 1.24, expK: 7, expE: 2.5 };
 const mobHp    = s => Math.ceil(16 * Math.pow(PACE.hpA, Math.min(s, KNEE) - 1) * Math.pow(PACE.hpB, Math.max(0, s - KNEE)) * (1 + 0.03 * s));
 const mobDmg   = s => Math.ceil(8 * Math.pow(PACE.dmA, Math.min(s, KNEE) - 1) * Math.pow(PACE.dmB, Math.max(0, s - KNEE)) * (1 + 0.03 * s));
 const mesoKill = s => 4 * Math.pow(1.12, s - 1);
@@ -877,11 +882,11 @@ function recalc() {
   }
   const lvM = 1 + 0.03 * S.lv;
   const pb = petBonus(), ab = achBonus();
-  const rAtk = 1 + rbVal('atk'), rHp = 1 + rbVal('hp'), rMeso = 1 + rbVal('meso'), rExp = 1 + rbVal('exp'), lk = 0.04 * u.luck + rbVal('luck');
+  const rAtk = 1 + rbVal('atk'), rHp = 1 + rbVal('hp'), rMeso = 1 + rbVal('meso'), rExp = 1 + rbVal('exp'), lk = 0.02 * u.luck + rbVal('luck');
   const atk = (5 + 2 * (S.lv - 1) + gAtk) * lvM * Math.pow(1.10, u.atk) * TIER_ATK[tier] * job.atk * (1 + 0.08 * S.souls) * (1 + pb.atk) * (1 + ab) * rAtk;
-  const aps = Math.min(8, job.spd * (1 + 0.05 * u.spd));
-  const crit = Math.min(0.95, 0.05 + 0.01 * u.crit + job.crit + pb.crit);
-  const cdmg = 1.5 + 0.08 * u.cdmg + job.cdmg;
+  const aps = Math.min(8, job.spd * (1 + 0.025 * u.spd));
+  const crit = Math.min(0.95, 0.05 + 0.005 * u.crit + job.crit + pb.crit);
+  const cdmg = 1.5 + 0.04 * u.cdmg + job.cdmg;
   const maxHp = (60 + 12 * (S.lv - 1) + gHp) * lvM * Math.pow(1.08, u.hp) * TIER_HP[tier] * job.hp * (1 + 0.05 * S.souls) * (1 + pb.hp) * rHp;
   const sk = Object.assign({}, job.skill, { mult: job.skill.mult * (1 + 0.25 * tier) });
   const avg = 1 + crit * (cdmg - 1);
@@ -889,8 +894,8 @@ function recalc() {
   const skillDps = atk * sk.mult * sk.hits * (sk.crit ? cdmg : avg) / sk.cd;
   P = {
     atk, aps, crit, cdmg, maxHp, skill: sk, dps: basicDps + skillDps,
-    mesoM: (1 + 0.06 * u.meso) * (1 + 0.08 * S.souls) * (1 + pb.meso) * (1 + ab) * rMeso,
-    expM: (1 + 0.06 * u.exp) * (1 + 0.05 * S.souls) * (1 + pb.exp) * (1 + ab) * rExp,
+    mesoM: (1 + 0.03 * u.meso) * (1 + 0.08 * S.souls) * (1 + pb.meso) * (1 + ab) * rMeso,
+    expM: (1 + 0.03 * u.exp) * (1 + 0.05 * S.souls) * (1 + pb.exp) * (1 + ab) * rExp,
     dropCh: Math.min(0.5, 0.09 * (1 + lk)),
     luckF: 1 + lk,
   };
@@ -1215,12 +1220,17 @@ function tick(dt) {
 }
 
 /* ---------- 장비 드랍 ---------- */
-const ENH_MAX = 15;
+/* 🔨 강화: 별도의 '초월' 단계 없이, 처음부터 끝까지 하나로 이어지는 강화예요. 칸마다 단계당 기본 성능의 5%씩 더해지고
+   최대 +60까지 올릴 수 있어요(예전 +30보다 훨씬 길게). 강화석은 다음 단계 숫자만큼, 골드는 장비 성능에 비례해서 단계마다 늘어요.
+   (최종 도달 성능·비용대는 예전 +30 만렙과 비슷하게 맞추고, 그 대신 단계 수를 늘려 훨씬 오래 걸리게 했어요. 수치는 ENH · enhanceCost 에서 조절) */
+const ENH = { max: 60, pct: 0.05, goldG: 1.104 };
+const ENH_MAX = ENH.max;
 const enhOf = slot => (S.enh && S.enh[slot]) || 0;
-const itemPower = it => it ? it.p * (1 + 0.08 * enhOf(it.slot)) : 0;
+const enhMult = l => 1 + ENH.pct * l;
+const itemPower = it => it ? it.p * enhMult(enhOf(it.slot)) : 0;
 function enhanceCost(it) {
   const lvl = enhOf(it.slot) + 1;
-  return { gold: Math.ceil(it.p * 1.3 * (1 + it.r) * Math.pow(1.22, lvl)), stones: lvl };
+  return { gold: Math.ceil(it.p * 1.3 * (1 + it.r) * Math.pow(ENH.goldG, lvl)), stones: lvl };
 }
 function enhanceGear(slotId) {
   const it = S.gear[slotId];
@@ -1789,17 +1799,17 @@ function buildGear() {
 }
 function updateGear() {
   const J = JOBS[S.job || 'novice'];
-  $('stoneHint').textContent = '🔩 보유 강화석 ' + fmt(S.stones) + '개 · 강화는 칸에 남아서 장비를 바꿔도 유지돼요.';
+  $('stoneHint').textContent = '🔩 보유 강화석 ' + fmt(S.stones) + '개 · 강화는 칸에 남아서 장비를 바꿔도 유지돼요 · 최대 +' + ENH.max + '까지 강화할 수 있어요.';
   SLOTS.forEach(sl => {
     const it = S.gear[sl.id];
     sl.el.icon.textContent = sl.id === 'weapon' ? J.we : sl.e;
     if (!it) {
       sl.el.item.textContent = '비어 있음'; sl.el.item.className = 'sitem empty'; sl.el.stat.textContent = '';
-      sl.el.enh.textContent = enhOf(sl.id) ? '🔨 강화 +' + enhOf(sl.id) + ' 유지 중' : ''; sl.el.enhBtn.disabled = true; sl.el.enhBtn.textContent = '강화';
+      sl.el.enh.textContent = ''; sl.el.enhBtn.disabled = true; sl.el.enhBtn.textContent = '강화';
       return;
     }
     const lvl = enhOf(sl.id);
-    sl.el.item.textContent = RARITY[it.r].n + ' ' + it.name + (lvl ? ' +' + lvl : '');
+    sl.el.item.textContent = RARITY[it.r].n + ' ' + it.name + (lvl ? ' +' + lvl : '') + (lvl >= 30 ? ' ✨' : '');
     sl.el.item.className = 'sitem r' + it.r;
     sl.el.stat.textContent = (sl.stat === 'atk' ? '공격력 +' : '체력 +') + fmt(itemPower(it) * sl.k);
     if (lvl >= ENH_MAX) {
@@ -3166,7 +3176,7 @@ function initOnlineDom() {
    - 던전 중 · 창이 떠 있을 때 · 저장 중에는 기다렸다가, 안전한 순간에 적용해요.
    - 코드(스크립트)가 바뀌면 자동으로 알아채요. HTML·CSS만 고친 배포는 아래 BUILD 값을 바꿔야 알아채요.
    ===================================================== */
-const BUILD = '2026-09-21-c';
+const BUILD = '2026-09-21-d';
 const UPD_KEY = 'infinite-hunt-upd';   // 이미 새로고침해 본 버전 (서버가 옛 파일을 계속 줄 때 무한 새로고침을 막아요)
 const UPD = { self: '', last: 0, every: 300000, busy: false, want: '', applying: false, warned: false };
 const updNorm = t => String(t).replace(/\r\n?/g, '\n');

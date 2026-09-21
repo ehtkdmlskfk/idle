@@ -175,7 +175,7 @@ button{font:inherit;color:inherit}
   .bcell{grid-column:2;max-width:none;justify-self:stretch}
 }
 .bnav{position:fixed;left:0;right:0;bottom:0;z-index:45;pointer-events:none;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
-.bnav .bcell{pointer-events:auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:6px;background:var(--panel);border:3px solid var(--line);border-radius:20px;box-shadow:var(--shadow),0 10px 24px rgba(0,0,0,.18)}
+.bnav .bcell{pointer-events:auto;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;padding:6px;background:var(--panel);border:3px solid var(--line);border-radius:20px;box-shadow:var(--shadow),0 10px 24px rgba(0,0,0,.18)}
 .tab{position:relative;display:grid;justify-items:center;align-content:center;gap:1px;min-height:54px;padding:3px 2px;border:0;border-radius:14px;background:transparent;color:var(--ink2);cursor:pointer;font:inherit;-webkit-tap-highlight-color:transparent}
 .tab .ti{font-size:24px;line-height:1.1}
 .tab .tl{font-size:12px;line-height:1.1;white-space:nowrap}
@@ -573,19 +573,19 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
   <div class="bwrap"><div class="bcell">
     <button class="tab on" type="button" data-tab="train" aria-current="page"><span class="ti">🏋️</span><span class="tl">훈련</span></button>
     <button class="tab" type="button" data-tab="gear"><span class="ti">🛡️</span><span class="tl">장비</span></button>
-    <button class="tab" type="button" data-tab="job"><span class="ti">⚔️</span><span class="tl">전직</span><i class="dot" id="advDot" hidden></i></button>
-    <button class="tab" type="button" data-tab="dungeon"><span class="ti">🏰</span><span class="tl">던전</span></button>
+    <button class="tab" type="button" data-tab="lamp"><span class="ti">📦</span><span class="tl">보물상자</span><i class="dot" id="lampDot" hidden></i></button>
+    <button class="tab" type="button" data-tab="chat" id="tabChat" hidden><span class="ti">💬</span><span class="tl">채팅</span><i class="dot" id="chatDot" hidden></i></button>
     <button class="tab" type="button" id="moreBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="moreSheet"><span class="ti">☰</span><span class="tl">더보기</span><i class="dot" id="moreDot" hidden></i></button>
   </div></div>
 </nav>
 <div class="sheet" id="moreSheet" hidden>
   <div class="bwrap"><div class="bcell sheetcard" role="dialog" aria-modal="true" aria-label="더보기">
     <div class="moregrid">
-      <button class="tab" type="button" data-tab="lamp"><span class="ti">📦</span><span class="tl">보물상자</span><i class="dot" id="lampDot" hidden></i></button>
+      <button class="tab" type="button" data-tab="job"><span class="ti">⚔️</span><span class="tl">전직</span><i class="dot" id="advDot" hidden></i></button>
+      <button class="tab" type="button" data-tab="dungeon"><span class="ti">🏰</span><span class="tl">던전</span></button>
       <button class="tab" type="button" data-tab="pet"><span class="ti">🐾</span><span class="tl">펫</span></button>
       <button class="tab" type="button" data-tab="quest"><span class="ti">📅</span><span class="tl">퀘스트</span><i class="dot" id="qDot" hidden></i></button>
       <button class="tab" type="button" data-tab="rank" id="tabRank" hidden><span class="ti">🏆</span><span class="tl">랭킹</span></button>
-      <button class="tab" type="button" data-tab="chat" id="tabChat" hidden><span class="ti">💬</span><span class="tl">채팅</span><i class="dot" id="chatDot" hidden></i></button>
       <button class="tab" type="button" data-tab="info"><span class="ti">📜</span><span class="tl">기록</span></button>
     </div>
   </div></div>
@@ -1977,7 +1977,7 @@ function renderInfo() {
 
 /* ----- 공통 갱신 ----- */
 let curTab = 'train';
-const MORE_TABS = ['lamp', 'pet', 'quest', 'rank', 'chat', 'info'];
+const MORE_TABS = ['job', 'dungeon', 'pet', 'quest', 'rank', 'info'];
 function setTab(t) {
   if (tabLocked(t)) { loginGate((TAB_NAME[t] || '이 기능') + '은(는) 로그인 후에 쓸 수 있어요.', t); return; }
   curTab = t;
@@ -2010,7 +2010,7 @@ function closeMore(refocus) {
 /* 더보기 안에 알림 점이 하나라도 있으면 더보기 버튼에도 점을 보여줘요 */
 function uiMoreDot() {
   const m = $('moreDot'); if (!m) return;
-  m.hidden = !['lampDot', 'qDot', 'chatDot'].some(id => { const d = $(id); return d && !d.hidden; });
+  m.hidden = !['advDot', 'qDot'].some(id => { const d = $(id); return d && !d.hidden; });
 }
 let qSig = '';
 function renderQuests() {
@@ -2141,8 +2141,8 @@ function uiHud() {
   $('hpFill').style.width = Math.max(0, RT.hp / P.maxHp * 100) + '%';
   const can = canAdvance();
   $('advDot').hidden = !can || isGuest();
-  const ld = $('lampDot'); if (ld) ld.hidden = S.lamps < 1;
-  if (can && !isGuest() && !RT.advSeen) { RT.advSeen = true; toast('⚔️ 전직할 수 있어요! 전직 탭을 확인하세요.', 'gold'); }
+  const ld = $('lampDot'); if (ld) ld.hidden = S.lamps < 1 || isGuest();
+  if (can && !isGuest() && !RT.advSeen) { RT.advSeen = true; toast('⚔️ 전직할 수 있어요! ☰ 더보기에서 전직 탭을 확인하세요.', 'gold'); }
 }
 function updateUI() {
   if (!HAS_DOM) return;

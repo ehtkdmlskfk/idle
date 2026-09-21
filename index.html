@@ -500,12 +500,9 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
       </div>
 
       <div class="card pane" id="pane-rebirth" hidden>
-        <h2>환생</h2>
-        <p class="hint">스테이지 <span id="rbMin">50</span> 이상에서 환생하면 <b>환생 포인트</b>를 받고 처음부터 다시 시작해요. 포인트는 아래 상점에서 영구 능력으로 바꿀 수 있어요.</p>
+        <h2>환생 상점</h2>
+        <p class="hint">환생은 종료됐어요. 예전에 환생해서 받은 포인트는 아래에서 영구 능력으로 바꿀 수 있고, 이미 얻은 능력은 그대로 유지돼요.</p>
         <div class="rbbox" id="rbBox"></div>
-        <button class="btn" id="rbGo" type="button" disabled>환생하기</button>
-        <p class="hint">🔁 처음으로: 레벨 · 훈련 · 골드 · 스테이지 · 전직 · 장비<br>✅ 그대로: 펫 · 업적 · 보물상자 · 강화석 · 환생 상점</p>
-        <h2 style="margin-top:6px">환생 상점</h2>
         <div id="rbShop" style="display:grid;gap:8px"></div>
       </div>
 
@@ -700,7 +697,7 @@ const zoneLoop = s => Math.floor((s - 1) / (ZONES.length * 10));
 const zoneOf = s => ZONES[zoneIdx(s)];
 const zoneTitle = s => zoneOf(s).name + (zoneLoop(s) > 0 ? ' +' + zoneLoop(s) : '');
 
-const ADV_LV = [10, 30, 60, 100];
+const ADV_LV = [10, 40, 80, 130];   // 전직 레벨 (밸런스 조절은 아래 PACE 참고)
 const TIER_ATK = [1, 1.8, 3, 5, 9];
 const TIER_HP = [1, 1.6, 2.5, 4, 6];
 const JOBS = {
@@ -777,13 +774,20 @@ const ACH = [
 ];
 
 /* ---------- 밸런스 공식 ---------- */
-/* 스테이지 40까지는 가파르게, 그 뒤로는 완만하게 — 벽에 막혀도 계속 성장할 수 있게 (환생은 원하는 사람만) */
+/* ⏱ 진행 속도는 여기서 한 번에 조절해요 (환생이 없어져서, 천천히 크는 게 기본이에요)
+   - hpA·hpB: 스테이지마다 몬스터 체력이 늘어나는 비율 (KNEE 전 · 후) / dmA·dmB: 몬스터 공격력이 늘어나는 비율. 클수록 벽이 빨리 와요.
+   - expK·expE: 레벨업에 필요한 경험치 = 20 × expK × Lv^expE. 클수록 레벨이 느려요.
+   - 전직 레벨은 ADV_LV 에서 조절해요.
+   (자동 플레이 봇으로 잰 대략: 1차 전직 30분 · 2차 5시간 · 3차 18시간 · 4차 47시간 / 스테이지 50 → 5.5시간 · 100 → 23시간)
+   - BAL: 밸런스를 크게 바꿀 때마다 올려요. 올리면 옛 저장은 처음 켤 때 지금 능력으로 버틸 수 있는 스테이지로 옮겨져요. */
+const BAL = 2;
 const KNEE = 40;
-const mobHp    = s => Math.ceil(16 * Math.pow(1.28, Math.min(s, KNEE) - 1) * Math.pow(1.24, Math.max(0, s - KNEE)) * (1 + 0.03 * s));
-const mobDmg   = s => Math.ceil(8 * Math.pow(1.20, Math.min(s, KNEE) - 1) * Math.pow(1.175, Math.max(0, s - KNEE)) * (1 + 0.03 * s));
+const PACE = { hpA: 1.36, hpB: 1.28, dmA: 1.28, dmB: 1.215, expK: 6, expE: 2.4 };
+const mobHp    = s => Math.ceil(16 * Math.pow(PACE.hpA, Math.min(s, KNEE) - 1) * Math.pow(PACE.hpB, Math.max(0, s - KNEE)) * (1 + 0.03 * s));
+const mobDmg   = s => Math.ceil(8 * Math.pow(PACE.dmA, Math.min(s, KNEE) - 1) * Math.pow(PACE.dmB, Math.max(0, s - KNEE)) * (1 + 0.03 * s));
 const mesoKill = s => 4 * Math.pow(1.12, s - 1);
 const expKill  = s => 4 * Math.pow(s, 1.5);
-const expNeed  = L => Math.floor(20 * Math.pow(L, 1.9));
+const expNeed  = L => Math.floor(20 * PACE.expK * Math.pow(L, PACE.expE));
 const stageNeed = s => (s % 10 === 0 ? 1 : 10);
 /* 📅 일일 퀘스트: 매일(한국 시간 자정) 3개가 정해지고, 오늘 달성한 만큼만 인정돼요 */
 const QPOOL = [
@@ -814,12 +818,10 @@ const dgRef = () => Math.max(1, S.best - 1);
 const GOLDEN = { chance: 0.03, hp: 4, meso: 8, exp: 4, box: 0.35, time: 12, tap: 2.5,
   filter: 'sepia(1) saturate(5) hue-rotate(-8deg) brightness(1.15)' };
 
-/* ---------- 🔄 환생 ----------
-   - 스테이지 RB.minBest 이상에서 환생하면 '환생 포인트'를 받고, 레벨·훈련·골드·스테이지·전직·장비가 처음으로 돌아가요.
-   - 펫·업적·보물상자·강화석·기록은 그대로예요. 포인트는 환생 상점에서 영구 능력으로 바꿔요(선후관계 없음).
-   - 포인트 = floor(k × 이번 최고 스테이지 ^ pow)  →  스테이지 50 ≈ 4점, 100 ≈ 13점, 200 ≈ 39점
-   - 수치는 아래 RB / RB_SHOP 에서 한 번에 조절해요 (per = 레벨당 효과, base·g = 비용 base × g^레벨, max = 최대 레벨) */
-const RB = { minBest: 50, k: 0.0083, pow: 1.6, startStep: 3, startShare: 0.5, startGold: 600 };
+/* ---------- 🔄 환생 상점 (환생은 종료됐어요) ----------
+   - 환생 자체는 없어졌지만, 예전에 환생해서 받은 포인트와 능력은 그대로 남고 포인트는 상점에서 계속 쓸 수 있어요.
+   - 환생한 적이 없는 유저에게는 환생 탭이 보이지 않아요 (rbLegacy).
+   - 수치는 RB_SHOP 에서 조절해요 (per = 레벨당 효과, base·g = 비용 base × g^레벨, max = 최대 레벨) */
 const rbPctTxt = x => Math.round(x * 100) + '%';
 const rbStat = (id, e, name, txt, per, max) => ({ id, e, name, base: 1, g: 1.15, max, per, eff: l => txt + ' +' + rbPctTxt(l * per) + ' (Lv당 +' + rbPctTxt(per) + ')' });
 const RB_SHOP = [
@@ -827,24 +829,24 @@ const RB_SHOP = [
   rbStat('hp',   '❤️', '체력 마스터리',   '최대 체력',         0.20, 30),
   rbStat('meso', '🪙', '골드 마스터리',   '골드 획득',         0.20, 30),
   rbStat('exp',  '📈', '경험치 마스터리', '경험치 획득',       0.20, 30),
-  { id: 'start', e: '🚩', name: '시작 스테이지', base: 1, g: 1.25, max: 10, per: 0,
-    eff: l => l > 0 ? '다음 환생부터 최대 스테이지 ' + (1 + RB.startStep * l) + '에서 시작 (이전 최고의 절반까지)' : '다음 환생부터 · Lv당 시작 스테이지 +' + RB.startStep + ' · 시작 골드도 받아요' },
   { id: 'away', e: '🌙', name: '자리 비움 효율', base: 2, g: 1.25, max: 10, per: 0.05, eff: l => '자리 비운 사이 사냥량 +' + rbPctTxt(l * 0.05) + ' (Lv당 +5%)' },
   rbStat('luck', '🍀', '행운 마스터리',   '드랍률·장비 등급',   0.05, 20),
 ];
+/* 없어진 항목에 쓴 포인트는 rbEnsure 가 돌려줘요 (비용 = ceil(base × g^레벨)) */
+const RB_GONE = { wc: { base: 2, g: 1.25 }, start: { base: 1, g: 1.25 }, keep: { base: 2, g: 1.25 } };
 
 const RB_BY = {}; RB_SHOP.forEach(it => { RB_BY[it.id] = it; });
 const rbLv = id => (S.rb && S.rb.shop && S.rb.shop[id]) || 0;
 const rbVal = id => rbLv(id) * (RB_BY[id].per || 0);
 const rbCost = (it, lv) => Math.ceil(it.base * Math.pow(it.g, lv));
-const rbGain = st => st >= RB.minBest ? Math.floor(RB.k * Math.pow(st, RB.pow)) : 0;
 
 /* ---------- 상태 ---------- */
 function defaultState() {
   return {
-    v: 1, lv: 1, exp: 0, mesos: 0, stage: 1, best: 1, kills: 0, auto: true, mode: 1,
+    v: 1, bal: BAL, lv: 1, exp: 0, mesos: 0, stage: 1, best: 1, kills: 0, auto: true, mode: 1,
     upg: { atk: 0, spd: 0, crit: 0, cdmg: 0, hp: 0, meso: 0, exp: 0, luck: 0 },
     gear: { weapon: null, gloves: null, hat: null, armor: null, shoes: null },
+    enh: { weapon: 0, gloves: 0, hat: 0, armor: 0, shoes: 0 },   // 강화는 장비가 아니라 '칸'에 붙어요 (장비를 바꿔도 유지)
     job: null, tier: 0, souls: 0,
     rb: { n: 0, pts: 0, tot: 0, seen: 0, shop: {} },
     pets: {}, pet: null, ach: {},
@@ -1214,20 +1216,21 @@ function tick(dt) {
 
 /* ---------- 장비 드랍 ---------- */
 const ENH_MAX = 15;
-const itemPower = it => it ? it.p * (1 + 0.08 * (it.enh || 0)) : 0;
+const enhOf = slot => (S.enh && S.enh[slot]) || 0;
+const itemPower = it => it ? it.p * (1 + 0.08 * enhOf(it.slot)) : 0;
 function enhanceCost(it) {
-  const lvl = (it.enh || 0) + 1;
+  const lvl = enhOf(it.slot) + 1;
   return { gold: Math.ceil(it.p * 1.3 * (1 + it.r) * Math.pow(1.22, lvl)), stones: lvl };
 }
 function enhanceGear(slotId) {
   const it = S.gear[slotId];
   if (!it) return false;
-  const lvl = it.enh || 0;
+  const lvl = enhOf(slotId);
   if (lvl >= ENH_MAX) return false;
   const cost = enhanceCost(it);
   if (S.mesos < cost.gold || S.stones < cost.stones) return false;
   S.mesos -= cost.gold; S.stones -= cost.stones;
-  it.enh = lvl + 1; S.stats.enh = (S.stats.enh || 0) + 1;
+  S.enh[slotId] = lvl + 1; S.stats.enh = (S.stats.enh || 0) + 1;
   recalc(); save();
   return true;
 }
@@ -1249,7 +1252,7 @@ function genItem(stage, boss) {
   const p = 4 * Math.pow(1.10, stage - 1) * RARITY[r].m * rnd(0.85, 1.15);
   const J = JOBS[S.job || 'novice'];
   const base = sl.id === 'weapon' ? J.weapon : sl.name;
-  return { slot: sl.id, r, p, enh: 0, name: zoneOf(stage).short + '의 ' + base };
+  return { slot: sl.id, r, p, name: zoneOf(stage).short + '의 ' + base };
 }
 function rollDrop(stage, boss) {
   if (!boss && Math.random() >= P.dropCh) return;
@@ -1260,8 +1263,8 @@ function handleItem(it, quiet) {
   S.stats.items++;
   const cur = S.gear[it.slot];
   let mode, gold = 0;
-  if (!cur || it.p > itemPower(cur)) {
-    if (cur) { gold = Math.ceil(itemPower(cur) * 1.2 * (1 + cur.r)); S.mesos += gold; S.stats.mesosTotal += gold; }
+  if (!cur || it.p > cur.p) {   // 강화는 칸에 남으니 기본 성능끼리 비교해요
+    if (cur) { gold = Math.ceil(cur.p * 1.2 * (1 + cur.r)); S.mesos += gold; S.stats.mesosTotal += gold; }
     S.gear[it.slot] = it; recalc(); mode = 'equip';
   } else {
     gold = Math.ceil(it.p * 1.2 * (1 + it.r)); S.mesos += gold; S.stats.mesosTotal += gold; mode = 'sell';
@@ -1371,7 +1374,7 @@ function genLampItem(r) {
   const sl = pick(SLOTS), stage = Math.max(1, S.best);
   const p = 4 * Math.pow(1.10, stage - 1) * RARITY[r].m * rnd(0.95, 1.25);
   const J = JOBS[S.job || 'novice'];
-  return { slot: sl.id, r, p, enh: 0, name: '상자의 ' + (sl.id === 'weapon' ? J.weapon : sl.name) };
+  return { slot: sl.id, r, p, name: '상자의 ' + (sl.id === 'weapon' ? J.weapon : sl.name) };
 }
 function openLamps(n) {
   n = Math.min(n, S.lamps);
@@ -1409,22 +1412,17 @@ function changeJob(jobId) {
   uiHeroDraw(); uiPane();
   return true;
 }
-/* ---------- 🔄 환생 ---------- */
+/* ---------- 🔄 환생 상점 ---------- */
 function rbEnsure() {
   const d = S.rb && typeof S.rb === 'object' ? S.rb : {};
   const nn = v => { v = Math.floor(Number(v)); return v > 0 ? v : 0; };
   const shop = {};
   RB_SHOP.forEach(it => { shop[it.id] = Math.min(it.max, nn(d.shop && d.shop[it.id])); });
-  // 삭제된 '나무상자 속도'에 쓴 환생 포인트는 돌려줘요 (비용 = ceil(2 × 1.25^레벨))
-  let refund = 0; for (let i = 0, n = nn(d.shop && d.shop.wc); i < n; i++) refund += Math.ceil(2 * Math.pow(1.25, i));
+  let refund = 0;   // 없어진 항목(나무상자 속도 · 시작 스테이지 · 강화 보존)에 쓴 포인트는 돌려줘요
+  Object.keys(RB_GONE).forEach(id => { const g = RB_GONE[id]; for (let i = 0, n = nn(d.shop && d.shop[id]); i < n; i++) refund += Math.ceil(g.base * Math.pow(g.g, i)); });
   S.rb = { n: nn(d.n), pts: nn(d.pts) + refund, tot: nn(d.tot), seen: d.seen ? 1 : 0, shop };
 }
-const canRebirth = () => !isGuest() && S.best >= RB.minBest;
-function rbNextAt() {   // 포인트가 다음으로 늘어나는 스테이지
-  const g0 = rbGain(S.best);
-  for (let st = Math.max(S.best, RB.minBest) + 1; st <= S.best + 80; st++) { const g = rbGain(st); if (g > g0) return { s: st, g }; }
-  return null;
-}
+const rbLegacy = () => !!S.rb && (S.rb.n > 0 || S.rb.pts > 0 || S.rb.tot > 0 || RB_SHOP.some(it => rbLv(it.id) > 0));   // 예전에 환생한 적이 있는지
 function rbAffordable() { return !!S.rb && RB_SHOP.some(it => rbLv(it.id) < it.max && S.rb.pts >= rbCost(it, rbLv(it.id))); }
 function rbBuy(id) {
   const it = RB_BY[id]; if (!it || isGuest()) return false;
@@ -1436,54 +1434,24 @@ function rbBuy(id) {
   recalc(); save();
   return true;
 }
-/* 시작 스테이지: 이전 최고의 절반까지, 레벨당 +3. 처음 상태로 버틸 수 있는 곳으로 자동 조정해요 */
-function rbStartWant() {
-  const lv = rbLv('start');
-  return lv > 0 ? Math.max(1, Math.min(1 + RB.startStep * lv, Math.floor(S.stats.bestEver * RB.startShare))) : 1;
-}
-function rbCanClear(st) {   // 지금 능력으로 그 스테이지의 몬스터(보스면 보스)를 무리 없이 잡을 수 있는지
+/* 지금 능력으로 그 스테이지의 몬스터(보스면 보스)를 무리 없이 잡을 수 있는지 */
+function stageHoldable(st) {
   const boss = st % 10 === 0;
   const hp = mobHp(st) * (boss ? 10 : 1), dmg = mobDmg(st) * (boss ? 2 : 1), iv = boss ? 1.2 : 1.6;
   const ttk = hp / Math.max(1, P.dps) + 0.3;
   if (boss && ttk > 20) return false;
   return dmg * (ttk / iv) * 1.15 <= P.maxHp * 0.5;
 }
-function rbAutoTrain() {   // 시작 골드로 공격·체력 훈련을 번갈아 올려 줘요 (시작하자마자 쓰러지지 않게)
-  const a = UPG.find(x => x.id === 'atk'), h = UPG.find(x => x.id === 'hp');
-  for (let i = 0; i < 400; i++) {
-    const u = S.upg.atk <= S.upg.hp ? a : h, c = unitCost(u, S.upg[u.id]);
-    if (S.mesos < c) break;
-    S.mesos -= c; S.upg[u.id]++;
-  }
-  recalc();
-}
-function rbApplyStart() {
-  const want = rbStartWant();
-  recalc();
-  let st = 1;
-  if (want > 1) {
-    S.mesos = Math.ceil(RB.startGold * mesoKill(want));
-    rbAutoTrain();
-    st = want;
-    while (st > 1 && !rbCanClear(st)) st--;
-  }
-  S.stage = st; S.best = st;
-  return st;
-}
-function doRebirth() {
-  if (!canRebirth() || RT.dg) return null;
-  const old = S, from = S.best, gain = rbGain(from);
-  const n = defaultState();
-  ['pets', 'pet', 'ach', 'lamps', 'lampOpened', 'stones', 'stats', 'q', 'dg', 'dailyStreak', 'dailyLast', 'dailyN', 'dayHi', 'souls', 'rb', 'mode'].forEach(k => { n[k] = old[k]; });
-  n.rb.n++; n.rb.pts += gain; n.rb.tot += gain;
-  S = n;
-  resetRuntime();
-  const start = rbApplyStart();
-  RT.hp = P.maxHp;
-  save();
-  track('rebirth', { from, gain, n: S.rb.n, start });
-  if (HAS_DOM && CL.synced) cloudPush(true);
-  return { from, gain, start };
+/* 밸런스가 바뀐 뒤 처음 켤 때: 옛 스테이지에서 바로 쓰러지지 않게, 지금 능력으로 버틸 수 있는 스테이지로 옮겨요 (최고 기록은 그대로) */
+function fitStage() {
+  RT.fit = false;
+  const from = S.stage;
+  let st = from;
+  while (st > 1 && !stageHoldable(st)) st--;
+  if (st >= from) return false;
+  S.stage = st; S.kills = 0; RT.mob = null; RT.spawnT = 0.5;
+  toast('⚖️ 밸런스가 바뀌어서 스테이지 ' + st + '에서 이어가요 (최고 기록 ' + S.best + '는 그대로예요)', 'gold');
+  return true;
 }
 
 function resetRuntime() {
@@ -1492,6 +1460,8 @@ function resetRuntime() {
 }
 
 /* ---------- 자리 비움 보상 ---------- */
+/* 강화석: 나무상자가 사라진 만큼 자리 비운 사이에도 조금 쌓여요 (처치 수 × per, 한 번에 최대 cap개). 8시간 자리 비우면 대략 15~80개 */
+const AWAY_STONE = { per: 0.01, cap: 80 };
 function awayProgress(sec) {
   sec = Math.min(Math.max(sec, 0), 8 * 3600);
   if (!P) recalc();
@@ -1503,16 +1473,18 @@ function awayProgress(sec) {
   const lv0 = S.lv;
   const lamps = Math.min(40, Math.floor(kills * 0.003));
   S.lamps += lamps;
+  const stones = Math.min(AWAY_STONE.cap, Math.floor(kills * AWAY_STONE.per));
+  S.stones += stones;
   S.mesos += mesos; S.stats.mesosTotal += mesos; S.stats.kills += kills;
   gainExp(exp, true);
   RT.hp = P.maxHp;
-  return { sec, kills, mesos, exp, lamps, levels: S.lv - lv0, stage: st };
+  return { sec, kills, mesos, exp, lamps, stones, levels: S.lv - lv0, stage: st };
 }
 function showAway(r) {
   modal('자리를 비운 사이에도 사냥했어요',
     '<p class="big">⏱ ' + fmtTime(r.sec) + ' 동안</p>' +
     '<p>' + zoneOf(r.stage).name + ' 스테이지 ' + r.stage + '에서 <b>' + fmt(r.kills) + '마리</b>를 처치했어요.</p>' +
-    '<p>🪙 골드 +' + fmt(r.mesos) + '<br>📈 경험치 +' + fmt(r.exp) + (r.levels > 0 ? ' (레벨 +' + r.levels + ')' : '') + (r.lamps > 0 ? '<br>📦 상자 +' + r.lamps : '') + '</p>' +
+    '<p>🪙 골드 +' + fmt(r.mesos) + '<br>📈 경험치 +' + fmt(r.exp) + (r.levels > 0 ? ' (레벨 +' + r.levels + ')' : '') + (r.lamps > 0 ? '<br>📦 상자 +' + r.lamps : '') + (r.stones > 0 ? '<br>🔩 강화석 +' + r.stones : '') + '</p>' +
     '<p class="hint">💡 스테이지 진행은 화면을 켜 둘 때만 돼요. 자리를 비운 동안에는 골드·경험치만 쌓여요.</p>',
     [{ label: '좋아요', cls: '', fn: checkDaily }]);
 }
@@ -1530,8 +1502,16 @@ function loadSave() {
     if (!d || typeof d !== 'object') return false;
     const base = defaultState();
     S = Object.assign(base, d);
+    RT.fit = !(Number(d.bal) >= BAL); S.bal = BAL;   // 옛 밸런스로 저장된 기록이면 켠 뒤에 스테이지를 맞춰 줘요
     S.upg = Object.assign(base.upg, d.upg || {});
     S.gear = Object.assign(base.gear, d.gear || {});
+    S.enh = {};   // 강화 단계: 옛 저장은 장비에 붙어 있던 값을 그 칸으로 옮겨 와요
+    SLOTS.forEach(sl => {
+      const it = S.gear[sl.id];
+      const v = Math.floor(Number(d.enh && d.enh[sl.id] !== undefined ? d.enh[sl.id] : (it && it.enh)));
+      S.enh[sl.id] = v > 0 ? Math.min(ENH_MAX, v) : 0;
+      if (it && 'enh' in it) delete it.enh;
+    });
     S.stats = Object.assign(base.stats, d.stats || {});
     S.dg = dgSanitize(d.dg);
     S.pets = {};
@@ -1809,16 +1789,16 @@ function buildGear() {
 }
 function updateGear() {
   const J = JOBS[S.job || 'novice'];
-  $('stoneHint').textContent = '🔩 보유 강화석 ' + fmt(S.stones) + '개 · 장비를 강화하면 성능이 올라가요.';
+  $('stoneHint').textContent = '🔩 보유 강화석 ' + fmt(S.stones) + '개 · 강화는 칸에 남아서 장비를 바꿔도 유지돼요.';
   SLOTS.forEach(sl => {
     const it = S.gear[sl.id];
     sl.el.icon.textContent = sl.id === 'weapon' ? J.we : sl.e;
     if (!it) {
       sl.el.item.textContent = '비어 있음'; sl.el.item.className = 'sitem empty'; sl.el.stat.textContent = '';
-      sl.el.enh.textContent = ''; sl.el.enhBtn.disabled = true; sl.el.enhBtn.textContent = '강화';
+      sl.el.enh.textContent = enhOf(sl.id) ? '🔨 강화 +' + enhOf(sl.id) + ' 유지 중' : ''; sl.el.enhBtn.disabled = true; sl.el.enhBtn.textContent = '강화';
       return;
     }
-    const lvl = it.enh || 0;
+    const lvl = enhOf(sl.id);
     sl.el.item.textContent = RARITY[it.r].n + ' ' + it.name + (lvl ? ' +' + lvl : '');
     sl.el.item.className = 'sitem r' + it.r;
     sl.el.stat.textContent = (sl.stat === 'atk' ? '공격력 +' : '체력 +') + fmt(itemPower(it) * sl.k);
@@ -1972,47 +1952,19 @@ function openJobPick() {
   modal('1차 전직 — 직업을 골라요', '<div class="jobgrid">' + cards + '</div><p class="hint" style="margin-top:8px">직업은 나중에 골드를 내고 바꿀 수 있어요.</p>', [{ label: '나중에', cls: 'ghost' }]);
 }
 
-/* ----- 환생 ----- */
+/* ----- 환생 상점 ----- */
 const RBUI = { sig: '' };
 function renderRebirth() {
   if (!HAS_DOM) return;
-  const can = canRebirth(), g = rbGain(S.best), start = rbStartWant();
-  const sig = [S.rb.pts, S.rb.n, S.best, S.stats.bestEver, RB_SHOP.map(it => rbLv(it.id)).join(','), can ? 1 : 0, RT.dg ? 1 : 0].join('|');
+  const sig = [S.rb.pts, S.rb.n, RB_SHOP.map(it => rbLv(it.id)).join(',')].join('|');
   if (sig === RBUI.sig) return;
   RBUI.sig = sig;
-  const nx = rbNextAt();
-  $('rbMin').textContent = RB.minBest;
-  $('rbBox').innerHTML = '<div class="rbpts">🔄 환생 포인트 <b>' + S.rb.pts + '</b></div><dl class="stats">' + [
-    ['환생 횟수', S.rb.n + '회'],
-    ['이번 최고 스테이지', S.best],
-    ['지금 환생하면', can ? '포인트 +' + g : '스테이지 ' + RB.minBest + '부터 가능'],
-    ['환생 후 시작', start > 1 ? '최대 스테이지 ' + start : '스테이지 1'],
-  ].map(r => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>' +
-    (can && nx ? '<p class="hint">스테이지 ' + nx.s + '까지 가면 받는 포인트가 ' + nx.g + '점이 돼요.</p>' : '');
-  const go = $('rbGo');
-  go.disabled = !can || !!RT.dg;
-  go.textContent = !can ? '스테이지 ' + RB.minBest + ' 필요' : RT.dg ? '던전에서 나온 뒤에 가능해요' : '환생하기 (+' + g + ')';
+  $('rbBox').innerHTML = '<div class="rbpts">🔄 환생 포인트 <b>' + S.rb.pts + '</b></div>' + (S.rb.n > 0 ? '<dl class="stats"><dt>예전 환생 횟수</dt><dd>' + S.rb.n + '회</dd></dl>' : '');
   $('rbShop').innerHTML = RB_SHOP.map(it => {
     const lv = rbLv(it.id), maxed = lv >= it.max, c = rbCost(it, lv), ok = !maxed && S.rb.pts >= c;
     return '<div class="upg"><div class="uicon">' + it.e + '</div><div><div class="uname">' + it.name + '<span class="ulv"> Lv.' + lv + '/' + it.max + '</span></div><div class="udesc">' + esc(it.eff(lv)) + '</div></div>' +
       '<button class="buy' + (ok ? '' : ' no') + '" data-rbs="' + it.id + '"' + (ok ? '' : ' disabled') + '><span class="bc">' + (maxed ? 'MAX' : '🔄 ' + c) + '</span><small>' + (maxed ? '' : '+1 레벨') + '</small></button></div>';
   }).join('');
-}
-function openRebirth() {
-  if (!canRebirth() || RT.dg) return;
-  const g = rbGain(S.best), nx = rbNextAt(), st = rbStartWant();
-  modal('🔄 환생할까요?',
-    '<p>스테이지 <b>' + S.best + '</b>까지 왔어요. 지금 환생하면 <b>포인트 ' + g + '점</b>을 받아요.</p>' +
-    '<p><b>🔁 처음으로 돌아가요</b><br>레벨 · 훈련 · 골드 · 스테이지 · 전직 · 장비</p>' +
-    '<p><b>✅ 그대로 남아요</b><br>펫 · 업적 · 보물상자 · 강화석 · 환생 포인트와 상점</p>' +
-    '<p class="hint">' + (st > 1 ? '스테이지 ' + st + ' 근처(처음 능력으로 버틸 수 있는 곳)에서 다시 시작해요.' : '스테이지 1에서 다시 시작해요.') +
-    (nx ? ' 스테이지 ' + nx.s + '까지 더 가면 포인트가 ' + nx.g + '점이 돼요.' : '') + '</p>',
-    [{ label: '취소', cls: 'ghost' }, { label: '환생하기', fn: () => {
-      const r = doRebirth(); if (!r) { toast('지금은 환생할 수 없어요', 'bad'); return; }
-      sfx('fanfare'); RBUI.sig = ''; uiAll(true);
-      modal('🔄 환생했어요!', '<p class="big">포인트 +' + r.gain + '</p><p>스테이지 ' + r.start + '에서 다시 시작해요. 🔄 환생 상점에서 포인트를 능력으로 바꿔 보세요.</p>',
-        [{ label: '좋아요', cls: 'ghost' }, { label: '상점 보기', fn: () => setTab('rebirth') }]);
-    } }]);
 }
 
 /* ----- 기록 ----- */
@@ -2199,8 +2151,9 @@ function uiHud() {
   const can = canAdvance();
   $('advDot').hidden = !can || isGuest();
   const ld = $('lampDot'); if (ld) ld.hidden = S.lamps < 1 || isGuest();
-  const rd = $('rbDot'); if (rd) rd.hidden = isGuest() || !rbAffordable();
-  if (!RT.rbSeen && !S.rb.seen && canRebirth()) { RT.rbSeen = true; S.rb.seen = 1; toast('🔄 환생할 수 있어요! ☰ 더보기의 환생 탭을 확인하세요.', 'gold'); }
+  const legacy = rbLegacy();
+  const rt = document.querySelector('[data-tab="rebirth"]'); if (rt) rt.hidden = !legacy;   // 환생한 적이 없으면 탭을 숨겨요
+  const rd = $('rbDot'); if (rd) rd.hidden = isGuest() || !legacy || !rbAffordable();
   if (can && !isGuest() && !RT.advSeen) { RT.advSeen = true; toast('⚔️ 전직할 수 있어요! ☰ 더보기에서 전직 탭을 확인하세요.', 'gold'); }
 }
 function updateUI() {
@@ -2407,7 +2360,6 @@ function initDom() {
     const b = e.target.closest('[data-rbs]'); if (!b) return;
     if (rbBuy(b.dataset.rbs)) { sfx('buy'); RBUI.sig = ''; updateUI(); }
   });
-  $('rbGo').onclick = openRebirth;
   $('lamp1').onclick = () => uiOpenLamps(1);
   $('lamp10').onclick = () => uiOpenLamps(10);
   $('modeSeg').addEventListener('click', e => {
@@ -3208,12 +3160,67 @@ function initOnlineDom() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden && ON.sb) syncServerTime(); });
 }
 
+/* =====================================================
+   🔄 새 버전 자동 적용
+   - 몇 분마다(그리고 탭으로 돌아올 때) 페이지를 다시 확인해서, 게임 코드가 바뀌었으면 저장한 뒤 새로고침해요.
+   - 던전 중 · 창이 떠 있을 때 · 저장 중에는 기다렸다가, 안전한 순간에 적용해요.
+   - 코드(스크립트)가 바뀌면 자동으로 알아채요. HTML·CSS만 고친 배포는 아래 BUILD 값을 바꿔야 알아채요.
+   ===================================================== */
+const BUILD = '2026-09-21-c';
+const UPD_KEY = 'infinite-hunt-upd';   // 이미 새로고침해 본 버전 (서버가 옛 파일을 계속 줄 때 무한 새로고침을 막아요)
+const UPD = { self: '', last: 0, every: 300000, busy: false, want: '', applying: false, warned: false };
+const updNorm = t => String(t).replace(/\r\n?/g, '\n');
+function updHash(t) { t = updNorm(t); let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return t.length + ':' + (h >>> 0).toString(36); }
+function updSigOf(html) {   // 페이지에서 가장 큰 인라인 스크립트 = 게임 코드
+  let best = '', m; const re = /<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi;
+  while ((m = re.exec(html))) if (m[1].length > best.length) best = m[1];
+  return best.length > 1000 ? updHash(best) : '';
+}
+if (HAS_DOM && document.currentScript) UPD.self = updHash(document.currentScript.textContent || '');
+UPD.last = Date.now() - UPD.every + 20000;   // 켜고 20초 뒤에 첫 확인
+const updSafe = () => HAS_DOM && !document.hidden && $('modal').hidden && !RT.dg && RT.deadT <= 0 && !SAVE_LOCK;
+async function updCheck() {
+  if (!UPD.self || UPD.busy || UPD.want || navigator.onLine === false) return;
+  UPD.busy = true; UPD.last = Date.now();
+  try {
+    const r = await fetch(location.origin + location.pathname, { cache: 'no-cache' });
+    if (!r.ok) return;
+    const sig = updSigOf(await r.text());
+    if (!sig || sig === UPD.self) return;
+    let tried = ''; try { tried = sessionStorage.getItem(UPD_KEY) || ''; } catch (e) { /* 무시 */ }
+    if (tried === sig) {   // 이미 새로고침했는데도 그대로 → 서버가 옛 파일을 주는 중. 반복하지 말고 알려만 줘요
+      if (!UPD.warned) { UPD.warned = true; toast('🔄 새 버전이 있어요. 새로고침해 주세요', 'gold'); }
+      return;
+    }
+    UPD.want = sig;
+  } catch (e) { /* 네트워크 문제는 다음에 다시 */ }
+  finally { UPD.busy = false; }
+}
+async function updApply() {
+  UPD.applying = true;
+  toast('🔄 새 버전이 나왔어요! 잠시 뒤 새로고침해요', 'gold');
+  save();
+  try { if (CL.synced) await Promise.race([cloudPush(true), sleep(4000)]); } catch (e) { /* 무시 */ }
+  await sleep(1200);
+  if (!updSafe()) { UPD.applying = false; return; }   // 그 사이 던전에 들어갔거나 창이 떴으면 다음 기회에
+  save();
+  try { sessionStorage.setItem(UPD_KEY, UPD.want); } catch (e) { /* 무시 */ }
+  location.reload();
+}
+function updTick() {
+  if (!UPD.self) return;
+  if (UPD.want) { if (!UPD.applying && updSafe()) updApply(); return; }
+  if (!document.hidden && Date.now() - UPD.last >= UPD.every) updCheck();
+}
+if (HAS_DOM) document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - UPD.last > 30000) UPD.last = 0; });
+
 function boot() {
   const loaded = loadSave();
   sndLoad();
   recalc(); RT.hp = P.maxHp;
   initDom();
   uiAll(true);
+  if (RT.fit) { fitStage(); uiAll(true); }
   if (loaded) { const n = checkAch(true); if (n > 0) setTimeout(() => toast('🏆 지금까지의 기록으로 업적 ' + n + '개를 달성했어요!', 'gold'), 600); }
   setTimeout(() => { if (SND.on && !(SND.ctx && SND.ctx.state === 'running')) toast('🔊 화면을 한 번 누르면 효과음이 켜져요'); }, 1800);
   if (loaded) {
@@ -3223,7 +3230,7 @@ function boot() {
   } else {
     afterTimeSync(checkDaily);
   }
-  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0, dayT = 0, syncT = 0, chT = 0, cT = 0, tkT = 0;
+  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0, dayT = 0, syncT = 0, chT = 0, cT = 0, tkT = 0, upT = 0;
   setInterval(() => {
     const now = Date.now();
     let dt = Math.max(0, (now - lastT) / 1000); lastT = now;
@@ -3245,13 +3252,14 @@ function boot() {
     chT += dt; if (chT >= 1) { chT = 0; chatTick(); }
     cT += dt; if (cT >= 20) { cT = 0; cloudTick(); }
     tkT += dt; if (tkT >= 5) { tkT = 0; trackFlush(); bonusTick(); onlinePing(); }
+    upT += dt; if (upT >= 1) { upT = 0; updTick(); }
   }, 50);
 }
 
 if (HAS_DOM) boot();
 if (typeof module !== 'undefined') {
   module.exports = { get S() { return S; }, get P() { return P; }, RT, tick, recalc, buy, planBuy, UPG, unitCost, advance, canAdvance, changeJob, jobChangeCost,
-    PETS, ACH, openLamps, lampRoll, lampCost, buyPet, setPet, petBonus, achBonus, checkAch, petCost, petUnlocked, mobHp, mobDmg, mesoKill, expKill, expNeed, awayProgress, defaultState, enhanceGear, enhanceCost, itemPower, rollStone, ENH_MAX, spawnMob, killMob, tapMob, GOLDEN, DG, DG_TIME, DG_DAILY, startDungeon, endDungeon, sweepDungeon, dgEnsure, dgSanitize, TIME, gameDayNum, gameMs, dayKeyToNum, dayNumToKey, dailyCore, msToReset, qEnsure, qProg, qDone, qClaim, qClaimBonus, qSanitize, qDef, castUlt, ULT, QPOOL, RB, RB_SHOP, rbGain, rbCost, rbBuy, rbLv, rbEnsure, rbStartWant, rbApplyStart, rbCanClear, canRebirth, doRebirth, setS: v => { S = v; } };
+    PETS, ACH, openLamps, lampRoll, lampCost, buyPet, setPet, petBonus, achBonus, checkAch, petCost, petUnlocked, mobHp, mobDmg, mesoKill, expKill, expNeed, awayProgress, defaultState, enhanceGear, enhanceCost, itemPower, rollStone, ENH_MAX, spawnMob, killMob, tapMob, GOLDEN, DG, DG_TIME, DG_DAILY, startDungeon, endDungeon, sweepDungeon, dgEnsure, dgSanitize, TIME, gameDayNum, gameMs, dayKeyToNum, dayNumToKey, dailyCore, msToReset, qEnsure, qProg, qDone, qClaim, qClaimBonus, qSanitize, qDef, castUlt, ULT, QPOOL, RB_SHOP, rbCost, rbBuy, rbLv, rbEnsure, rbLegacy, stageHoldable, fitStage, BAL, PACE, ADV_LV, setS: v => { S = v; } };
 }
 </script>
 </body>

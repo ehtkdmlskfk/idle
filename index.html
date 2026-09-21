@@ -739,9 +739,11 @@ const SLOTS = [
   { id: 'armor',  name: '상의', e: '👕', stat: 'hp',  k: 16 },
   { id: 'shoes',  name: '신발', e: '👟', stat: 'hp',  k: 6 },
 ];
+/* 🔓 등급 잠금: 레어 이상은 최고 스테이지가 need에 도달하기 전엔 아예 나오지 않아요.
+   그래서 초반에 운으로 유니크·레전더리가 터지는 일이 없고, 캐릭터를 키울수록 등급이 하나씩 열려요. */
 const RARITY = [
-  { n: '일반', w: 62, m: 1 }, { n: '레어', w: 27, m: 1.6 }, { n: '에픽', w: 8.5, m: 2.6 },
-  { n: '유니크', w: 2.2, m: 4.2 }, { n: '레전더리', w: 0.3, m: 7 },
+  { n: '일반', w: 62, m: 1, need: 1 }, { n: '레어', w: 27, m: 1.6, need: 5 }, { n: '에픽', w: 8.5, m: 2.6, need: 15 },
+  { n: '유니크', w: 2.2, m: 4.2, need: 30 }, { n: '레전더리', w: 0.3, m: 7, need: 50 },
 ];
 
 /* ---------- 펫 · 업적 ---------- */
@@ -1142,7 +1144,12 @@ function clearStage() {
   S.kills = 0;
   if (!screenOn()) return;   // 🌙 화면이 꺼져 있는 동안은 스테이지가 안 올라가요 (골드·경험치는 계속 쌓여요)
   if (isGuest() && S.stage >= GUEST_MAX_STAGE) { guestCapHit(); return; }   // 맛보기는 여기까지 (기록은 그대로 남아요)
-  if (S.stage === S.best) { S.best++; if (S.best > S.stats.bestEver) S.stats.bestEver = S.best; }
+  if (S.stage === S.best) {
+    S.best++;
+    if (S.best > S.stats.bestEver) S.stats.bestEver = S.best;
+    const nr = RARITY.find(r => r.need === S.best);
+    if (nr) toast('🔓 이제부터 ' + nr.n + ' 등급 장비가 나올 수 있어요!', 'gold');
+  }
   if (S.auto && S.stage < S.best) S.stage++;
 }
 
@@ -1251,7 +1258,7 @@ function rollStone(boss) {
   if (boss) toast('🔩 강화석 +' + n, 'good');
 }
 function rollRarity(boss) {
-  const w = RARITY.map((r, i) => i === 0 ? r.w : r.w * P.luckF * (boss ? 4 : 1));
+  const w = RARITY.map((r, i) => S.best < r.need ? 0 : (i === 0 ? r.w : r.w * P.luckF * (boss ? 4 : 1)));
   let t = w.reduce((a, b) => a + b, 0) * Math.random();
   for (let i = 0; i < w.length; i++) { t -= w[i]; if (t <= 0) return i; }
   return 0;
@@ -1367,15 +1374,15 @@ function checkAch(silent) {
 const LAMP_W = [68, 24, 6, 1.7, 0.3];
 const lampCost = () => Math.ceil(mesoKill(Math.max(1, S.best)) * 90);
 function rollLamp(boss) {
-  const n = boss ? 2 : (Math.random() < 0.015 ? 1 : 0);
+  const n = boss ? 3 : (Math.random() < 0.03 ? 1 : 0);
   if (n <= 0) return;
   S.lamps += n;
   toast('📦 상자 +' + n, 'good');
 }
 function lampRoll() {
-  const w = LAMP_W;
+  const w = LAMP_W.map((v, i) => S.best < RARITY[i].need ? 0 : v);
   let t = w.reduce((a, b) => a + b, 0) * Math.random();
-  let r = w.length - 1;
+  let r = 0;
   for (let i = 0; i < w.length; i++) { t -= w[i]; if (t <= 0) { r = i; break; } }
   S.lampOpened++;
   return r;
@@ -1856,13 +1863,13 @@ function uiOpenLamps(n) {
   else { modal('📦 상자를 여는 중…', '<div class="lampshake">📦</div>', []); setTimeout(show, 750); }
 }
 function updateLamp() {
-  const w = LAMP_W, tot = w.reduce((a, b) => a + b, 0);
+  const w = LAMP_W.map((v, i) => S.best < RARITY[i].need ? 0 : v), tot = w.reduce((a, b) => a + b, 0);
   const rows = [['보유 상자', S.lamps + '개'], ['지금까지 연 상자', fmt(S.lampOpened) + '개']];
   $('lampStats').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('');
   $('lamp1').disabled = S.lamps < 1;
   $('lamp10').disabled = S.lamps < 1;
   $('lamp10').textContent = S.lamps > 1 && S.lamps < 10 ? '전부 열기 (' + S.lamps + ')' : '10개 열기';
-  $('lampOdds').textContent = '확률: ' + RARITY.map((r, i) => r.n + ' ' + (w[i] / tot * 100).toFixed(1) + '%').join(' · ');
+  $('lampOdds').textContent = '확률: ' + RARITY.map((r, i) => S.best < r.need ? r.n + ' 🔒(스테이지 ' + r.need + ')' : r.n + ' ' + (w[i] / tot * 100).toFixed(1) + '%').join(' · ');
   const lg = RT.lampLog || [];
   $('lampLog').innerHTML = lg.length
     ? lg.map(l => '<li><span class="r' + l.it.r + '">' + esc(RARITY[l.it.r].n + ' ' + l.it.name) + '</span><small>' + (l.mode === 'equip' ? '장착' : '판매 +' + fmt(l.gold) + ' 🪙') + '</small></li>').join('')

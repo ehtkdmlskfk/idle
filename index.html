@@ -334,20 +334,6 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
 .tab.lock::after{content:'🔒';position:absolute;top:1px;right:calc(50% - 24px);font-size:12px;line-height:1}
 .moregrid .tab.lock::after{top:8px;right:10px}
 
-/* 🪵 나무상자 (전투 화면 바닥에 깔려 있어요) */
-.wcbox{position:absolute;left:50%;bottom:21%;transform:translateX(-50%);z-index:2;display:flex;align-items:flex-end;gap:clamp(4px,1.6cqw,10px);pointer-events:none}
-.wc{position:relative;display:grid;justify-items:center;gap:2px;width:clamp(20px,6cqw,34px)}
-.wce{font-size:clamp(18px,5.6cqw,30px);line-height:1;filter:drop-shadow(0 2px 0 rgba(0,0,0,.25))}
-.wcbar{display:block;width:100%;height:4px;border-radius:4px;background:rgba(0,0,0,.4);overflow:hidden}
-.wcbar b{display:block;height:100%;width:0;background:#ffd166}
-.wcpop{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);white-space:nowrap;font-size:13px;text-shadow:0 1px 2px rgba(0,0,0,.9);opacity:0;pointer-events:none;background:rgba(0,0,0,.5);border-radius:999px;padding:0 7px}
-.wcpop.r0{color:#fff}
-.wc.pop .wce{animation:wcopen .5s ease-out}
-.wc.pop .wcpop{animation:wcpop 1s ease-out}
-@keyframes wcopen{0%{transform:scale(1) rotate(0)}20%{transform:scale(1.15) rotate(-12deg)}40%{transform:scale(1.15) rotate(12deg)}60%{transform:scale(1.2) rotate(-8deg)}100%{transform:scale(1) rotate(0)}}
-@keyframes wcpop{0%{opacity:0;transform:translate(-50%,4px)}18%{opacity:1}100%{opacity:0;transform:translate(-50%,-26px)}}
-@media (prefers-reduced-motion:reduce){.wc.pop .wce{animation:none}.wc.pop .wcpop{animation:none;opacity:1}}
-
 /* 황금 몬스터 */
 .mob{touch-action:manipulation}
 .mob.golden{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -429,7 +415,6 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
           <div class="mobbar"><i id="mobFill"></i></div>
           <div class="mobbody"><div class="crown">👑</div><div class="mobface" id="mobFace"></div></div>
         </div>
-        <div class="wcbox" id="wcBox" hidden></div>
         <div class="fx" id="fx"></div>
         <button class="ult" id="ultBtn" type="button" disabled><span id="ultTxt">🔥 0%</span></button>
         <div class="banner" id="banner"></div>
@@ -478,15 +463,7 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
       </div>
 
       <div class="card pane" id="pane-lamp" hidden>
-        <h2>나무상자</h2>
-        <p class="hint">전투 화면 바닥에 깔린 나무상자가 시간이 지나면 저절로 열려서 장비와 강화석이 나와요. 레벨을 올리면 상자가 하나씩 늘어나요. <b>화면을 켜 두는 동안에만</b> 열려요.</p>
-        <div class="upg" id="wcRow">
-          <div class="uicon">📦</div>
-          <div><div class="uname">나무상자<span class="ulv" id="wcLv"></span></div><div class="udesc" id="wcDesc"></div></div>
-          <button class="buy" id="wcUp" type="button"><span class="bc"></span><small></small></button>
-        </div>
-        <p class="hint" id="wcNext"></p>
-        <h2 style="margin-top:10px">보물상자 (직접 열기)</h2>
+        <h2>보물상자 (직접 열기)</h2>
         <p class="hint">상자를 열면 지금까지 도달한 최고 스테이지 기준의 장비가 나와요. 보스를 잡거나 몬스터를 처치하다 보면 가끔 떨어져요.</p>
         <div class="lampart" aria-hidden="true">📦</div>
         <dl class="stats" id="lampStats"></dl>
@@ -527,7 +504,7 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
         <p class="hint">스테이지 <span id="rbMin">50</span> 이상에서 환생하면 <b>환생 포인트</b>를 받고 처음부터 다시 시작해요. 포인트는 아래 상점에서 영구 능력으로 바꿀 수 있어요.</p>
         <div class="rbbox" id="rbBox"></div>
         <button class="btn" id="rbGo" type="button" disabled>환생하기</button>
-        <p class="hint">🔁 처음으로: 레벨 · 훈련 · 골드 · 스테이지 · 전직 · 장비<br>✅ 그대로: 펫 · 업적 · 나무상자 Lv · 보물상자 · 강화석 · 환생 상점</p>
+        <p class="hint">🔁 처음으로: 레벨 · 훈련 · 골드 · 스테이지 · 전직 · 장비<br>✅ 그대로: 펫 · 업적 · 보물상자 · 강화석 · 환생 상점</p>
         <h2 style="margin-top:6px">환생 상점</h2>
         <div id="rbShop" style="display:grid;gap:8px"></div>
       </div>
@@ -623,7 +600,7 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
 const HAS_DOM = typeof document !== 'undefined';
 const $ = id => HAS_DOM ? document.getElementById(id) : null;
 const rnd = (a, b) => a + Math.random() * (b - a);
-/* 화면이 켜져 있는지 (화면이 꺼졌거나 다른 탭·앱에 가 있으면 false). 스테이지 진행과 나무상자는 이때만 돼요 */
+/* 화면이 켜져 있는지 (화면이 꺼졌거나 다른 탭·앱에 가 있으면 false). 스테이지 진행은 이때만 돼요 */
 const screenOn = () => !HAS_DOM || !document.hidden;
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const REDUCED = HAS_DOM && window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -839,7 +816,7 @@ const GOLDEN = { chance: 0.03, hp: 4, meso: 8, exp: 4, box: 0.35, time: 12, tap:
 
 /* ---------- 🔄 환생 ----------
    - 스테이지 RB.minBest 이상에서 환생하면 '환생 포인트'를 받고, 레벨·훈련·골드·스테이지·전직·장비가 처음으로 돌아가요.
-   - 펫·업적·나무상자 Lv·보물상자·강화석·기록은 그대로예요. 포인트는 환생 상점에서 영구 능력으로 바꿔요(선후관계 없음).
+   - 펫·업적·보물상자·강화석·기록은 그대로예요. 포인트는 환생 상점에서 영구 능력으로 바꿔요(선후관계 없음).
    - 포인트 = floor(k × 이번 최고 스테이지 ^ pow)  →  스테이지 50 ≈ 4점, 100 ≈ 13점, 200 ≈ 39점
    - 수치는 아래 RB / RB_SHOP 에서 한 번에 조절해요 (per = 레벨당 효과, base·g = 비용 base × g^레벨, max = 최대 레벨) */
 const RB = { minBest: 50, k: 0.0083, pow: 1.6, startStep: 3, startShare: 0.5, startGold: 600 };
@@ -852,7 +829,6 @@ const RB_SHOP = [
   rbStat('exp',  '📈', '경험치 마스터리', '경험치 획득',       0.20, 30),
   { id: 'start', e: '🚩', name: '시작 스테이지', base: 1, g: 1.25, max: 10, per: 0,
     eff: l => l > 0 ? '다음 환생부터 최대 스테이지 ' + (1 + RB.startStep * l) + '에서 시작 (이전 최고의 절반까지)' : '다음 환생부터 · Lv당 시작 스테이지 +' + RB.startStep + ' · 시작 골드도 받아요' },
-  { id: 'wc',   e: '📦', name: '나무상자 속도',  base: 2, g: 1.25, max: 10, per: 0.05, eff: l => '나무상자 열리는 속도 +' + rbPctTxt(l * 0.05) + ' (Lv당 +5%)' },
   { id: 'away', e: '🌙', name: '자리 비움 효율', base: 2, g: 1.25, max: 10, per: 0.05, eff: l => '자리 비운 사이 사냥량 +' + rbPctTxt(l * 0.05) + ' (Lv당 +5%)' },
   rbStat('luck', '🍀', '행운 마스터리',   '드랍률·장비 등급',   0.05, 20),
 ];
@@ -872,8 +848,8 @@ function defaultState() {
     job: null, tier: 0, souls: 0,
     rb: { n: 0, pts: 0, tot: 0, seen: 0, shop: {} },
     pets: {}, pet: null, ach: {},
-    lamps: 3, lampOpened: 0, stones: 0, wc: { lv: 1 },
-    stats: { kills: 0, bosses: 0, items: 0, legend: 0, maxHit: 0, playSec: 0, mesosTotal: 0, bestEver: 1, golden: 0, dgRuns: 0, enh: 0, wcOpened: 0, lvEver: 1 },
+    lamps: 3, lampOpened: 0, stones: 0,
+    stats: { kills: 0, bosses: 0, items: 0, legend: 0, maxHit: 0, playSec: 0, mesosTotal: 0, bestEver: 1, golden: 0, dgRuns: 0, enh: 0, lvEver: 1 },
     q: { dn: 0, ids: [], base: {}, claim: [0, 0, 0], bonus: 0 },
     dg: { dn: 0, left: { gold: DG_DAILY, stone: DG_DAILY, chest: DG_DAILY }, rec: { gold: 0, stone: 0, chest: 0 } },
     dailyStreak: 0, dailyLast: '', dailyN: 0, dayHi: 0,
@@ -1194,7 +1170,6 @@ function retreat(msg) {
 
 function tick(dt) {
   if (!P) recalc();
-  wcTick(dt);
   if (RT.deadT > 0) {
     RT.deadT -= dt;
     if (RT.deadT <= 0) retreat('쓰러졌어요! 자동 진행이 꺼졌어요. 더 강해진 뒤 ▶로 다시 도전하세요.');
@@ -1413,78 +1388,6 @@ function openLamps(n) {
   return res;
 }
 
-/* ---------- 🪵 나무상자: 필드에 깔려서 알아서 열려요 ----------
-   - 나무상자 레벨을 골드로 올리면 상자 개수(slotsAt)가 1 → 2 → 3 … 으로 늘고, 열리는 간격도 조금씩 짧아져요.
-   - 열릴 때마다 장비 1개(보물상자와 같은 확률·등급)와 강화석이 나와요. 로그인한 유저만 써요.
-   - 화면이 켜져 있을 때만 진행돼요(자리 비움 보상에도 없어요). 매일 조금이라도 켜 둘 이유가 되게 하려는 거예요. */
-const WC = { maxLv: 30, slotsAt: [1, 5, 10, 16, 24], baseSec: 50, secMul: 0.97, minSec: 15, costBase: 50, costG: 1.25 };
-function wcEnsure() { const l = Math.floor(Number(S.wc && S.wc.lv)); S.wc = { lv: l >= 1 ? Math.min(WC.maxLv, l) : 1 }; }
-const wcActive = () => !isGuest();
-const wcSlots = lv => WC.slotsAt.filter(x => lv >= x).length;
-const wcInterval = lv => Math.max(WC.minSec, WC.baseSec * Math.pow(WC.secMul, lv - 1)) / (1 + rbVal('wc'));
-const wcCost = lv => Math.ceil(mesoKill(Math.max(1, S.best)) * WC.costBase * Math.pow(WC.costG, lv - 1));   // 지금 레벨 → 다음 레벨
-function wcRoll() {   // 보물상자와 같은 확률. 단, '연 상자 수'(퀘스트·업적)에는 세지 않아요
-  let t = LAMP_W.reduce((a, b) => a + b, 0) * Math.random();
-  for (let i = 0; i < LAMP_W.length; i++) { t -= LAMP_W[i]; if (t <= 0) return i; }
-  return LAMP_W.length - 1;
-}
-function wcOpen(i, quiet) {
-  const r = wcRoll();
-  const it = genLampItem(r);
-  const o = handleItem(it, !!quiet);
-  const st = 1 + (Math.random() < 0.35 ? 1 : 0) + (r >= 2 ? 2 : 0);
-  S.stones += st; S.stats.wcOpened = (S.stats.wcOpened || 0) + 1;
-  if (!quiet) wcPop(i, r, st);
-  return { it, st, gold: o.gold, mode: o.mode };
-}
-function wcTick(dt) {
-  if (!wcActive() || !screenOn()) return;   // 화면을 켜 둘 때만 진행 바가 차요
-  wcEnsure0();
-  const n = wcSlots(S.wc.lv), iv = wcInterval(S.wc.lv), ts = RT.wc || (RT.wc = []);
-  while (ts.length < n) ts.push(iv * rnd(0, 0.6));   // 새로 깔린 상자는 서로 다른 때에 열리게 살짝 어긋나게 시작해요
-  for (let i = 0; i < n; i++) {
-    ts[i] += dt;
-    if (ts[i] >= iv) { ts[i] = ts[i] >= iv * 2 ? 0 : ts[i] - iv; wcOpen(i); }
-  }
-}
-function wcEnsure0() { if (!S.wc || !(S.wc.lv >= 1)) wcEnsure(); }
-function wcUpgrade() {
-  if (!wcActive()) return false;
-  wcEnsure0();
-  const lv = S.wc.lv;
-  if (lv >= WC.maxLv) return false;
-  const c = wcCost(lv);
-  if (S.mesos < c) return false;
-  S.mesos -= c; S.wc.lv = lv + 1;
-  if (wcSlots(lv + 1) > wcSlots(lv)) { toast('📦 나무상자가 ' + wcSlots(lv + 1) + '개로 늘어났어요!', 'gold'); sfx('fanfare'); }
-  save();
-  return true;
-}
-/* 화면: 바닥에 깔린 상자 + 열릴 때 효과 */
-const WCUI = { n: -1 };
-function wcRender() {
-  if (!HAS_DOM) return;
-  const box = $('wcBox'); if (!box) return;
-  const on = wcActive(), n = on ? wcSlots((S.wc && S.wc.lv) || 1) : 0;
-  if (WCUI.n !== n) {
-    WCUI.n = n;
-    box.innerHTML = Array.from({ length: n }, () => '<div class="wc"><span class="wcpop"></span><span class="wce">📦</span><i class="wcbar"><b></b></i></div>').join('');
-  }
-  box.hidden = n === 0;
-  if (n === 0) return;
-  const iv = wcInterval(S.wc.lv), ts = RT.wc || [];
-  box.querySelectorAll('.wcbar b').forEach((b, i) => { b.style.width = Math.min(100, (ts[i] || 0) / iv * 100).toFixed(1) + '%'; });
-}
-function wcPop(i, r, st) {
-  if (!HAS_DOM || !fxOK()) return;
-  const box = $('wcBox'), el = box && box.children[i]; if (!el) return;
-  const pop = el.querySelector('.wcpop');
-  pop.textContent = (r >= 2 ? RARITY[r].n + ' ' : '') + '🔩+' + st;
-  pop.className = 'wcpop r' + r;
-  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
-  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('pop'), 1100);
-}
-
 /* ---------- 전직 ---------- */
 const canAdvance = () => S.tier < 4 && S.lv >= ADV_LV[S.tier];
 function advance(jobId) {
@@ -1512,7 +1415,9 @@ function rbEnsure() {
   const nn = v => { v = Math.floor(Number(v)); return v > 0 ? v : 0; };
   const shop = {};
   RB_SHOP.forEach(it => { shop[it.id] = Math.min(it.max, nn(d.shop && d.shop[it.id])); });
-  S.rb = { n: nn(d.n), pts: nn(d.pts), tot: nn(d.tot), seen: d.seen ? 1 : 0, shop };
+  // 삭제된 '나무상자 속도'에 쓴 환생 포인트는 돌려줘요 (비용 = ceil(2 × 1.25^레벨))
+  let refund = 0; for (let i = 0, n = nn(d.shop && d.shop.wc); i < n; i++) refund += Math.ceil(2 * Math.pow(1.25, i));
+  S.rb = { n: nn(d.n), pts: nn(d.pts) + refund, tot: nn(d.tot), seen: d.seen ? 1 : 0, shop };
 }
 const canRebirth = () => !isGuest() && S.best >= RB.minBest;
 function rbNextAt() {   // 포인트가 다음으로 늘어나는 스테이지
@@ -1569,7 +1474,7 @@ function doRebirth() {
   if (!canRebirth() || RT.dg) return null;
   const old = S, from = S.best, gain = rbGain(from);
   const n = defaultState();
-  ['pets', 'pet', 'ach', 'lamps', 'lampOpened', 'stones', 'wc', 'stats', 'q', 'dg', 'dailyStreak', 'dailyLast', 'dailyN', 'dayHi', 'souls', 'rb', 'mode'].forEach(k => { n[k] = old[k]; });
+  ['pets', 'pet', 'ach', 'lamps', 'lampOpened', 'stones', 'stats', 'q', 'dg', 'dailyStreak', 'dailyLast', 'dailyN', 'dayHi', 'souls', 'rb', 'mode'].forEach(k => { n[k] = old[k]; });
   n.rb.n++; n.rb.pts += gain; n.rb.tot += gain;
   S = n;
   resetRuntime();
@@ -1583,7 +1488,7 @@ function doRebirth() {
 
 function resetRuntime() {
   RT.mob = null; RT.atkT = 0; RT.skT = 0; RT.mobT = 0; RT.spawnT = 0.3; RT.deadT = 0; RT.bossT = 0; RT.goldT = 0; RT.dg = null; RT.ult = 0;
-  RT.log = []; RT.logDirty = true; RT.jobSig = ''; RT.heroSig = ''; RT.zoneKey = -1; RT.advSeen = false; RT.wc = [];
+  RT.log = []; RT.logDirty = true; RT.jobSig = ''; RT.heroSig = ''; RT.zoneKey = -1; RT.advSeen = false;
 }
 
 /* ---------- 자리 비움 보상 ---------- */
@@ -1608,7 +1513,7 @@ function showAway(r) {
     '<p class="big">⏱ ' + fmtTime(r.sec) + ' 동안</p>' +
     '<p>' + zoneOf(r.stage).name + ' 스테이지 ' + r.stage + '에서 <b>' + fmt(r.kills) + '마리</b>를 처치했어요.</p>' +
     '<p>🪙 골드 +' + fmt(r.mesos) + '<br>📈 경험치 +' + fmt(r.exp) + (r.levels > 0 ? ' (레벨 +' + r.levels + ')' : '') + (r.lamps > 0 ? '<br>📦 상자 +' + r.lamps : '') + '</p>' +
-    '<p class="hint">💡 스테이지 진행과 🪵 나무상자는 화면을 켜 둘 때만 돼요. 자리를 비운 동안에는 골드·경험치만 쌓여요.</p>',
+    '<p class="hint">💡 스테이지 진행은 화면을 켜 둘 때만 돼요. 자리를 비운 동안에는 골드·경험치만 쌓여요.</p>',
     [{ label: '좋아요', cls: '', fn: checkDaily }]);
 }
 
@@ -1641,7 +1546,7 @@ function loadSave() {
     S.dailyN = Math.floor(Number(d.dailyN)) > 0 ? Math.floor(Number(d.dailyN)) : dayKeyToNum(S.dailyLast);
     S.dayHi = Math.max(0, Math.floor(Number(d.dayHi)) || 0);
     S.q = qSanitize(d.q);
-    wcEnsure();
+    delete S.wc; delete S.stats.wcOpened;   // 나무상자 기능 삭제 (옛 저장 정리)
     rbEnsure();
     S.stats.lvEver = Math.max(Math.floor(Number(S.stats.lvEver)) || 1, S.lv);
     return true;
@@ -1960,20 +1865,7 @@ function uiOpenLamps(n) {
   if (REDUCED) show();
   else { modal('📦 상자를 여는 중…', '<div class="lampshake">📦</div>', []); setTimeout(show, 750); }
 }
-function updateWc() {
-  const lv = S.wc.lv, n = wcSlots(lv), iv = wcInterval(lv), maxed = lv >= WC.maxLv;
-  $('wcLv').textContent = ' Lv.' + lv + '/' + WC.maxLv;
-  $('wcDesc').textContent = '상자 ' + n + '개 · 화면 켜진 채 ' + Math.round(iv) + '초마다 열려요';
-  const nx = WC.slotsAt.find(x => x > lv);
-  $('wcNext').textContent = nx ? 'Lv.' + nx + '이 되면 상자가 ' + (n + 1) + '개로 늘어나요' : '상자가 최대 ' + n + '개까지 늘었어요';
-  const b = $('wcUp'), bc = b.querySelector('.bc'), bn = b.querySelector('small');
-  if (maxed) { bc.textContent = 'MAX'; bn.textContent = ''; b.disabled = true; b.className = 'buy no'; return; }
-  const c = wcCost(lv), ok = S.mesos >= c;
-  bc.textContent = '🪙 ' + fmt(c); bn.textContent = '+1 레벨';
-  b.disabled = !ok; b.className = 'buy' + (ok ? '' : ' no');
-}
 function updateLamp() {
-  updateWc();
   const w = LAMP_W, tot = w.reduce((a, b) => a + b, 0);
   const rows = [['보유 상자', S.lamps + '개'], ['지금까지 연 상자', fmt(S.lampOpened) + '개']];
   $('lampStats').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('');
@@ -2112,7 +2004,7 @@ function openRebirth() {
   modal('🔄 환생할까요?',
     '<p>스테이지 <b>' + S.best + '</b>까지 왔어요. 지금 환생하면 <b>포인트 ' + g + '점</b>을 받아요.</p>' +
     '<p><b>🔁 처음으로 돌아가요</b><br>레벨 · 훈련 · 골드 · 스테이지 · 전직 · 장비</p>' +
-    '<p><b>✅ 그대로 남아요</b><br>펫 · 업적 · 나무상자 Lv · 보물상자 · 강화석 · 환생 포인트와 상점</p>' +
+    '<p><b>✅ 그대로 남아요</b><br>펫 · 업적 · 보물상자 · 강화석 · 환생 포인트와 상점</p>' +
     '<p class="hint">' + (st > 1 ? '스테이지 ' + st + ' 근처(처음 능력으로 버틸 수 있는 곳)에서 다시 시작해요.' : '스테이지 1에서 다시 시작해요.') +
     (nx ? ' 스테이지 ' + nx.s + '까지 더 가면 포인트가 ' + nx.g + '점이 돼요.' : '') + '</p>',
     [{ label: '취소', cls: 'ghost' }, { label: '환생하기', fn: () => {
@@ -2129,7 +2021,7 @@ function renderInfo() {
   const st = S.stats;
   const rows = [['플레이 시간', fmtTime(st.playSec)], ['처치한 몬스터', fmt(st.kills) + '마리'], ['처치한 보스', fmt(st.bosses) + '마리'], ['잡은 황금 몬스터', fmt(st.golden || 0) + '마리'], ['던전 도전', fmt(st.dgRuns || 0) + '회'],
     ['얻은 장비', fmt(st.items) + '개'], ['레전더리 장비', st.legend + '개'], ['최고 한 방 피해', fmt(st.maxHit)],
-    ['누적 골드', fmt(st.mesosTotal)], ['연 상자', fmt(S.lampOpened) + '개'], ['나무상자 개봉', fmt(st.wcOpened || 0) + '번'], ['역대 최고 스테이지', st.bestEver], ['연속 출석', S.dailyStreak + '일']].concat(S.rb && S.rb.n > 0 ? [['환생', S.rb.n + '회 · 누적 포인트 ' + S.rb.tot]] : []);
+    ['누적 골드', fmt(st.mesosTotal)], ['연 상자', fmt(S.lampOpened) + '개'], ['역대 최고 스테이지', st.bestEver], ['연속 출석', S.dailyStreak + '일']].concat(S.rb && S.rb.n > 0 ? [['환생', S.rb.n + '회 · 누적 포인트 ' + S.rb.tot]] : []);
   $('statList').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('');
   const n = achCount();
   $('achHint').textContent = '🏆 ' + n + ' / ' + ACH.length + ' 달성 · 공격력·골드·경험치 +' + n + '% · 달성마다 📦 상자 +2';
@@ -2314,7 +2206,7 @@ function uiHud() {
 function updateUI() {
   if (!HAS_DOM) return;
   if (!P) recalc();
-  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI(); uiUlt(); uiQuestDot(); uiMoreDot(); renderGuest(); wcRender();
+  uiHud(); uiStage(); uiHeroDraw(); uiPet(); uiPane(); sndUI(); uiUlt(); uiQuestDot(); uiMoreDot(); renderGuest();
 }
 function uiAll(force) {
   if (!HAS_DOM) return;
@@ -2518,7 +2410,6 @@ function initDom() {
   $('rbGo').onclick = openRebirth;
   $('lamp1').onclick = () => uiOpenLamps(1);
   $('lamp10').onclick = () => uiOpenLamps(10);
-  $('wcUp').onclick = () => { if (wcUpgrade()) { sfx('buy'); updateUI(); } };
   $('modeSeg').addEventListener('click', e => {
     const b = e.target.closest('[data-mode]'); if (!b) return;
     S.mode = b.dataset.mode === 'max' ? 'max' : Number(b.dataset.mode); updateUpgrades();
@@ -3272,7 +3163,7 @@ function renderAccount() {
   let h;
   if (!ON.ready) h = '<p class="hint">' + esc(ON.err || '서버에 연결하는 중이에요…') + '</p>';
   else if (!CL.linked) {
-    h = '<p>지금은 <b>이 브라우저에만</b> 기록이 저장돼요. 카카오 계정을 연결하면 <b>모든 기능(전직·던전·나무상자·펫·퀘스트·랭킹·채팅)</b>이 열리고, 클라우드에도 저장돼서 다른 기기에서도 이어서 할 수 있어요.</p>' +
+    h = '<p>지금은 <b>이 브라우저에만</b> 기록이 저장돼요. 카카오 계정을 연결하면 <b>모든 기능(전직·던전·펫·퀘스트·랭킹·채팅)</b>이 열리고, 클라우드에도 저장돼서 다른 기기에서도 이어서 할 수 있어요.</p>' +
       '<button class="btn kakao" type="button" data-acc="link">💬 카카오로 계정 연결</button>' +
       '<p class="hint">이미 연결한 적이 있나요? <button class="linkbtn" type="button" data-acc="login">카카오로 로그인</button></p>';
   } else {
@@ -3360,7 +3251,7 @@ function boot() {
 if (HAS_DOM) boot();
 if (typeof module !== 'undefined') {
   module.exports = { get S() { return S; }, get P() { return P; }, RT, tick, recalc, buy, planBuy, UPG, unitCost, advance, canAdvance, changeJob, jobChangeCost,
-    PETS, ACH, openLamps, lampRoll, lampCost, buyPet, setPet, petBonus, achBonus, checkAch, petCost, petUnlocked, mobHp, mobDmg, mesoKill, expKill, expNeed, awayProgress, defaultState, enhanceGear, enhanceCost, itemPower, rollStone, ENH_MAX, spawnMob, killMob, tapMob, GOLDEN, DG, DG_TIME, DG_DAILY, startDungeon, endDungeon, sweepDungeon, dgEnsure, dgSanitize, TIME, gameDayNum, gameMs, dayKeyToNum, dayNumToKey, dailyCore, msToReset, qEnsure, qProg, qDone, qClaim, qClaimBonus, qSanitize, qDef, castUlt, ULT, QPOOL, RB, RB_SHOP, rbGain, rbCost, rbBuy, rbLv, rbEnsure, rbStartWant, rbApplyStart, rbCanClear, canRebirth, doRebirth, wcInterval, setS: v => { S = v; } };
+    PETS, ACH, openLamps, lampRoll, lampCost, buyPet, setPet, petBonus, achBonus, checkAch, petCost, petUnlocked, mobHp, mobDmg, mesoKill, expKill, expNeed, awayProgress, defaultState, enhanceGear, enhanceCost, itemPower, rollStone, ENH_MAX, spawnMob, killMob, tapMob, GOLDEN, DG, DG_TIME, DG_DAILY, startDungeon, endDungeon, sweepDungeon, dgEnsure, dgSanitize, TIME, gameDayNum, gameMs, dayKeyToNum, dayNumToKey, dailyCore, msToReset, qEnsure, qProg, qDone, qClaim, qClaimBonus, qSanitize, qDef, castUlt, ULT, QPOOL, RB, RB_SHOP, rbGain, rbCost, rbBuy, rbLv, rbEnsure, rbStartWant, rbApplyStart, rbCanClear, canRebirth, doRebirth, setS: v => { S = v; } };
 }
 </script>
 </body>

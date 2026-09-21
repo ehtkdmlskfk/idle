@@ -317,6 +317,13 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
 .chatform .btn{flex:0 0 auto}
 .chatform.off{opacity:.55}
 
+/* 계정 · 클라우드 */
+.acc{display:grid;gap:8px;background:var(--panel2);border-radius:12px;padding:10px}
+.acc h2{font-size:17px}
+.acc p{margin:0;font-size:14px}
+.btn.kakao{background:#fee500;color:#191919;box-shadow:0 4px 0 #b39d00}
+.linkbtn{background:none;border:0;padding:2px 0;color:var(--r1);text-decoration:underline;cursor:pointer;font:inherit}
+
 /* 황금 몬스터 */
 .mob{touch-action:manipulation}
 .mob.golden{cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -501,6 +508,10 @@ footer{margin-top:18px;text-align:center;font-size:12px;color:var(--ink2)}
       </div>
 
       <div class="card pane" id="pane-info" hidden>
+        <div class="acc" id="accCard" hidden>
+          <h2>계정 · 클라우드 저장</h2>
+          <div id="accBox" style="display:grid;gap:8px"></div>
+        </div>
         <h2>기록</h2>
         <dl class="stats" id="statList"></dl>
         <h2 style="margin-top:6px">업적</h2>
@@ -562,6 +573,7 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const REDUCED = HAS_DOM && window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SAVE_KEY = 'infinite-hunt-v1';
+let SAVE_LOCK = false;   // 클라우드 기록을 불러오는 동안 이 기기 저장이 덮어쓰지 않게 막아요
 
 /* ---------- 게임 시간 (서버 시간 기준 · 하루는 한국 시간 00:00에 바뀜) ---------- */
 /* 서버를 확인하면 서버 시간을 쓰고(기기 시계를 바꿔도 소용없음), 확인 전에는 기기 시계를 쓰되 되돌리기만 막아요 */
@@ -1367,6 +1379,7 @@ function showAway(r) {
 
 /* ---------- 저장 ---------- */
 function save() {
+  if (SAVE_LOCK) return;
   try { S.last = Date.now(); localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* 저장 불가 환경 */ }
 }
 function loadSave() {
@@ -1818,6 +1831,7 @@ function openJobPick() {
 
 /* ----- 기록 ----- */
 function renderInfo() {
+  renderAccount();
   const st = S.stats;
   const rows = [['플레이 시간', fmtTime(st.playSec)], ['처치한 몬스터', fmt(st.kills) + '마리'], ['처치한 보스', fmt(st.bosses) + '마리'], ['잡은 황금 몬스터', fmt(st.golden || 0) + '마리'], ['던전 도전', fmt(st.dgRuns || 0) + '회'],
     ['얻은 장비', fmt(st.items) + '개'], ['레전더리 장비', st.legend + '개'], ['최고 한 방 피해', fmt(st.maxHit)],
@@ -2290,6 +2304,8 @@ const onlineOn = () => !!(SB_URL && SB_KEY);
 
 async function onlineInit() {
   if (!HAS_DOM || !onlineOn() || ON.sb) return;
+  const authErr = authUrlError();   // 카카오 로그인 도중 돌아온 오류를 먼저 읽어 둬요
+  if (authErr) setTimeout(() => showAuthError(authErr), 900);
   if (!window.supabase) { ON.err = '서버 라이브러리를 불러오지 못했어요'; ON.ver++; return; }
   try {
     try { ON.nick = localStorage.getItem(NICK_KEY) || ''; } catch (e) { /* 무시 */ }
@@ -2303,6 +2319,7 @@ async function onlineInit() {
       if (r.error) throw r.error;
     }
     ON.ready = true; ON.err = '';
+    accountInit();
   } catch (e) {
     console.warn('[online] init 실패', e);
     ON.sb = null; ON.err = '서버에 연결하지 못했어요';
@@ -2553,10 +2570,263 @@ function renderChat() {
   CH.bottom = false;
 }
 
+/* =====================================================
+   👤 계정(카카오 로그인) · ☁️ 클라우드 저장  (cloud.sql 을 Supabase 에서 한 번 실행해야 해요)
+   - 익명 계정에 카카오를 "연결"하면 사용자 번호가 그대로라서 랭킹·채팅 기록이 이어져요.
+   - 기록은 1분마다 자동으로 올라가고, 다른 기기에서 더 최근에 저장했다면 덮어쓰기 전에 물어봐요.
+   ===================================================== */
+const CLOUD_KEY = 'infinite-hunt-cloud';   // { uid, at } 이 기기가 마지막으로 클라우드와 맞춘 시각
+const CL = { inited: false, linked: false, uid: '', name: '', synced: false, checking: false, busy: false, asking: false,
+  deferred: false, at: 0, lastPush: 0, okAt: 0, retryAt: 0, err: '', ver: 0, paintSig: '' };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const authRedirect = () => location.origin + location.pathname;
+
+async function accountInit() {
+  if (CL.inited || !ON.sb) return;
+  CL.inited = true;
+  try { ON.sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => accountApply(session), 0); }); } catch (e) { /* 무시 */ }
+  try { const r = await ON.sb.auth.getSession(); accountApply(r.data && r.data.session); } catch (e) { /* 무시 */ }
+}
+function accountApply(session) {
+  const u = session && session.user;
+  const linked = !!(u && !u.is_anonymous);
+  const uid = u ? u.id : '';
+  const md = (u && u.user_metadata) || {};
+  const name = String(md.name || md.preferred_username || md.nickname || '').slice(0, 20);
+  if (linked !== CL.linked || uid !== CL.uid) { CL.synced = false; CL.deferred = false; CL.at = 0; CL.err = ''; }
+  const changed = linked !== CL.linked || uid !== CL.uid || name !== CL.name;
+  CL.linked = linked; CL.uid = uid; CL.name = name;
+  if (changed) CL.ver++;
+  if (linked && !CL.synced) cloudSync();
+}
+
+/* ----- 카카오 로그인 시작 ----- */
+function accErrText(e) {
+  const m = String((e && e.message) || e || '').toLowerCase();
+  if (m.includes('manual') && m.includes('link')) return '수동 연결이 꺼져 있어요 (Supabase Authentication 설정 확인)';
+  if (m.includes('provider') && (m.includes('not enabled') || m.includes('unsupported'))) return '카카오 로그인이 아직 켜지지 않았어요 (Supabase Providers 확인)';
+  if (m.includes('already')) return '이미 다른 기록에 연결된 카카오 계정이에요';
+  return '카카오 로그인을 시작하지 못했어요';
+}
+async function kakaoOAuth(kind) {
+  if (!ON.ready) { toast(ON.err || '서버에 연결 중이에요', 'bad'); return; }
+  save();
+  try {
+    const opt = { redirectTo: authRedirect() };
+    const r = kind === 'link'
+      ? await ON.sb.auth.linkIdentity({ provider: 'kakao', options: opt })
+      : await ON.sb.auth.signInWithOAuth({ provider: 'kakao', options: opt });
+    if (r.error) throw r.error;
+    if (r.data && r.data.url) location.assign(r.data.url);
+  } catch (e) { toast(accErrText(e), 'bad'); }
+}
+function kakaoLoginAsk() {
+  modal('카카오로 로그인',
+    '<p>이미 카카오 계정을 연결해 둔 적이 있을 때 쓰는 메뉴예요.</p>' +
+    '<p>로그인하면 클라우드에 저장된 기록과 이 기기의 기록을 비교해서 어느 쪽을 쓸지 물어봐요.</p>' +
+    '<p class="hint">처음이라면 로그인 대신 "카카오로 계정 연결"을 눌러 주세요. 지금까지의 랭킹·채팅 기록이 그대로 이어져요.</p>',
+    [{ label: '취소', cls: 'ghost' }, { label: '카카오로 로그인', cls: 'kakao', fn: () => kakaoOAuth('login') }]);
+}
+
+/* 로그인 도중 돌아온 오류 (주소에 남아 있어요) */
+function authUrlError() {
+  try {
+    const q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const code = q.get('error_code') || h.get('error_code') || q.get('error') || h.get('error') || '';
+    const desc = q.get('error_description') || h.get('error_description') || '';
+    if (!code && !desc) return null;
+    history.replaceState(null, '', location.pathname);
+    return { code, desc };
+  } catch (e) { return null; }
+}
+function showAuthError(e) {
+  const t = (e.code + ' ' + e.desc).toLowerCase();
+  if (t.includes('access_denied')) { toast('카카오 로그인을 취소했어요'); return; }
+  if (t.includes('identity_already_exists') || t.includes('already linked')) {
+    modal('이미 연결된 카카오 계정이에요',
+      '<p>이 카카오 계정은 다른 기록에 이미 연결돼 있어요.</p><p>"카카오로 로그인"으로 그 기록을 불러올 수 있어요.</p>',
+      [{ label: '닫기', cls: 'ghost' }, { label: '카카오로 로그인', cls: 'kakao', fn: () => kakaoOAuth('login') }]);
+    return;
+  }
+  modal('카카오 로그인을 마치지 못했어요',
+    '<p>잠시 뒤에 다시 시도해 주세요.</p><p class="hint">' + esc((e.code + ' ' + e.desc).trim().slice(0, 200)) + '</p>', [{ label: '확인' }]);
+}
+
+/* ----- 클라우드 저장 ----- */
+function cloudMarkGet() { try { const m = JSON.parse(localStorage.getItem(CLOUD_KEY) || 'null'); return m && typeof m === 'object' ? m : null; } catch (e) { return null; } }
+function cloudMarkSet(at) { CL.at = at; try { localStorage.setItem(CLOUD_KEY, JSON.stringify({ uid: CL.uid, at })); } catch (e) { /* 무시 */ } }
+const isFreshState = () => S.lv <= 2 && S.stats.bestEver <= 1 && S.stats.kills < 40;   // 사실상 새로 시작한 상태
+function saveBrief(d) {
+  const st = (d && d.stats) || {};
+  return 'Lv.' + (Math.floor(Number(d && d.lv)) || 1) + ' · 최고 스테이지 ' + (Math.floor(Number(st.bestEver)) || 1) + ' · 플레이 ' + fmtTime(Number(st.playSec) || 0);
+}
+function saveScore(d) {
+  const st = (d && d.stats) || {};
+  return (Math.floor(Number(st.bestEver)) || 1) * 1e9 + (Math.floor(Number(d && d.lv)) || 1) * 1e6 + Math.min(999999, Math.floor((Number(st.playSec) || 0) / 60));
+}
+function agoText(ms) {
+  const s = Math.max(0, (Date.now() - ms) / 1000);
+  if (s < 90) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전';
+  if (s < 86400) return Math.floor(s / 3600) + '시간 전'; return Math.floor(s / 86400) + '일 전';
+}
+function cloudErrText(e) {
+  const c = String((e && e.code) || ''), m = String((e && e.message) || e || '');
+  if (c === 'PGRST202' || c === '42P01' || c === 'PGRST205' || m.includes('save_get') || m.includes('save_put')) return '클라우드 서버가 아직 준비되지 않았어요 (cloud.sql 실행 필요)';
+  if (m.includes('save_anon')) return '카카오 계정 연결이 필요해요';
+  if (m.includes('save_big')) return '기록이 너무 커서 저장하지 못했어요';
+  return '클라우드 저장에 실패했어요. 잠시 뒤에 다시 시도할게요';
+}
+
+/* 클라우드 기록을 이 기기로 가져와요 (저장 → 새로고침) */
+function cloudApply(row) {
+  const d = row && row.data;
+  if (!d || typeof d !== 'object' || !d.stats || typeof d.stats !== 'object' || !(Number(d.lv) >= 1)) {
+    CL.deferred = true; CL.ver++; toast('클라우드 기록이 올바르지 않아요', 'bad'); return;
+  }
+  SAVE_LOCK = true;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(d));
+    localStorage.setItem(CLOUD_KEY, JSON.stringify({ uid: CL.uid, at: Number(row.ms) || 0 }));
+    if (row.nick) localStorage.setItem(NICK_KEY, String(row.nick));
+  } catch (e) { SAVE_LOCK = false; CL.deferred = true; CL.ver++; toast('이 기기에 저장하지 못했어요', 'bad'); return; }
+  toast('☁️ 클라우드 기록을 불러와요…', 'good');
+  setTimeout(() => location.reload(), 700);
+}
+
+/* 클라우드와 이 기기의 기록이 다를 때 고르게 해요 */
+function cloudAsk(row) {
+  CL.asking = true;
+  const cloudBetter = saveScore(row.data) >= saveScore(S);
+  modal('☁️ 어느 기록을 쓸까요?',
+    '<p>클라우드와 이 기기에 저장된 기록이 서로 달라요.</p>' +
+    '<p><b>☁️ 클라우드</b>' + (cloudBetter ? ' <small>(더 진행됨)</small>' : '') + '<br>' + esc(saveBrief(row.data)) + '<br><small>' + agoText(Number(row.ms) || 0) + ' 저장</small></p>' +
+    '<p><b>📱 이 기기</b>' + (cloudBetter ? '' : ' <small>(더 진행됨)</small>') + '<br>' + esc(saveBrief(S)) + '</p>' +
+    '<p class="hint">고르지 않은 쪽 기록은 사라져요.</p>',
+    [{ label: '☁️ 클라우드 기록 쓰기', fn: () => { CL.asking = false; cloudApply(row); } },
+     { label: '📱 이 기기 기록 쓰기', cls: 'ghost', fn: async () => {
+       CL.asking = false; CL.synced = true; CL.ver++;
+       const ok = await cloudPush(true, true);
+       toast(ok ? '이 기기 기록을 클라우드에 저장했어요' : (CL.err || '저장하지 못했어요'), ok ? 'good' : 'bad');
+     } },
+     { label: '나중에', cls: 'ghost', fn: () => { CL.asking = false; CL.deferred = true; CL.ver++; } }]);
+}
+
+async function cloudSync() {
+  if (!CL.linked || !ON.ready || CL.checking || CL.synced || CL.asking) return;
+  CL.checking = true; CL.ver++;
+  let pushFirst = false;
+  try {
+    const r = await ON.sb.rpc('save_get');
+    if (r.error) throw r.error;
+    const row = r.data;
+    if (!row || !row.data) { CL.synced = true; pushFirst = true; }                     // 서버에 기록이 아직 없음 → 이 기기 기록을 올려요
+    else {
+      const ms = Number(row.ms) || 0, mark = cloudMarkGet();
+      if (mark && mark.uid === CL.uid && mark.at === ms) { CL.at = ms; CL.synced = true; }   // 마지막으로 맞춘 그대로 → 이 기기가 최신
+      else if (isFreshState()) cloudApply(row);                                          // 이 기기는 새로 시작한 상태 → 바로 불러오기
+      else cloudAsk(row);                                                                // 둘 다 진행했다면 고르게 하기
+    }
+    CL.err = '';
+  } catch (e) { CL.err = cloudErrText(e); CL.retryAt = Date.now() + 60000; }
+  CL.checking = false; CL.ver++;
+  if (pushFirst) await cloudPush(true, true);
+}
+
+/* force: 간격 무시 · overwrite: 서버 기록을 확인 없이 덮어씀(처음 올릴 때, 이 기기 기록을 고른 때) */
+async function cloudPush(force, overwrite) {
+  if (!CL.linked || !ON.ready || !CL.synced || CL.busy) return false;
+  const now = Date.now();
+  if (!force && now - CL.lastPush < 60000) return true;
+  if (force && !overwrite && now - CL.lastPush < 3000) return true;
+  CL.busy = true;
+  let ok = false;
+  for (let i = 0; i < 2 && !ok; i++) {
+    try {
+      S.last = Date.now();
+      const r = await ON.sb.rpc('save_put', { p_data: S, p_nick: ON.nick || '', p_base: overwrite ? null : (CL.at || null), p_force: !!overwrite });
+      if (r.error) throw r.error;
+      cloudMarkSet(Number(r.data) || Date.now());
+      CL.lastPush = Date.now(); CL.okAt = CL.lastPush; CL.err = ''; ok = true;
+    } catch (e) {
+      const m = String((e && e.message) || e || '');
+      if (m.includes('save_rate') && i === 0) { await sleep(2300); continue; }
+      CL.lastPush = Date.now();
+      if (m.includes('save_conflict')) { CL.synced = false; CL.deferred = false; CL.err = '다른 기기에서 저장한 기록이 있어요'; }
+      else CL.err = cloudErrText(e);
+      break;
+    }
+  }
+  CL.busy = false; CL.ver++;
+  return ok;
+}
+
+/* 20초마다: 맞추기 → 자동 저장 */
+function cloudTick() {
+  if (!HAS_DOM || !onlineOn() || !ON.ready || !CL.linked || CL.busy || CL.checking) return;
+  if (CL.asking) { if ($('modal').hidden) { CL.asking = false; CL.deferred = true; CL.ver++; } return; }
+  if (!CL.synced) { if (!CL.deferred && Date.now() >= CL.retryAt) cloudSync(); return; }
+  cloudPush(false);
+}
+
+/* ----- 화면 ----- */
+async function accPushNow() {
+  if (!CL.synced) { CL.deferred = false; cloudSync(); return; }
+  const ok = await cloudPush(true);
+  toast(ok ? '☁️ 클라우드에 저장했어요' : (CL.err || '저장하지 못했어요'), ok ? 'good' : 'bad');
+}
+function accLogoutAsk() {
+  modal('로그아웃할까요?',
+    '<p>로그아웃하기 전에 클라우드에 저장하고, 이 기기에 있는 기록은 지워요.</p><p class="hint">다시 카카오로 로그인하면 클라우드 기록을 불러올 수 있어요.</p>',
+    [{ label: '취소', cls: 'ghost' }, { label: '로그아웃', cls: 'danger', fn: accLogout }]);
+}
+async function accLogout() {
+  if (!CL.synced) { toast('먼저 "기록 맞추기"로 클라우드와 맞춰 주세요', 'bad'); return; }
+  const ok = await cloudPush(true);
+  if (!ok) { toast('클라우드에 저장하지 못해서 로그아웃을 멈췄어요', 'bad'); return; }
+  SAVE_LOCK = true;
+  try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(NICK_KEY); localStorage.removeItem(CLOUD_KEY); } catch (e) { /* 무시 */ }
+  try { await ON.sb.auth.signOut(); } catch (e) { /* 무시 */ }
+  location.reload();
+}
+function renderAccount() {
+  if (!HAS_DOM || !onlineOn()) return;
+  const sig = [CL.ver, ON.ready ? 1 : 0, ON.err, CL.linked ? 1 : 0, CL.synced ? 1 : 0].join('|');
+  if (sig === CL.paintSig) return;
+  CL.paintSig = sig;
+  let h;
+  if (!ON.ready) h = '<p class="hint">' + esc(ON.err || '서버에 연결하는 중이에요…') + '</p>';
+  else if (!CL.linked) {
+    h = '<p>지금은 <b>이 브라우저에만</b> 기록이 저장돼요. 카카오 계정을 연결하면 클라우드에도 저장돼서, 다른 기기에서도 이어서 할 수 있어요.</p>' +
+      '<button class="btn kakao" type="button" data-acc="link">💬 카카오로 계정 연결</button>' +
+      '<p class="hint">이미 연결한 적이 있나요? <button class="linkbtn" type="button" data-acc="login">카카오로 로그인</button></p>';
+  } else {
+    const st = CL.err ? '⚠ ' + CL.err
+      : CL.checking ? '클라우드와 비교하는 중이에요…'
+      : !CL.synced ? '클라우드 기록과 아직 맞추지 않았어요'
+      : CL.okAt ? '마지막 저장 ' + chatTime(CL.okAt) + ' · 1분마다 자동 저장' : '1분마다 자동으로 저장돼요';
+    h = '<p>✅ 카카오 계정 연결됨' + (CL.name ? ' · <b>' + esc(CL.name) + '</b>' : '') + '</p>' +
+      '<p class="hint">☁️ ' + esc(st) + '</p>' +
+      '<div class="btnrow">' + (CL.synced ? '<button class="btn" type="button" data-acc="push">지금 저장</button>' : '<button class="btn" type="button" data-acc="sync">기록 맞추기</button>') +
+      '<button class="btn ghost" type="button" data-acc="logout">로그아웃</button></div>';
+  }
+  $('accBox').innerHTML = h;
+}
+
 function initOnlineDom() {
   if (!onlineOn()) return;
   $('tabRank').hidden = false;
   $('tabChat').hidden = false;
+  $('accCard').hidden = false;
+  $('accBox').addEventListener('click', e => {
+    const b = e.target.closest('[data-acc]'); if (!b) return;
+    const a = b.dataset.acc;
+    if (a === 'link') kakaoOAuth('link');
+    else if (a === 'login') kakaoLoginAsk();
+    else if (a === 'push') accPushNow();
+    else if (a === 'sync') { CL.deferred = false; CL.retryAt = 0; cloudSync(); }
+    else if (a === 'logout') accLogoutAsk();
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && CL.synced) cloudPush(true); });
   $('chatMe').addEventListener('click', e => { if (e.target.closest('[data-nick]')) openNickModal('', ''); });
   $('chatForm').addEventListener('submit', e => { e.preventDefault(); chatSend(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && CH.started) chatPoll(false); });
@@ -2584,7 +2854,7 @@ function boot() {
   } else {
     afterTimeSync(checkDaily);
   }
-  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0, dayT = 0, syncT = 0, chT = 0;
+  let lastT = Date.now(), uiT = 0, saveT = 0, achT = 0, onT = 0, dayT = 0, syncT = 0, chT = 0, cT = 0;
   setInterval(() => {
     const now = Date.now();
     let dt = Math.max(0, (now - lastT) / 1000); lastT = now;
@@ -2604,6 +2874,7 @@ function boot() {
     dayT += dt; if (dayT >= 30) { dayT = 0; if ($('modal').hidden) checkDaily(); }
     syncT += dt; if (syncT >= 600) { syncT = 0; if (ON.sb) syncServerTime(); }
     chT += dt; if (chT >= 1) { chT = 0; chatTick(); }
+    cT += dt; if (cT >= 20) { cT = 0; cloudTick(); }
   }, 50);
 }
 

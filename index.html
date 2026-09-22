@@ -1771,13 +1771,14 @@ function nickValid(n){ n = n.trim(); return n.length >= 2 && n.length <= 12 && !
 function myStats(){
   return { floor: S.floor, best: S.best, souls: Math.floor(S.souls), ash: Math.floor(S.ash), total: Math.floor(S.total), runs: S.runs };
 }
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_GzEwgFkTqPH-Bij1I4OKFg_FWRqVjFv'; // Edge Function(withSupabase auth:'publishable') 호출 전용 — 새 API 키 체계
 async function callProfileSync(action, extra){
   const token = (kakaoReady && window.Kakao && Kakao.Auth.getAccessToken()) || null;
   if (!token) return { error: 'no_kakao_token' };
   try {
     const res = await fetch(SUPABASE_URL + PROFILE_FN_PATH, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_PUBLISHABLE_KEY, 'apikey': SUPABASE_PUBLISHABLE_KEY },
       body: JSON.stringify(Object.assign({ access_token: token, action }, extra || {}))
     });
     return await res.json();

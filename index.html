@@ -277,8 +277,8 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .accMenu.show{display:flex}
 .accMenu button{padding:10px 12px;border-radius:10px;text-align:left;font-size:13px;color:var(--bone);background:none}
 .accMenu button:active{background:#231b13}
-#nickModal{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,5,4,.65)}
-#nickModal.show{display:flex}
+#nickModal,#guildModal{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,5,4,.65)}
+#nickModal.show,#guildModal.show{display:flex}
 .nmbox{width:100%;max-width:340px;padding:20px 18px;border-radius:20px;border:2px solid #3a2f22;
   background:linear-gradient(#1d1812,#100d0a);box-shadow:0 0 0 1px #000,0 10px 30px rgba(0,0,0,.6);animation:rvpop .4s cubic-bezier(.2,1.5,.4,1)}
 .nmtt{font-family:var(--disp);font-size:20px;color:var(--hot);margin-bottom:6px}
@@ -324,6 +324,44 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .rkNmWrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;overflow:hidden}
 .rkNmWrap .rkNm{flex:none;min-width:0}
 .rkSub{font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* 길드 */
+.guildPanel{display:none;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:2px 16px 10px;-webkit-overflow-scrolling:touch;
+  border-top:1px solid #241d16}
+.guildPanel.show{display:flex;flex-direction:column}
+.gSearchRow{display:flex;gap:8px;margin:8px 0}
+.gSearchRow input{flex:1;min-width:0;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:#0b0907;
+  box-shadow:inset 0 1px 3px #000;color:var(--bone);font:inherit;font-size:14px;outline:none;-webkit-user-select:text;user-select:text}
+.gSearchRow input::placeholder{color:#5a4a39}
+.gMakeBtn{flex:none;min-height:40px;padding:0 16px;border:0;border-radius:999px;font-family:var(--disp);font-size:14px;
+  color:#2a1300;background:linear-gradient(#f4b862,#cf7a22);box-shadow:0 2px 0 #7a3a10}
+.gMakeBtn:active{transform:translateY(1px);box-shadow:0 1px 0 #7a3a10}
+.gRow{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #211b14}
+.gRow .gNmWrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;overflow:hidden}
+.gRow .gNm{font-size:14px;color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gRow .gSub{font-size:11px;color:var(--dim)}
+.gJoinBtn{flex:none;min-height:32px;padding:0 14px;border:1px solid #3a2f22;border-radius:999px;background:#14100c;color:var(--ember);font-family:var(--disp);font-size:13px}
+.gJoinBtn:disabled{color:#6a5f52}
+.gMsg{padding:22px 4px;text-align:center;font-size:12.5px;color:var(--dim)}
+.gHead{padding:8px 4px 10px;border-bottom:1px solid #241d16}
+.gName{font-family:var(--disp);font-size:22px;color:var(--hot)}
+.gNotice{margin-top:5px;font-family:var(--lore);font-size:12.5px;line-height:1.6;color:var(--dim);white-space:pre-wrap;word-break:break-word}
+.gNoticeBtn{margin-top:4px;font-size:11px;color:var(--ember);background:none;border:0;padding:0;text-decoration:underline}
+.gStats{display:flex;gap:16px;margin-top:10px;font-size:12px;color:var(--dim)}
+.gStats b{margin-right:3px;font-family:var(--disp);font-weight:400;font-size:15px;color:var(--ember)}
+.gActs{display:flex;gap:8px;margin-top:12px}
+.gActs button{flex:1;min-height:38px;border-radius:12px;border:1px solid #3a2f22;background:#14100c;color:var(--dim);font-family:var(--disp);font-size:13px}
+.gActs button.danger{color:#e07a6b;border-color:#5a2119}
+.gMembersTt{margin:14px 2px 2px;font-size:12px;font-weight:700;color:var(--dim)}
+.gMember{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #211b14}
+.gMember.me{margin:0 -6px;padding:9px 6px;border-radius:10px;background:rgba(233,162,79,.1)}
+.gMember .gmNm{flex:1;min-width:0;font-size:13.5px;color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gMember.me .gmNm{color:var(--hot);font-weight:700}
+.gMember .gmRole{flex:none;font-size:10.5px;font-weight:700;color:var(--ember)}
+.gMember .gmBest{flex:none;font-size:12px;color:var(--dim);min-width:46px;text-align:right}
+.gMember .gmKick{flex:none;font-size:11px;color:#e07a6b;background:none;border:0;padding:2px 4px}
+.gRoomTabs{display:flex;gap:6px;padding:0 16px 8px}
+.gRoomTabs .chTab{flex:1}
 .cl{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:2px 16px 10px;-webkit-overflow-scrolling:touch;
   border-top:1px solid #241d16}
 .cm{padding:6px 0;font-size:14px;line-height:1.55;color:var(--bone);word-break:break-word;-webkit-user-select:text;user-select:text}
@@ -418,8 +456,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div class="chTabs">
       <button class="chTab on" id="ctChat">채팅</button>
       <button class="chTab" id="ctRank">랭킹</button>
+      <button class="chTab" id="ctGuild">길드</button>
     </div>
     <div id="chatBody" class="chatBody">
+      <div class="gRoomTabs" id="gRoomTabs" style="display:none">
+        <button class="chTab on" id="crRoomLobby">로비</button>
+        <button class="chTab" id="crRoomGuild">길드</button>
+      </div>
       <div class="cl" id="cl"></div>
       <div class="cin">
         <input id="ci" type="text" maxlength="100" placeholder="한마디 남긴다…" autocomplete="off" autocapitalize="off" enterkeyhint="send" aria-label="메시지">
@@ -433,6 +476,22 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
       </div>
       <div class="rkHint" id="rkHint">누적 재 1당 얼마나 높이 올라갔는지 — 적게 투자하고 멀리 간 사람이 위</div>
       <div id="rankList"></div>
+    </div>
+    <div class="guildPanel" id="guildPanel">
+      <div id="guildView"></div>
+    </div>
+  </div>
+</div>
+
+<div id="guildModal" role="dialog" aria-label="길드">
+  <div class="nmbox">
+    <div class="nmtt" id="gmTt">길드 만들기</div>
+    <div class="nmsub" id="gmSub">이름은 2~12자, 다른 길드와 겹칠 수 없다.</div>
+    <input id="gmInput" type="text" maxlength="12" placeholder="길드 이름" autocomplete="off" autocapitalize="off">
+    <div class="nmerr" id="gmErr"></div>
+    <div class="nmbtns">
+      <button id="gmCancel" class="nmghost">취소</button>
+      <button id="gmSave">만들기</button>
     </div>
   </div>
 </div>
@@ -2101,16 +2160,22 @@ const CHAT_PREVIEW = false;      // true 면 서버가 없을 때 예시 대화�
    새로 들어온 사람도 최근 대화를 이어서 볼 수 있다(진짜 채팅방처럼). */
 const SUPABASE_URL = 'https://judfhapllshhuxvprgnu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZGZoYXBsbHNoaHV4dnByZ251Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNDYzMzgsImV4cCI6MjEwNTYyMjMzOH0.Owu4XS-o0fvNL2mkuRf5oIo9f8I-Q7UPjl5x5UkrZDY';
-const CHAT_ROOM = 'ember-lobby';   // 방을 나누고 싶으면 이 이름만 바꾸면 된다
+const CHAT_ROOM = 'ember-lobby';   // 로비방 이름 — 접속자 수(presence)는 항상 이 방 기준
 const CHAT_TABLE = 'chat_messages';
 const CHAT_HISTORY_N = 50;
 let sbClient = null;
+/* 채팅은 로비방 고정이 아니라 activeRoom을 바꿔가며 쓴다: 로비('ember-lobby') 또는
+   내 길드방('guild-' + guild_id). 길드 채팅도 send_chat 액션을 그대로 재사용한다 —
+   서버(profile-sync)에서 room이 'guild-'로 시작하면 보낸 사람이 실제로 그 길드
+   멤버인지(guild_members에 있는지) 확인한 뒤 insert하도록 서버 쪽 추가 검증이 필요하다. */
+let activeRoom = CHAT_ROOM;
+let chatDbChannel = null;
 async function loadChatHistory(){
   try {
     const { data, error } = await sbClient
       .from(CHAT_TABLE)
       .select('client_id,name,text,created_at')
-      .eq('room', CHAT_ROOM)
+      .eq('room', activeRoom)
       .order('id', { ascending: false })
       .limit(CHAT_HISTORY_N);
     if (error) throw error;
@@ -2235,26 +2300,239 @@ async function showPlayerInfo(nickname){
   } catch (e) { $('pinfoMsg').textContent = '정보를 불러오지 못했다.'; }
 }
 function pinfoClose(){ $('pinfo').classList.remove('show'); }
+
+/* ---------- 길드 ----------
+   guilds / guild_members 테이블을 랭킹과 같은 방식으로 공개 SELECT(RLS)로 직접 읽는다.
+   가입·생성·탈퇴·추방·공지 변경처럼 "쓰는" 동작만 profile-sync Edge Function을 거쳐
+   카카오 토큰으로 신원을 확인한 뒤 서버 롤 키로 처리한다(닉네임/채팅과 같은 원칙).
+   ⚠ 서버(profile-sync)에 guild_create / guild_join / guild_leave / guild_kick /
+      guild_set_notice 액션 추가가 필요하다 — 아래 GUILD_SETUP.md 참고. */
+const GUILD_TABLE = 'guilds';
+const GUILD_MEMBERS_TABLE = 'guild_members';
+const GUILD_LIST_N = 30;
+let myGuild = null;        // { id, name, notice, leader_kakao_id, member_count }
+let myGuildRole = null;    // 'leader' | 'member'
+let guildMembersCache = null;
+let guildBrowseCache = null, guildBrowseCacheAt = 0;
+
+async function fetchMyGuild(){
+  if (!sbClient || !kakaoUser) { myGuild = null; myGuildRole = null; return; }
+  try {
+    const { data, error } = await sbClient
+      .from(GUILD_MEMBERS_TABLE)
+      .select('role,guilds(id,name,notice,leader_kakao_id,member_count)')
+      .eq('kakao_id', String(kakaoUser.id))
+      .maybeSingle();
+    if (error || !data || !data.guilds) { myGuild = null; myGuildRole = null; }
+    else { myGuild = data.guilds; myGuildRole = data.role; }
+  } catch (e) { myGuild = null; myGuildRole = null; }
+  $('gRoomTabs').style.display = (activeRoom !== undefined && $('chatBody').style.display !== 'none' && myGuild) ? '' : 'none';
+  if (!myGuild && activeRoom !== CHAT_ROOM) switchChatRoom(CHAT_ROOM);
+}
+function guildMsg(html){ $('guildView').innerHTML = '<div class="gMsg">' + html + '</div>'; }
+async function renderGuildView(){
+  if (!kakaoUser || !kakaoUser.nick) { guildMsg('로그인하고 닉네임을 설정하면 길드를 만들거나 가입할 수 있다.'); return; }
+  guildMsg('불러오는 중…');
+  await fetchMyGuild();
+  if (myGuild) renderGuildDetail(); else renderGuildBrowse();
+}
+async function renderGuildBrowse(q){
+  const view = $('guildView');
+  view.innerHTML = '';
+  const row = document.createElement('div'); row.className = 'gSearchRow';
+  const input = document.createElement('input');
+  input.placeholder = '길드 이름 검색'; input.value = q || ''; input.autocomplete = 'off';
+  const mk = document.createElement('button'); mk.className = 'gMakeBtn'; mk.textContent = '만들기';
+  mk.onclick = openGuildCreateModal;
+  row.appendChild(input); row.appendChild(mk);
+  view.appendChild(row);
+  const list = document.createElement('div'); list.id = 'gBrowseList'; list.innerHTML = '<div class="gMsg">불러오는 중…</div>';
+  view.appendChild(list);
+  let t = null;
+  input.oninput = () => { clearTimeout(t); t = setTimeout(() => fetchGuildBrowse(input.value.trim()), 250); };
+  fetchGuildBrowse(q || '');
+}
+async function fetchGuildBrowse(q){
+  const list = $('gBrowseList'); if (!list) return;
+  if (!sbClient) { list.innerHTML = '<div class="gMsg">연결되지 않았다.</div>'; return; }
+  list.innerHTML = '<div class="gMsg">불러오는 중…</div>';
+  try {
+    let query = sbClient.from(GUILD_TABLE).select('id,name,notice,member_count').order('member_count', { ascending: false }).limit(GUILD_LIST_N);
+    if (q) query = query.ilike('name', '%' + q + '%');
+    const { data, error } = await query;
+    if (error) throw error;
+    list.innerHTML = '';
+    if (!data || !data.length) { list.innerHTML = '<div class="gMsg">' + (q ? '일치하는 길드가 없다.' : '아직 만들어진 길드가 없다 — 첫 길드를 만들어보자.') + '</div>'; return; }
+    data.forEach(g => {
+      const el = document.createElement('div'); el.className = 'gRow';
+      const wrap = document.createElement('div'); wrap.className = 'gNmWrap';
+      const nm = document.createElement('div'); nm.className = 'gNm'; nm.textContent = g.name;
+      const sub = document.createElement('div'); sub.className = 'gSub'; sub.textContent = (g.member_count || 1) + '명' + (g.notice ? ' · ' + g.notice : '');
+      wrap.appendChild(nm); wrap.appendChild(sub);
+      const btn = document.createElement('button'); btn.className = 'gJoinBtn'; btn.textContent = '가입';
+      btn.onclick = () => joinGuild(g.id, g.name, btn);
+      el.appendChild(wrap); el.appendChild(btn);
+      list.appendChild(el);
+    });
+  } catch (e) { list.innerHTML = '<div class="gMsg">불러오지 못했다.</div>'; }
+}
+async function renderGuildDetail(){
+  const view = $('guildView'); view.innerHTML = '';
+  const head = document.createElement('div'); head.className = 'gHead';
+  const nm = document.createElement('div'); nm.className = 'gName'; nm.textContent = myGuild.name;
+  head.appendChild(nm);
+  const notice = document.createElement('div'); notice.className = 'gNotice';
+  notice.textContent = myGuild.notice || '아직 공지가 없다.';
+  head.appendChild(notice);
+  if (myGuildRole === 'leader') {
+    const nb = document.createElement('button'); nb.className = 'gNoticeBtn'; nb.textContent = '공지 수정';
+    nb.onclick = openGuildNoticeModal;
+    head.appendChild(nb);
+  }
+  const stats = document.createElement('div'); stats.className = 'gStats';
+  stats.innerHTML = '<span><b>' + (myGuild.member_count || 1) + '</b>명</span><span><b>' + (myGuildRole === 'leader' ? '길드장' : '길드원') + '</b></span>';
+  head.appendChild(stats);
+  const acts = document.createElement('div'); acts.className = 'gActs';
+  const leaveBtn = document.createElement('button'); leaveBtn.className = 'danger';
+  leaveBtn.textContent = myGuildRole === 'leader' ? '길드 해체/위임' : '길드 탈퇴';
+  leaveBtn.onclick = leaveGuild;
+  acts.appendChild(leaveBtn);
+  head.appendChild(acts);
+  view.appendChild(head);
+  const tt = document.createElement('div'); tt.className = 'gMembersTt'; tt.textContent = '길드원';
+  view.appendChild(tt);
+  const mlist = document.createElement('div'); mlist.id = 'gMemberList'; mlist.innerHTML = '<div class="gMsg">불러오는 중…</div>';
+  view.appendChild(mlist);
+  fetchGuildMembers();
+}
+async function fetchGuildMembers(){
+  const list = $('gMemberList'); if (!list || !myGuild) return;
+  try {
+    const { data, error } = await sbClient
+      .from(GUILD_MEMBERS_TABLE)
+      .select('kakao_id,nickname,role,profiles(best)')
+      .eq('guild_id', myGuild.id)
+      .order('role', { ascending: true })
+      .limit(100);
+    if (error) throw error;
+    guildMembersCache = data || [];
+    list.innerHTML = '';
+    const myId = kakaoUser ? String(kakaoUser.id) : null;
+    guildMembersCache.forEach(m => {
+      const el = document.createElement('div'); el.className = 'gMember' + (myId && String(m.kakao_id) === myId ? ' me' : '');
+      const nmw = document.createElement('span'); nmw.className = 'gmNm'; nmw.textContent = m.nickname || '???';
+      const role = document.createElement('span'); role.className = 'gmRole'; role.textContent = m.role === 'leader' ? '길드장' : '';
+      const best = document.createElement('span'); best.className = 'gmBest'; best.textContent = fmt((m.profiles && m.profiles.best) || 0) + '층';
+      el.appendChild(nmw); el.appendChild(role); el.appendChild(best);
+      if (myGuildRole === 'leader' && String(m.kakao_id) !== myId) {
+        const kick = document.createElement('button'); kick.className = 'gmKick'; kick.textContent = '추방';
+        kick.onclick = () => kickMember(m.kakao_id, m.nickname);
+        el.appendChild(kick);
+      }
+      list.appendChild(el);
+    });
+  } catch (e) { list.innerHTML = '<div class="gMsg">길드원 정보를 불러오지 못했다.</div>'; }
+}
+let guildModalMode = 'create';
+function openGuildCreateModal(){
+  guildModalMode = 'create';
+  $('gmTt').textContent = '길드 만들기';
+  $('gmSub').textContent = '이름은 2~12자, 다른 길드와 겹칠 수 없다.';
+  $('gmInput').maxLength = 12;
+  $('gmInput').value = '';
+  $('gmErr').textContent = '';
+  $('gmSave').textContent = '만들기';
+  $('gmSave').disabled = false;
+  $('guildModal').classList.add('show');
+  setTimeout(() => $('gmInput').focus(), 50);
+}
+function openGuildNoticeModal(){
+  guildModalMode = 'notice';
+  $('gmTt').textContent = '공지 수정';
+  $('gmSub').textContent = '길드원 모두에게 보이는 한 줄 공지다.';
+  $('gmInput').maxLength = 60;
+  $('gmInput').value = myGuild.notice || '';
+  $('gmErr').textContent = '';
+  $('gmSave').textContent = '저장';
+  $('gmSave').disabled = false;
+  $('guildModal').classList.add('show');
+  setTimeout(() => $('gmInput').focus(), 50);
+}
+function closeGuildModal(){ $('guildModal').classList.remove('show'); }
+async function submitGuildModal(){
+  const raw = $('gmInput').value.trim();
+  if (guildModalMode === 'create') {
+    if (raw.length < 2 || raw.length > 12 || /\s/.test(raw)) { $('gmErr').textContent = '2~12자, 공백 없이 입력해줘.'; return; }
+    if (containsProfanity(raw)) { $('gmErr').textContent = '이름에 부적절한 표현이 있다.'; return; }
+    $('gmSave').disabled = true;
+    const r = await callProfileSync('guild_create', { name: raw });
+    if (!r || r.error) {
+      $('gmErr').textContent = r && r.error === 'taken' ? '이미 있는 길드 이름이다.' : r && r.error === 'already_in_guild' ? '이미 다른 길드에 속해 있다.' : '만들지 못했다. 다시 시도해줘.';
+      $('gmSave').disabled = false;
+      return;
+    }
+    closeGuildModal();
+    CHAT.notice('"' + raw + '" 길드를 만들었다.');
+    await fetchMyGuild(); renderGuildView();
+  } else {
+    if (raw.length > 60) { $('gmErr').textContent = '60자 이내로 입력해줘.'; return; }
+    $('gmSave').disabled = true;
+    const r = await callProfileSync('guild_set_notice', { notice: raw });
+    if (!r || r.error) { $('gmErr').textContent = '저장하지 못했다.'; $('gmSave').disabled = false; return; }
+    myGuild.notice = raw;
+    closeGuildModal();
+    renderGuildDetail();
+  }
+}
+async function joinGuild(id, name, btn){
+  if (btn) btn.disabled = true;
+  const r = await callProfileSync('guild_join', { guild_id: id });
+  if (!r || r.error) {
+    CHAT.notice(r && r.error === 'already_in_guild' ? '이미 다른 길드에 속해 있다.' : '가입하지 못했다.');
+    if (btn) btn.disabled = false;
+    return;
+  }
+  CHAT.notice('"' + name + '"에 가입했다.');
+  await fetchMyGuild(); renderGuildView();
+}
+async function leaveGuild(){
+  const msg = myGuildRole === 'leader' && (myGuild.member_count || 1) > 1
+    ? '길드장이 나가면 가장 오래된 길드원에게 길드장이 넘어간다. 정말 나갈까?'
+    : myGuildRole === 'leader' ? '마지막 길드원이다 — 나가면 길드가 사라진다. 정말 나갈까?' : '길드를 탈퇴할까?';
+  if (!confirm(msg)) return;
+  const r = await callProfileSync('guild_leave');
+  if (!r || r.error) { CHAT.notice('탈퇴하지 못했다.'); return; }
+  CHAT.notice('길드를 나왔다.');
+  myGuild = null; myGuildRole = null;
+  if (activeRoom !== CHAT_ROOM) switchChatRoom(CHAT_ROOM);
+  renderGuildView();
+}
+async function kickMember(kakaoId, nickname){
+  if (!confirm('"' + (nickname || '이 길드원') + '"을(를) 추방할까?')) return;
+  const r = await callProfileSync('guild_kick', { kakao_id: kakaoId });
+  if (!r || r.error) { CHAT.notice('추방하지 못했다.'); return; }
+  CHAT.notice((nickname || '길드원') + '을(를) 추방했다.');
+  await fetchMyGuild(); renderGuildDetail();
+}
+
 function setChView(v){
   $('ctChat').classList.toggle('on', v === 'chat');
   $('ctRank').classList.toggle('on', v === 'rank');
+  $('ctGuild').classList.toggle('on', v === 'guild');
   $('chatBody').style.display = v === 'chat' ? '' : 'none';
   $('rankPanel').classList.toggle('show', v === 'rank');
+  $('guildPanel').classList.toggle('show', v === 'guild');
+  $('gRoomTabs').style.display = (v === 'chat' && myGuild) ? '' : 'none';
   if (v === 'rank') fetchLeaderboard(false);
+  if (v === 'guild') renderGuildView();
 }
-function connectChat(){
-  if (!window.supabase || typeof window.supabase.createClient !== 'function') {
-    CHAT.setStatus('offline');
-    return;
-  }
+function connectChatDb(){
+  if (chatDbChannel) { try { sbClient.removeChannel(chatDbChannel); } catch (e) {} chatDbChannel = null; }
   CHAT.setStatus('connecting');
-  sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  loadChatHistory();
-  connectPresence();
-  const channel = sbClient
-    .channel(CHAT_ROOM + '-db')
+  chatDbChannel = sbClient
+    .channel(activeRoom + '-db')
     .on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: CHAT_TABLE, filter: `room=eq.${CHAT_ROOM}` },
+      { event: 'INSERT', schema: 'public', table: CHAT_TABLE, filter: `room=eq.${activeRoom}` },
       ({ new: row }) => CHAT.receive({ id: row.client_id, name: row.name, text: row.text })
     )
     .subscribe((status) => {
@@ -2262,16 +2540,18 @@ function connectChat(){
         CHAT.setStatus('online');
         // 클라이언트가 직접 insert하지 않는다. 닉네임 사칭/도배를 막기 위해
         // profile-sync Edge Function(action: 'send_chat')이 카카오 토큰으로 진짜 닉네임을
-        // 확인하고 서버 롤 키로 대신 insert한다. (public insert RLS 정책은 제거해야 함)
+        // 확인하고(+ 길드방이면 실제 그 길드 멤버인지도 확인) 서버 롤 키로 대신 insert한다.
+        // (public insert RLS 정책은 제거해야 함)
         CHAT.transport = {
           async send(m){
             const token = (kakaoReady && window.Kakao && Kakao.Auth.getAccessToken()) || null;
             if (!token) { CHAT.notice('로그인이 만료됐다. 다시 로그인해줘.'); return; }
-            const r = await callProfileSync('send_chat', { room: CHAT_ROOM, text: m.text, client_id: m.id });
+            const r = await callProfileSync('send_chat', { room: activeRoom, text: m.text, client_id: m.id });
             if (!r || r.error) {
               const msg = r && r.error === 'cooldown' ? '너무 빨리 보냈다. 잠시 후 다시 말해줘.'
                 : r && r.error === 'no_nickname' ? '닉네임을 먼저 설정해줘.'
                 : r && r.error === 'no_kakao_token' ? '로그인이 만료됐다. 다시 로그인해줘.'
+                : r && r.error === 'not_guild_member' ? '이 길드의 멤버가 아니다.'
                 : '보내지 못했다.';
               CHAT.notice(msg);
             }
@@ -2282,6 +2562,29 @@ function connectChat(){
         CHAT.setStatus('offline');
       }
     });
+}
+function switchChatRoom(room){
+  if (room === activeRoom) return;
+  if (room !== CHAT_ROOM && !myGuild) return;   // 길드가 없으면 길드방으로 못 간다
+  activeRoom = room;
+  $('crRoomLobby').classList.toggle('on', room === CHAT_ROOM);
+  $('crRoomGuild').classList.toggle('on', room !== CHAT_ROOM);
+  CHAT.msgs = [];
+  $('cl').innerHTML = '';
+  if (!sbClient) return;
+  loadChatHistory();
+  connectChatDb();
+}
+function connectChat(){
+  if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+    CHAT.setStatus('offline');
+    return;
+  }
+  sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  loadChatHistory();
+  connectPresence();
+  connectChatDb();
+  fetchMyGuild();
 }
 /* ---------- 접속자 수 (Supabase Realtime Presence) ----------
    로그인 여부와 상관없이 지금 이 페이지를 열어둔 사람 수를 센다.
@@ -2400,6 +2703,12 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   $('cx').onclick = chatClose;
   $('ctChat').onclick = () => setChView('chat');
   $('ctRank').onclick = () => setChView('rank');
+  $('ctGuild').onclick = () => setChView('guild');
+  $('crRoomLobby').onclick = () => switchChatRoom(CHAT_ROOM);
+  $('crRoomGuild').onclick = () => { if (myGuild) switchChatRoom('guild-' + myGuild.id); };
+  $('gmSave').onclick = submitGuildModal;
+  $('gmCancel').onclick = closeGuildModal;
+  $('gmInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitGuildModal(); } });
   $('rkTabBest').onclick = () => setRankMode('best');
   $('rkTabEff').onclick = () => setRankMode('eff');
   $('chat').addEventListener('click', e => { if (e.target === $('chat')) chatClose(); });

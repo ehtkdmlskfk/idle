@@ -293,6 +293,21 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 #nmSave:active{transform:translateY(2px);box-shadow:0 1px 0 #7a3a10}
 #nmSave:disabled{opacity:.5}
 .cin input:disabled{opacity:.55}
+.chTabs{display:flex;gap:6px;padding:0 16px 8px}
+.chTab{flex:1;min-height:34px;padding:0 10px;border-radius:12px;border:1px solid #2f261c;background:#14100c;color:var(--dim);font-family:var(--disp);font-size:14px}
+.chTab.on{color:#2a1300;background:linear-gradient(#f0b25e,#c9711f);border-color:#ffd18a}
+.chatBody{display:flex;flex-direction:column;min-height:0;flex:1}
+.rankPanel{display:none;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:2px 16px 10px;-webkit-overflow-scrolling:touch;
+  border-top:1px solid #241d16}
+.rankPanel.show{display:block}
+.rk{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid #211b14}
+.rk .rkNo{flex:none;width:24px;text-align:center;font-family:var(--disp);font-size:15px;color:var(--dim)}
+.rk.top .rkNo{color:var(--ember)}
+.rk .rkNm{flex:1;min-width:0;font-size:14px;color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rk.me{margin:0 -6px;padding:9px 6px;border-radius:10px;background:rgba(233,162,79,.1)}
+.rk.me .rkNm{color:var(--hot);font-weight:700}
+.rk .rkV{flex:none;font-family:var(--disp);font-size:15px;color:var(--ember)}
+.rkMsg{padding:22px 4px;text-align:center;font-size:12.5px;color:var(--dim)}
 .cl{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:2px 16px 10px;-webkit-overflow-scrolling:touch;
   border-top:1px solid #241d16}
 .cm{padding:6px 0;font-size:14px;line-height:1.55;color:var(--bone);word-break:break-word;-webkit-user-select:text;user-select:text}
@@ -383,11 +398,18 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
       <span class="cst" id="cst"><i class="cdot"></i><span id="cstt">오프라인</span></span>
       <button class="cx" id="cx" aria-label="닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
-    <div class="cl" id="cl"></div>
-    <div class="cin">
-      <input id="ci" type="text" maxlength="100" placeholder="한마디 남긴다…" autocomplete="off" autocapitalize="off" enterkeyhint="send" aria-label="메시지">
-      <button id="cs" disabled>보내기</button>
+    <div class="chTabs">
+      <button class="chTab on" id="ctChat">채팅</button>
+      <button class="chTab" id="ctRank">랭킹</button>
     </div>
+    <div id="chatBody" class="chatBody">
+      <div class="cl" id="cl"></div>
+      <div class="cin">
+        <input id="ci" type="text" maxlength="100" placeholder="한마디 남긴다…" autocomplete="off" autocapitalize="off" enterkeyhint="send" aria-label="메시지">
+        <button id="cs" disabled>보내기</button>
+      </div>
+    </div>
+    <div class="rankPanel" id="rankPanel"></div>
   </div>
 </div>
 
@@ -432,10 +454,11 @@ const def = () => ({
   souls: 0, ash: 0, total: 0, best: 1, runs: 0,
   floor: 1, kills: 0, hp: 40, sps: 0, lastSeen: Date.now(),
   lv: { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0 },
-  meta: { ember: 0, leg: 0, desc: 0, hand: 0, eye: 0, auto: 0, autoEnc: 0, autoOpen: 0, slot: 0, spark: 0, away: 0, awayEff: 0 },
+  meta: { ember: 0, leg: 0, desc: 0, hand: 0, eye: 0, auto: 0, autoEnc: 0, autoOpen: 0, slot: 0, spark: 0, away: 0, awayEff: 0, eng: 0 },
   relics: [], offers: [], rr: 0, mute: false, vol: 1, evt: null,
   encs: [], buf: null, stance: 0,
-  pil: {}, eq: [], rems: [], pity: 0, nick: ''
+  pil: {}, eq: [], rems: [], pity: 0, nick: '',
+  eng: [], metRelics: []
 });
 function load(){
   try {
@@ -459,6 +482,11 @@ if (fresh) S = def();
 /* ---------- 능력치 ---------- */
 const ashM = () => 1 + 0.1 * S.total;
 const rel = id => S.relics.indexOf(id) >= 0;
+const isEng = id => S.eng.indexOf(id) >= 0;
+const ENG_FRAC = 0.4;               // 각인만 된(직접 줍지 않은) 유물은 원래 효과의 40%만 적용
+const relLvl = id => rel(id) ? 1 : (isEng(id) ? ENG_FRAC : 0);
+const engSlots = () => ALT.eng.val(S.meta.eng);
+const engToggleCost = () => 8;
 const bufM = k => (S.buf && S.buf.k === k ? S.buf.m : 1);   // 사건으로 받은 임시 기운
 
 /* ---------- 먼저 온 이들 ----------
@@ -509,18 +537,19 @@ const pv = k => {
 };
 const effText = (id, lv) => PIL[id].e.map(([k, b]) => KIND[k].n + ' ' + KIND[k].f(pvVal(b, lv))).join(' · ');
 const UP = {
-  atk:   { name: '칼날', sub: '공격력',      base: 8,  g: 1.28, val: l => (3 + 2 * l) * ashM() * ALT.hand.val(S.meta.hand) * (rel('blade') ? 1.35 : 1) * (rel('pact') ? 1.6 : 1), show: v => fmt(v) },
-  hp:    { name: '심지', sub: '최대 불꽃',   base: 10, g: 1.30, val: l => (40 + 15 * l) * ashM() * (rel('wick') ? 1.3 : 1), show: v => fmt(v) },
-  spd:   { name: '맥박', sub: '공격 속도',   base: 25, g: 1.42, val: l => (0.8 + 0.08 * l) * (rel('fast') ? 1.3 : 1), show: v => v.toFixed(2) + '/초' },
-  greed: { name: '탐식', sub: '영혼 획득',   base: 15, g: 1.36, val: l => (1 + 0.15 * l) * (1 + 0.05 * S.total) * ALT.eye.val(S.meta.eye) * (rel('cup') ? 1.5 : 1), show: v => '×' + v.toFixed(2) },
-  crit:  { name: '불티', sub: '치명타 확률', base: 20, g: 1.33, val: l => Math.min(0.6, 0.015 * l + ALT.spark.val(S.meta.spark) + (rel('spark') ? 0.15 : 0) + pv('crit')), show: v => (v * 100).toFixed(0) + '%' }
+  atk:   { name: '칼날', sub: '공격력',      base: 8,  g: 1.28, val: l => (3 + 2 * l) * ashM() * ALT.hand.val(S.meta.hand) * (1 + 0.35 * relLvl('blade')) * (1 + 0.6 * relLvl('pact')), show: v => fmt(v) },
+  hp:    { name: '심지', sub: '최대 불꽃',   base: 10, g: 1.30, val: l => (40 + 15 * l) * ashM() * (1 + 0.3 * relLvl('wick')), show: v => fmt(v) },
+  spd:   { name: '맥박', sub: '공격 속도',   base: 25, g: 1.42, val: l => (0.8 + 0.08 * l) * (1 + 0.3 * relLvl('fast')), show: v => v.toFixed(2) + '/초' },
+  greed: { name: '탐식', sub: '영혼 획득',   base: 15, g: 1.36, val: l => (1 + 0.15 * l) * (1 + 0.05 * S.total) * ALT.eye.val(S.meta.eye) * (1 + 0.5 * relLvl('cup')), show: v => '×' + v.toFixed(2) },
+  crit:  { name: '불티', sub: '치명타 확률', base: 20, g: 1.33, val: l => Math.min(0.6, 0.015 * l + ALT.spark.val(S.meta.spark) + 0.15 * relLvl('spark') + pv('crit')), show: v => (v * 100).toFixed(0) + '%' }
 };
-const critMult = () => 2 + (rel('gambit') ? 0.5 : 0);
+const critMult = () => 2 + 0.5 * relLvl('gambit');
 const ALT = {
   auto:  { name: '자동 성장', sub: '가장 싼 성장을 알아서 산다', base: 12, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
   autoEnc: { name: '자동 선택', sub: '사건을 성향대로 알아서 고른다', base: 10, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
   autoOpen: { name: '자동 개봉', sub: '유해를 얻는 즉시 알아서 연다', base: 8, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
   slot:  { name: '계승의 자리', sub: '함께 이어받을 수 있는 순례자', base: 30, g: 3, max: 2, val: l => 2 + l, show: v => v + '명' },
+  eng:   { name: '각인의 자리', sub: '영구히 새겨 둘 수 있는 유물', base: 50, g: 2.8, max: 2, val: l => 1 + l, show: v => v + '개' },
   away:  { name: '긴 잠', sub: '자리를 비워도 쌓이는 시간', base: 6, g: 1.7, max: 8, val: l => 2 + l, show: v => v + '시간' },
   awayEff: { name: '식지 않는 온기', sub: '자리를 비운 동안의 효율', base: 8, g: 1.7, max: 8, val: l => 0.5 + 0.05 * l, show: v => Math.round(v * 100) + '%' },
   ember: { name: '온기', sub: '불꽃이 사그라드는 속도',  base: 3, g: 1.8, val: l => Math.pow(0.94, l), show: v => '×' + v.toFixed(2) },
@@ -531,24 +560,24 @@ const ALT = {
   spark: { name: '재의 불씨', sub: '치명타 확률',         base: 8, g: 1.85, val: l => 0.01 * l,         show: v => '+' + (v * 100).toFixed(0) + '%p' }
 };
 const RELICS = {
-  wick:   { n: '굳은 심지',   d: '최대 불꽃 +30%' },
-  blade:  { n: '녹슨 훈장',   d: '공격력 +35%' },
-  cup:    { n: '탐욕의 잔',   d: '영혼 획득 +50%' },
-  hunger: { n: '굶주린 불',   d: '처치할 때 회복량 2배' },
-  cloak:  { n: '재의 외투',   d: '불꽃이 30% 느리게 사그라든다' },
-  thorn:  { n: '가시 촛농',   d: '맞을 때 같은 피해를 되돌려준다' },
-  fast:   { n: '떨리는 손',   d: '공격 속도 +30%' },
-  mirror: { n: '깨진 거울',   d: '15% 확률로 3배 피해' },
-  last:   { n: '마지막 숨',   d: '불꽃이 20% 이하면 공격력 2배' },
-  pact:   { n: '어둠의 계약', d: '공격력 +60%, 불꽃 소모 +30%' },
-  echo:   { n: '메아리',      d: '20% 확률로 한 번 더 공격' },
-  well:   { n: '영혼 우물',   d: '층을 내려갈 때 영혼 2배 보너스' },
-  spark:  { n: '불티',        d: '치명타 확률 +15%p' },
-  gambit: { n: '도박사의 뼈', d: '치명타 피해 +50%p' },
-  frost:  { n: '서리 심지',   d: '불꽃 소모 −20%, 공격력 −10%' },
-  feast:  { n: '향연',        d: '보스를 처치하면 영혼 3배' },
-  spite:  { n: '앙심',        d: '불꽃이 40% 이하면 공격 속도 +25%' },
-  anchor: { n: '무거운 닻',   d: '최대 불꽃 +15%, 공격 속도 −10%' }
+  wick:   { n: '굳은 심지',   d: '최대 불꽃 +30%', g: 2 },
+  blade:  { n: '녹슨 훈장',   d: '공격력 +35%', g: 2 },
+  cup:    { n: '탐욕의 잔',   d: '영혼 획득 +50%', g: 2 },
+  hunger: { n: '굶주린 불',   d: '처치할 때 회복량 2배', g: 1 },
+  cloak:  { n: '재의 외투',   d: '불꽃이 30% 느리게 사그라든다', g: 2 },
+  thorn:  { n: '가시 촛농',   d: '맞을 때 같은 피해를 되돌려준다', g: 1 },
+  fast:   { n: '떨리는 손',   d: '공격 속도 +30%', g: 2 },
+  mirror: { n: '깨진 거울',   d: '15% 확률로 3배 피해', g: 4 },
+  last:   { n: '마지막 숨',   d: '불꽃이 20% 이하면 공격력 2배', g: 2 },
+  pact:   { n: '어둠의 계약', d: '공격력 +60%, 불꽃 소모 +30%', g: 4 },
+  echo:   { n: '메아리',      d: '20% 확률로 한 번 더 공격', g: 3 },
+  well:   { n: '영혼 우물',   d: '층을 내려갈 때 영혼 2배 보너스', g: 3 },
+  spark:  { n: '불티',        d: '치명타 확률 +15%p', g: 3 },
+  gambit: { n: '도박사의 뼈', d: '치명타 피해 +50%p', g: 3 },
+  frost:  { n: '서리 심지',   d: '불꽃 소모 −20%, 공격력 −10%', g: 1 },
+  feast:  { n: '향연',        d: '보스를 처치하면 영혼 3배', g: 2 },
+  spite:  { n: '앙심',        d: '불꽃이 40% 이하면 공격 속도 +25%', g: 3 },
+  anchor: { n: '무거운 닻',   d: '최대 불꽃 +15%, 공격 속도 −10%', g: 1 }
 };
 /* 유물 조합 — 필요한 유물을 모두 지니면 발동 */
 const SYN = {
@@ -562,12 +591,12 @@ const SYN = {
   madness:  { n: '광기의 계약', need: ['pact', 'spite'],    d: '공격력 +25%' }
 };
 const syn = id => SYN[id].need.every(x => rel(x));
-const maxHP = () => UP.hp.val(S.lv.hp) * (rel('anchor') ? 1.15 : 1) * (syn('ironwick') ? 1.25 : 1) * (1 + pv('hp'));
-const atkV  = () => UP.atk.val(S.lv.atk) * (rel('last') && S.hp < maxHP() * 0.2 ? 2 : 1) * (rel('frost') ? 0.9 : 1) * (syn('madness') ? 1.25 : 1) * bufM('atk') * (1 + pv('atk'));
-const apsV  = () => UP.spd.val(S.lv.spd) * (rel('anchor') ? 0.9 : 1) * (rel('spite') && S.hp < maxHP() * 0.4 ? 1.25 : 1) * (syn('frenzy') ? 1.2 : 1) * (1 + pv('aps'));
+const maxHP = () => UP.hp.val(S.lv.hp) * (1 + 0.15 * relLvl('anchor')) * (syn('ironwick') ? 1.25 : 1) * (1 + pv('hp'));
+const atkV  = () => UP.atk.val(S.lv.atk) * (1 + relLvl('last') * (S.hp < maxHP() * 0.2 ? 1 : 0)) * (1 - 0.1 * relLvl('frost')) * (syn('madness') ? 1.25 : 1) * bufM('atk') * (1 + pv('atk'));
+const apsV  = () => UP.spd.val(S.lv.spd) * (1 - 0.1 * relLvl('anchor')) * (1 + 0.25 * relLvl('spite') * (S.hp < maxHP() * 0.4 ? 1 : 0)) * (syn('frenzy') ? 1.2 : 1) * (1 + pv('aps'));
 const soulM = () => UP.greed.val(S.lv.greed) * (syn('crown') ? 1.3 : 1) * bufM('greed') * (1 + pv('soul'));
-const drain = () => maxHP() * 0.010 * (1 + 0.04 * S.floor) * ALT.ember.val(S.meta.ember) * (rel('cloak') ? 0.7 : 1) * (rel('pact') ? 1.3 : 1) * (rel('frost') ? 0.8 : 1) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm'));
-const killHeal = () => 0.08 + (rel('hunger') ? 0.08 : 0) + (syn('glut') ? 0.05 : 0) + pv('heal');
+const drain = () => maxHP() * 0.010 * (1 + 0.04 * S.floor) * ALT.ember.val(S.meta.ember) * (1 - 0.3 * relLvl('cloak')) * (1 + 0.3 * relLvl('pact')) * (1 - 0.2 * relLvl('frost')) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm'));
+const killHeal = () => 0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0) + pv('heal');
 const need  = f => (f % 10 === 0 ? 1 : 4);
 const ashGain = f => Math.max(1, Math.floor(Math.pow(f, 1.5) / 3 * (1 + pv('ash'))));
 
@@ -1022,7 +1051,7 @@ function hit(dmg, kind, noEcho){
   if (E.boss) dmg *= 1 + pv('boss');
   let crit = false;
   if (Math.random() < UP.crit.val(S.lv.crit)) { dmg *= critMult(); crit = true; sfx('crit'); }
-  if (rel('mirror') && Math.random() < (syn('gambler') ? 0.25 : 0.15)) { dmg *= 3; crit = true; }
+  if (rel('mirror') ? Math.random() < (syn('gambler') ? 0.25 : 0.15) : Math.random() < 0.15 * relLvl('mirror')) { dmg *= 3; crit = true; }
   E.hp -= dmg; E.flash = 1;
   bolt(kind !== 'auto');
   F.push({
@@ -1034,7 +1063,7 @@ function hit(dmg, kind, noEcho){
   const now = performance.now();
   if (now - lastHitSfx > 90) { lastHitSfx = now; sfx(kind === 'auto' ? 'hit' : 'tap'); }
   if (E.hp <= 0) { kill(); return; }
-  if (kind === 'auto' && !noEcho && rel('echo') && Math.random() < 0.2) hit(atkV(), 'auto', true);
+  if (kind === 'auto' && !noEcho && Math.random() < 0.2 * relLvl('echo')) hit(atkV(), 'auto', true);
 }
 function foeHit(){
   if (!E) return;
@@ -1042,15 +1071,16 @@ function foeHit(){
   S.hp -= d; E.lunge = 1; heroFlash = 1; shake = Math.max(shake, RM ? 0 : 7);
   F.push({ x: G.hx, y: G.hy - 24, t: '-' + fmt(d), c: '#d0503f', life: 1, d: 0, vy: -30, s: 14 });
   sfx('hurt');
-  if (rel('thorn')) {
-    const td = d * (syn('briar') ? 2 : 1);
+  const thL = relLvl('thorn');
+  if (thL > 0) {
+    const td = d * (rel('thorn') && syn('briar') ? 2 : 1) * thL;
     E.hp -= td;
     F.push({ x: G.ex, y: G.gy - G.bh * 0.9, t: String(Math.max(1, Math.round(td))), c: '#b9ad98', life: 0.9, d: 0.1, vy: -26, s: 13 });
     if (E.hp <= 0) kill();
   }
 }
 function kill(){
-  const gain = E.soul * soulM() * (E.boss && rel('feast') ? 3 : 1);
+  const gain = E.soul * soulM() * (E.boss ? 1 + 2 * relLvl('feast') : 1);
   S.souls += gain; gainAcc += gain;
   S.hp = Math.min(maxHP(), S.hp + maxHP() * killHeal());
   F.push({ x: G.ex, y: G.gy - G.bh * 0.5, t: '+' + fmt(gain), c: '#e9a24f', life: 1.3, d: 0, vy: -22, s: 14 });
@@ -1070,7 +1100,8 @@ function kill(){
     S.kills = 0; S.floor++;
     if (pv('rest') > 0) S.hp = Math.min(maxHP(), S.hp + maxHP() * pv('rest'));
     rollEvent();
-    if (rel('well')) { S.souls += gain * 2; gainAcc += gain * 2; }
+    const wellL = relLvl('well');
+    if (wellL > 0) { const bonus = gain * 2 * wellL; S.souls += bonus; gainAcc += bonus; }
     sfx('floor');
     const fb = $('floor'); fb.classList.remove('bump'); void fb.offsetWidth; fb.classList.add('bump');
     if (S.floor > S.best) {
@@ -1078,7 +1109,7 @@ function kill(){
       if (S.floor > 2) say('가장 깊은 곳 — ' + S.floor + '층', 'gold');
       if (FLOOR_LINES[S.floor]) say(FLOOR_LINES[S.floor]);
     }
-    if (from % 5 === 0) offerRelic();
+    if (from % 7 === 0) offerRelic();
     S.encs = S.encs.filter(e => S.floor - e.f < ENC_LIFE);
     if (S.floor >= 3 && S.floor % 10 !== 0 && Math.random() < 0.18) pushEnc();
   }
@@ -1108,11 +1139,26 @@ function revive(){
   buildPanel(); ui();
 }
 
+const relicWeights = f => [Math.max(15, 55 - f * 1.2), 22 + Math.min(18, f * 0.4), 7 + Math.min(20, f * 0.5), 1 + Math.min(8, f * 0.15)];
+function pickWeightedRelic(ids, w){
+  let total = 0; for (const id of ids) total += w[RELICS[id].g - 1];
+  let r = Math.random() * total;
+  for (const id of ids) { const wt = w[RELICS[id].g - 1]; if (r < wt) return id; r -= wt; }
+  return ids[ids.length - 1];
+}
+function drawRelics(ids, w, n){
+  let remain = ids.slice(); const picks = [];
+  while (remain.length && picks.length < n) {
+    const id = pickWeightedRelic(remain, w);
+    picks.push(id);
+    remain = remain.filter(x => x !== id);
+  }
+  return picks;
+}
 function offerRelic(silent){
   const pool = Object.keys(RELICS).filter(id => !rel(id));
-  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   if (!pool.length) return false;
-  S.offers.push(pool.slice(0, 3));
+  S.offers.push(drawRelics(pool, relicWeights(S.floor), 3));
   if (!silent) { say('유물이 손에 닿는다. 하나를 고를 수 있다.', 'gold'); sfx('relic'); }
   if (tab === 1) buildPanel();
   return true;
@@ -1122,10 +1168,12 @@ function reroll(){
   const o = S.offers[0]; if (!o) return;
   const c = rerollCost();
   if (S.ash < c) { say('재가 모자란다.', 'red'); return; }
-  const shuf = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const w = relicWeights(S.floor);
   const all = Object.keys(RELICS).filter(id => !rel(id));
-  const fresh = shuf(all.filter(id => o.indexOf(id) < 0)), back = shuf(all.filter(id => o.indexOf(id) >= 0));
-  S.offers[0] = fresh.concat(back).slice(0, 3);
+  const fresh = all.filter(id => o.indexOf(id) < 0), back = all.filter(id => o.indexOf(id) >= 0);
+  const picks = drawRelics(fresh, w, 3);
+  if (picks.length < 3) picks.push(...drawRelics(back, w, 3 - picks.length));
+  S.offers[0] = picks;
   S.ash -= c; S.rr = (S.rr || 0) + 1;
   sfx('buy');
   try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
@@ -1135,6 +1183,7 @@ function pickRelic(id){
   if (!S.offers.length) return;
   const before = maxHP(), had = Object.keys(SYN).filter(k => syn(k));
   S.relics.push(id);
+  if (S.metRelics.indexOf(id) < 0) S.metRelics.push(id);
   S.hp += Math.max(0, maxHP() - before);
   S.offers.shift();
   say('유물 — ' + RELICS[id].n + ': ' + RELICS[id].d, 'gold');
@@ -1144,6 +1193,24 @@ function pickRelic(id){
     sfx('syn'); flare = 1;
   });
   buildPanel(); ui();
+}
+function toggleEng(id){
+  if (S.metRelics.indexOf(id) < 0) return;
+  const i = S.eng.indexOf(id);
+  if (i >= 0) {
+    S.eng.splice(i, 1);
+    say('각인을 지운다 — ' + RELICS[id].n);
+  } else {
+    if (S.eng.length >= engSlots()) { say('각인 자리가 가득 찼다.', 'red'); return; }
+    const c = engToggleCost();
+    if (S.ash < c) { say('재가 모자란다.', 'red'); return; }
+    S.ash -= c;
+    S.eng.push(id);
+    say('영구히 새긴다 — ' + RELICS[id].n + ' (효과 ' + Math.round(ENG_FRAC * 100) + '%)', 'gold');
+  }
+  sfx('buy');
+  try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
+  buildPanel(); ui(); save();
 }
 function burn(){
   if (dead || !E || burnT > 0 || S.hp < maxHP() * 0.3) return;
@@ -1259,6 +1326,7 @@ const ICON = {
   crit:  svg('<path d="M13 2 3 14h7l-1 8 11-14h-7z"/>'),
   spark: svg('<path d="M13 2 3 14h7l-1 8 11-14h-7z"/>'),
   relic: svg('<path d="M12 3l7 7-7 11-7-11z"/><path d="M5 10h14"/>'),
+  eng:   svg('<path d="M12 3l7 7-7 11-7-11z"/><path d="M9 9.5h6M9 12.5h4"/>'),
   autoOpen: svg('<path d="M4 10h16l-1.5 9h-13z"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
   slot:  svg('<circle cx="8" cy="9" r="2.6"/><circle cx="16" cy="9" r="2.6"/><path d="M3 19c0-3 2.2-5 5-5s5 2 5 5M11 19c0-3 2.2-5 5-5s5 2 5 5"/>'),
   pil:   svg('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5"/>'),
@@ -1266,15 +1334,16 @@ const ICON = {
   safe:  svg('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>'),
   bold:  svg('<path d="M12 3c.8 3.6 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.2 2-4 .2 1.6 1 2.4 2 2.4-.6-3 .2-5.6 1-8.4z"/><path d="M12 14v3"/>')
 };
-const TC = { atk: '#d0603f', hp: '#e9a24f', spd: '#f0d27a', greed: '#a98be0', crit: '#ffe066', auto: '#6fb3a8', away: '#7fa3d6', awayEff: '#8fbf9a', ember: '#e08a4a', hand: '#c9b99a', eye: '#7fb2d6', leg: '#c9b99a', desc: '#9a8f7c', spark: '#ffcf5c', relic: '#e9a24f', autoEnc: '#9ec7a0', autoOpen: '#8fbf9a', slot: '#e9a24f', safe: '#8fbf9a', bold: '#d0603f' };
+const TC = { atk: '#d0603f', hp: '#e9a24f', spd: '#f0d27a', greed: '#a98be0', crit: '#ffe066', auto: '#6fb3a8', away: '#7fa3d6', awayEff: '#8fbf9a', ember: '#e08a4a', hand: '#c9b99a', eye: '#7fb2d6', leg: '#c9b99a', desc: '#9a8f7c', spark: '#ffcf5c', relic: '#e9a24f', eng: '#d8b46a', autoEnc: '#9ec7a0', autoOpen: '#8fbf9a', slot: '#e9a24f', safe: '#8fbf9a', bold: '#d0603f' };
 function relicRow(id, pickable){
   const r = RELICS[id];
   const b = document.createElement(pickable ? 'button' : 'div');
   b.className = 'card ' + (pickable ? 'pick can' : 'own');
-  b.style.setProperty('--tc', TC.relic);
-  b.innerHTML = '<div class="ic">' + ICON.relic + '</div><div class="mid"><div class="nm"><span class="n"></span></div><div class="ds"></div></div>' +
+  b.style.setProperty('--tc', GC[r.g]);
+  b.innerHTML = '<div class="ic">' + ICON.relic + '</div><div class="mid"><div class="nm"><span class="n"></span><span class="lv"></span></div><div class="ds"></div></div>' +
     (pickable ? '<div class="buy"><span class="c">고른다</span></div>' : '');
   b.querySelector('.n').textContent = r.n;
+  b.querySelector('.lv').textContent = GN[r.g];
   b.querySelector('.ds').textContent = r.d;
   if (pickable) {
     b.onclick = () => pickRelic(id);
@@ -1288,6 +1357,19 @@ function relicRow(id, pickable){
       mid.appendChild(h);
     });
   }
+  return b;
+}
+function engRow(id){
+  const r = RELICS[id], on = isEng(id);
+  const b = document.createElement('button');
+  b.className = 'card pick' + (on ? ' can' : '');
+  b.style.setProperty('--tc', GC[r.g]);
+  b.innerHTML = '<div class="ic">' + ICON.eng + '</div><div class="mid"><div class="nm"><span class="n"></span><span class="lv"></span></div><div class="ds"></div></div><div class="buy"><span class="c"></span></div>';
+  b.querySelector('.n').textContent = r.n;
+  b.querySelector('.lv').textContent = GN[r.g];
+  b.querySelector('.ds').textContent = r.d;
+  b.querySelector('.c').textContent = on ? '새겨짐 · 지우기' : '새기기 · 재 ' + engToggleCost();
+  b.onclick = () => toggleEng(id);
   return b;
 }
 function note(html){
@@ -1321,7 +1403,7 @@ function buildPanel(){
       rb.onclick = reroll;
       panel.appendChild(rb);
     } else {
-      panel.appendChild(note('5층을 내려갈 때마다 유물 하나를 고를 수 있다. 유물은 이번 불꽃이 꺼지면 사라진다.<br>특정 유물 둘을 함께 지니면 <b>조합</b>이 발동한다.'));
+      panel.appendChild(note('7층을 내려갈 때마다 유물 하나를 고를 수 있다. 유물은 이번 불꽃이 꺼지면 사라진다.<br>귀한 등급일수록 드물게 나타나며, 깊이 내려갈수록 귀한 유물을 만나기 쉬워진다.<br>특정 유물 둘을 함께 지니면 <b>조합</b>이 발동한다.'));
     }
     if (S.relics.length) {
       const h = document.createElement('div'); h.className = 'sec'; h.textContent = '지닌 유물 ' + S.relics.length;
@@ -1344,6 +1426,15 @@ function buildPanel(){
       ds[1].textContent = sy.need.map(x => RELICS[x].n + (rel(x) ? ' ✓' : '')).join('  +  ');
       panel.appendChild(b);
     });
+    const engH = document.createElement('div'); engH.className = 'sec';
+    engH.textContent = '영구 각인 ' + S.eng.length + ' / ' + engSlots();
+    panel.appendChild(engH);
+    if (S.metRelics.length) {
+      panel.appendChild(note('만난 적 있는 유물은 재 ' + engToggleCost() + '로 영구히 새길 수 있다 — 죽어도 사라지지 않지만 효과는 ' + Math.round(ENG_FRAC * 100) + '%로 줄어든다. 이번 생에 직접 주우면 100% 효과로 돌아온다.'));
+      S.metRelics.slice().sort((a, b) => isEng(b) - isEng(a) || RELICS[b].g - RELICS[a].g).forEach(id => panel.appendChild(engRow(id)));
+    } else {
+      panel.appendChild(note('유물을 한 번이라도 주우면 이 자리에 나타난다. 각인하면 다음 불꽃부터 영구히(효과 ' + Math.round(ENG_FRAC * 100) + '%) 함께한다.'));
+    }
   } else if (tab === 4) {
     const n = S.rems.length;
     const act = (nm, ds, cta, fn) => {
@@ -1999,6 +2090,54 @@ async function loadChatHistory(){
     CHAT.notice('지난 대화를 불러오지 못했다.');
   }
 }
+/* ---------- 랭킹 ----------
+   채팅 기록처럼 로그인 없이도 볼 수 있어야 자연스러우니, profile-sync(인증 필요)를 거치지 않고
+   채팅 기록을 읽을 때와 같은 방식으로 sbClient로 프로필 테이블을 직접 읽는다.
+   ⚠ PROFILE_TABLE/컬럼명은 실제 Supabase 스키마(touch/get 액션이 쓰는 테이블)에 맞춰 확인·조정이 필요하다.
+   해당 테이블에 공개 SELECT를 허용하는 RLS 정책도 있어야 한다(닉네임·최고층만 노출). */
+const PROFILE_TABLE = 'profiles';
+const RANK_N = 30;
+let rankCache = null, rankCacheAt = 0;
+async function fetchLeaderboard(force){
+  const panel = $('rankPanel');
+  if (!force && rankCache && Date.now() - rankCacheAt < 30000) { renderLeaderboard(rankCache); return; }
+  if (!sbClient) { panel.innerHTML = '<div class="rkMsg">연결되지 않았다.</div>'; return; }
+  panel.innerHTML = '<div class="rkMsg">불러오는 중…</div>';
+  try {
+    const { data, error } = await sbClient
+      .from(PROFILE_TABLE)
+      .select('nickname,kakao_id,best')
+      .order('best', { ascending: false })
+      .limit(RANK_N);
+    if (error) throw error;
+    rankCache = data || []; rankCacheAt = Date.now();
+    renderLeaderboard(rankCache);
+  } catch (e) {
+    panel.innerHTML = '<div class="rkMsg">랭킹을 불러오지 못했다.</div>';
+  }
+}
+function renderLeaderboard(rows){
+  const panel = $('rankPanel');
+  panel.innerHTML = '';
+  if (!rows.length) { panel.innerHTML = '<div class="rkMsg">아직 기록이 없다.</div>'; return; }
+  const myId = kakaoUser ? String(kakaoUser.id) : null;
+  rows.forEach((row, i) => {
+    const el = document.createElement('div');
+    el.className = 'rk' + (i < 3 ? ' top' : '') + (myId && String(row.kakao_id) === myId ? ' me' : '');
+    const no = document.createElement('span'); no.className = 'rkNo'; no.textContent = i + 1;
+    const nm = document.createElement('span'); nm.className = 'rkNm'; nm.textContent = row.nickname || '???';
+    const v = document.createElement('span'); v.className = 'rkV'; v.textContent = fmt(row.best || 0) + '층';
+    el.appendChild(no); el.appendChild(nm); el.appendChild(v);
+    panel.appendChild(el);
+  });
+}
+function setChView(v){
+  $('ctChat').classList.toggle('on', v === 'chat');
+  $('ctRank').classList.toggle('on', v === 'rank');
+  $('chatBody').style.display = v === 'chat' ? '' : 'none';
+  $('rankPanel').classList.toggle('show', v === 'rank');
+  if (v === 'rank') fetchLeaderboard(false);
+}
 function connectChat(){
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
     CHAT.setStatus('offline');
@@ -2151,6 +2290,8 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   $('chatbtn').addEventListener('pointerdown', e => e.stopPropagation());
   $('chatbtn').onclick = chatOpen;
   $('cx').onclick = chatClose;
+  $('ctChat').onclick = () => setChView('chat');
+  $('ctRank').onclick = () => setChView('rank');
   $('chat').addEventListener('click', e => { if (e.target === $('chat')) chatClose(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && CHAT.open) chatClose(); });
   ci.addEventListener('input', () => { cs.disabled = !ci.value.trim(); });
@@ -2263,6 +2404,10 @@ if (fresh) {
 } else {
   if (!Array.isArray(S.relics)) S.relics = [];
   if (!Array.isArray(S.offers)) S.offers = [];
+  if (!Array.isArray(S.metRelics)) S.metRelics = [];
+  S.metRelics = S.metRelics.filter((id, i, a) => RELICS[id] && a.indexOf(id) === i);
+  if (!Array.isArray(S.eng)) S.eng = [];
+  S.eng = S.eng.filter((id, i, a) => RELICS[id] && S.metRelics.indexOf(id) >= 0 && a.indexOf(id) === i).slice(0, ALT.eng.val(S.meta.eng));
   if (!S.pil || typeof S.pil !== 'object' || Array.isArray(S.pil)) S.pil = {};
   Object.keys(S.pil).forEach(k => { if (!PIL[k] || !(S.pil[k] >= 1)) delete S.pil[k]; else S.pil[k] = Math.min(PIL_MAX, Math.floor(S.pil[k])); });
   if (!Array.isArray(S.eq)) S.eq = [];

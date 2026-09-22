@@ -235,6 +235,28 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .cacc{flex:none;min-height:30px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:700;color:#2a1300;
   background:linear-gradient(#f4c479,#e08a2f);border:1px solid #ffdca0}
 .cacc.on{color:var(--dim);background:#1a150f;border-color:#3a2f22}
+.chd{position:relative}
+.accMenu{position:absolute;top:100%;right:56px;margin-top:6px;display:none;flex-direction:column;min-width:132px;
+  padding:6px;border-radius:14px;border:1px solid #3a2f22;background:#14100c;box-shadow:0 8px 22px rgba(0,0,0,.6);z-index:41}
+.accMenu.show{display:flex}
+.accMenu button{padding:10px 12px;border-radius:10px;text-align:left;font-size:13px;color:var(--bone);background:none}
+.accMenu button:active{background:#231b13}
+#nickModal{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,5,4,.65)}
+#nickModal.show{display:flex}
+.nmbox{width:100%;max-width:340px;padding:20px 18px;border-radius:20px;border:2px solid #3a2f22;
+  background:linear-gradient(#1d1812,#100d0a);box-shadow:0 0 0 1px #000,0 10px 30px rgba(0,0,0,.6);animation:rvpop .4s cubic-bezier(.2,1.5,.4,1)}
+.nmtt{font-family:var(--disp);font-size:20px;color:var(--hot);margin-bottom:6px}
+.nmsub{font-family:var(--lore);font-size:12.5px;line-height:1.6;color:var(--dim);margin-bottom:14px}
+.nmbox input{width:100%;min-height:44px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:#0b0907;
+  box-shadow:inset 0 1px 3px #000;color:var(--bone);font:inherit;font-size:16px;outline:none}
+.nmbox input:focus{border-color:#7a5428}
+.nmerr{min-height:16px;margin-top:8px;font-size:12px;font-weight:700;color:var(--blood)}
+.nmbtns{display:flex;gap:8px;margin-top:12px}
+.nmbtns button{flex:1;min-height:44px;border-radius:12px;font-family:var(--disp);font-size:16px}
+.nmghost{border:1px solid #3a2f22;background:#1a150f;color:var(--dim)}
+#nmSave{border:0;background:linear-gradient(#f4b862,#cf7a22);color:#2a1300;box-shadow:0 3px 0 #7a3a10}
+#nmSave:active{transform:translateY(2px);box-shadow:0 1px 0 #7a3a10}
+#nmSave:disabled{opacity:.5}
 .cin input:disabled{opacity:.55}
 .cl{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:2px 16px 10px;-webkit-overflow-scrolling:touch;
   border-top:1px solid #241d16}
@@ -266,6 +288,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 <!-- 카카오 로그인: Legacy JS SDK. [내 애플리케이션] > [앱 키] > JavaScript 키를 아래 KAKAO_JS_KEY에 넣는다.
      REST API 키가 아니라 JavaScript 키다. 이 파일이 올라갈 도메인을 카카오 디벨로퍼스 [플랫폼]에도 등록해야 동작한다. -->
 <script src="https://t1.kakaocdn.net/kakao_js_sdk/v1/kakao.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <body>
 <div id="app">
   <header>
@@ -311,6 +334,10 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div class="chd">
       <span class="ctt">채팅</span>
       <button class="cacc" id="cacc"></button>
+      <div class="accMenu" id="accMenu">
+        <button id="amNick">닉네임 변경</button>
+        <button id="amOut">로그아웃</button>
+      </div>
       <span class="cst" id="cst"><i class="cdot"></i><span id="cstt">오프라인</span></span>
       <button class="cx" id="cx" aria-label="닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
@@ -318,6 +345,19 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div class="cin">
       <input id="ci" type="text" maxlength="100" placeholder="한마디 남긴다…" autocomplete="off" autocapitalize="off" enterkeyhint="send" aria-label="메시지">
       <button id="cs" disabled>보내기</button>
+    </div>
+  </div>
+</div>
+
+<div id="nickModal" role="dialog" aria-label="닉네임 설정">
+  <div class="nmbox">
+    <div class="nmtt">닉네임 설정</div>
+    <div class="nmsub">채팅에 보일 이름이다. 2~12자, 다른 사람과 겹칠 수 없다.</div>
+    <input id="nmInput" type="text" maxlength="12" placeholder="닉네임" autocomplete="off" autocapitalize="off">
+    <div class="nmerr" id="nmErr"></div>
+    <div class="nmbtns">
+      <button id="nmCancel" class="nmghost">취소</button>
+      <button id="nmSave">저장</button>
     </div>
   </div>
 </div>
@@ -1007,6 +1047,7 @@ function die(){
   dead = true; deadT = 4.5; deadAge = 0; S.hp = 0; E = null;
   const g = ashGain(S.floor);
   S.ash += g; S.total += g; S.runs++;
+  touchProfile();
   $('o2').textContent = S.floor + '층까지 내려갔다 — 재 +' + fmt(g);
   $('o4').textContent = addRemain(S.floor);
   $('o3').textContent = '';
@@ -1676,31 +1717,120 @@ function kakaoLogin(){
   if (!kakaoReady) { CHAT.notice('아직 카카오 로그인이 연결되지 않았다. (JavaScript 키 설정 필요)'); return; }
   Kakao.Auth.login({
     success(){
-      Kakao.API.request({ url: '/v2/user/me', success(res){
-        const acc = res.kakao_account || {};
-        const nick = (acc.profile && acc.profile.nickname) || (res.properties && res.properties.nickname) || ('순례자' + res.id);
-        kakaoUser = { id: res.id, nick: String(nick).slice(0, 16) };
-        S.nick = kakaoUser.nick; save();
-        chatRenderAccount();
-        CHAT.notice(kakaoUser.nick + '(으)로 로그인했다.');
-      }, fail(){ CHAT.notice('사용자 정보를 가져오지 못했다.'); } });
+      Kakao.API.request({ url: '/v2/user/me', success(res){ afterKakaoLogin(res); }, fail(){ CHAT.notice('사용자 정보를 가져오지 못했다.'); } });
     },
     fail(){ CHAT.notice('로그인에 실패했다.'); }
   });
 }
+async function afterKakaoLogin(res){
+  const acc = res.kakao_account || {};
+  const kakaoRawNick = String((acc.profile && acc.profile.nickname) || (res.properties && res.properties.nickname) || ('순례자' + res.id)).slice(0, 16);
+  kakaoUser = { id: res.id, nick: null };
+  myProfile = null;
+  chatRenderAccount();
+  const r = await callProfileSync('get');
+  if (r && r.profile && r.profile.nickname) {
+    kakaoUser.nick = r.profile.nickname; S.nick = r.profile.nickname; save();
+    myProfile = r.profile;
+    chatRenderAccount();
+    CHAT.notice(r.profile.nickname + '(으)로 로그인했다.');
+    touchProfile();
+  } else {
+    chatRenderAccount();
+    CHAT.notice('처음 왔다 — 닉네임을 정해줘.');
+    openNickModal(kakaoRawNick, true);
+  }
+}
 function kakaoLogout(){
-  const done = () => { kakaoUser = null; chatRenderAccount(); CHAT.notice('로그아웃했다.'); };
+  const done = () => { kakaoUser = null; myProfile = null; $('accMenu').classList.remove('show'); chatRenderAccount(); CHAT.notice('로그아웃했다.'); };
   if (kakaoReady && window.Kakao && Kakao.Auth.getAccessToken()) Kakao.Auth.logout(done);
   else done();
 }
 function chatRenderAccount(){
   const b = $('cacc'), ci = $('ci');
-  if (kakaoUser) { b.textContent = kakaoUser.nick; b.classList.add('on'); b.onclick = () => { if (confirm('로그아웃할까?')) kakaoLogout(); }; }
+  if (kakaoUser) { b.textContent = kakaoUser.nick || '닉네임 설정'; b.classList.add('on'); b.onclick = toggleAccMenu; }
   else { b.textContent = '로그인'; b.classList.remove('on'); b.onclick = kakaoLogin; }
-  ci.disabled = !kakaoUser;
-  ci.placeholder = kakaoUser ? '한마디 남긴다…' : '카카오로 로그인하면 대화에 참여할 수 있다';
-  if (!kakaoUser) { ci.value = ''; $('cs').disabled = true; }
+  const ready = !!(kakaoUser && kakaoUser.nick);
+  ci.disabled = !ready;
+  ci.placeholder = ready ? '한마디 남긴다…' : (kakaoUser ? '닉네임을 먼저 설정해줘' : '카카오로 로그인하면 대화에 참여할 수 있다');
+  if (!ready) { ci.value = ''; $('cs').disabled = true; }
 }
+function toggleAccMenu(e){
+  if (e) e.stopPropagation();
+  if (!kakaoUser || !kakaoUser.nick) { openNickModal(kakaoUser ? '' : '', true); return; }
+  $('accMenu').classList.toggle('show');
+}
+
+/* ---------- 닉네임 + 진행도 (서버 검증) ----------
+   클라이언트는 카카오 id 를 직접 서버로 보내지 않는다. 대신 카카오 access token 만 보내고,
+   Edge Function(profile-sync)이 그 토큰으로 카카오에 직접 물어봐서 "진짜 회원번호"를 확인한 뒤
+   서비스 롤 키로 DB에 쓴다. 그래서 브라우저 개발자도구로 남의 kakao_id를 흉내 낼 수 없다. */
+const PROFILE_FN_PATH = '/functions/v1/profile-sync';
+let myProfile = null;
+function nickValid(n){ n = n.trim(); return n.length >= 2 && n.length <= 12 && !/\s/.test(n); }
+function myStats(){
+  return { floor: S.floor, best: S.best, souls: Math.floor(S.souls), ash: Math.floor(S.ash), total: Math.floor(S.total), runs: S.runs };
+}
+async function callProfileSync(action, extra){
+  const token = (kakaoReady && window.Kakao && Kakao.Auth.getAccessToken()) || null;
+  if (!token) return { error: 'no_kakao_token' };
+  try {
+    const res = await fetch(SUPABASE_URL + PROFILE_FN_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify(Object.assign({ access_token: token, action }, extra || {}))
+    });
+    return await res.json();
+  } catch (e) { return { error: 'network' }; }
+}
+async function touchProfile(){
+  if (!kakaoUser || !kakaoUser.nick) return;
+  await callProfileSync('touch', { stats: myStats() });
+}
+let nickForced = false;
+function openNickModal(prefill, forced){
+  nickForced = !!forced;
+  $('nmInput').value = prefill || '';
+  $('nmErr').textContent = '';
+  $('nmSave').disabled = false;
+  $('nmCancel').style.display = nickForced ? 'none' : '';
+  $('nickModal').classList.add('show');
+  setTimeout(() => $('nmInput').focus(), 50);
+}
+function closeNickModal(){
+  if (nickForced) return;
+  $('nickModal').classList.remove('show');
+}
+async function submitNickname(){
+  const raw = $('nmInput').value.trim();
+  if (!nickValid(raw)) { $('nmErr').textContent = '2~12자, 공백 없이 입력해줘.'; return; }
+  $('nmSave').disabled = true; $('nmErr').textContent = '';
+  const r = await callProfileSync('set_nickname', { nickname: raw, stats: myStats() });
+  if (!r || r.error) {
+    const msg = r && r.error === 'taken' ? '이미 쓰고 있는 닉네임이다.'
+      : r && r.error === 'no_kakao_token' ? '로그인이 만료됐다. 다시 로그인해줘.'
+      : '저장하지 못했다. 다시 시도해줘.';
+    $('nmErr').textContent = msg;
+    $('nmSave').disabled = false;
+    return;
+  }
+  kakaoUser.nick = raw; S.nick = raw; save();
+  myProfile = { kakao_id: String(kakaoUser.id), nickname: raw };
+  nickForced = false;
+  $('nickModal').classList.remove('show');
+  chatRenderAccount();
+  CHAT.notice('닉네임을 "' + raw + '"(으)로 설정했다.');
+  $('nmSave').disabled = false;
+}
+(() => {
+  $('nmSave').onclick = submitNickname;
+  $('nmCancel').onclick = closeNickModal;
+  $('nmInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitNickname(); } });
+  $('amNick').onclick = () => { $('accMenu').classList.remove('show'); openNickModal(kakaoUser ? kakaoUser.nick || '' : '', false); };
+  $('amOut').onclick = () => { $('accMenu').classList.remove('show'); if (confirm('로그아웃할까?')) kakaoLogout(); };
+  document.addEventListener('click', () => $('accMenu').classList.remove('show'));
+  $('accMenu').addEventListener('click', e => e.stopPropagation());
+})();
 
 /* ---------- 채팅 (뼈대) ----------
    지금은 서버 없이 화면과 흐름만 있다. 온라인화할 때는
@@ -1709,7 +1839,64 @@ function chatRenderAccount(){
      CHAT.setStatus('online' | 'connecting' | 'offline')           — 연결 상태 표시
    만 이어 주면 된다. id 가 같은 메시지는 한 번만 보이므로 서버가 내 메시지를 되돌려 줘도 겹치지 않는다.
    길이·도배 제한은 화면 편의용이다. 실제 검증과 욕설 필터는 서버에서 해야 한다. */
-const CHAT_PREVIEW = true;      // true 면 서버가 없을 때 예시 대화를 보여 준다. 온라인화하면 false 로.
+const CHAT_PREVIEW = false;      // true 면 서버가 없을 때 예시 대화를 보여 준다. 온라인화하면 false 로.
+
+/* ---------- Supabase(테이블 기반)로 채팅 연결 ----------
+   public.chat_messages 테이블에 쌓고, postgres_changes 로 실시간 수신.
+   새로 들어온 사람도 최근 대화를 이어서 볼 수 있다(진짜 채팅방처럼). */
+const SUPABASE_URL = 'https://judfhapllshhuxvprgnu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp1ZGZoYXBsbHNoaHV4dnByZ251Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwNDYzMzgsImV4cCI6MjEwNTYyMjMzOH0.Owu4XS-o0fvNL2mkuRf5oIo9f8I-Q7UPjl5x5UkrZDY';
+const CHAT_ROOM = 'ember-lobby';   // 방을 나누고 싶으면 이 이름만 바꾸면 된다
+const CHAT_TABLE = 'chat_messages';
+const CHAT_HISTORY_N = 50;
+let sbClient = null;
+async function loadChatHistory(){
+  try {
+    const { data, error } = await sbClient
+      .from(CHAT_TABLE)
+      .select('client_id,name,text,created_at')
+      .eq('room', CHAT_ROOM)
+      .order('id', { ascending: false })
+      .limit(CHAT_HISTORY_N);
+    if (error) throw error;
+    (data || []).slice().reverse().forEach(row => {
+      CHAT.add({ id: row.client_id, name: row.name, text: row.text }, true);
+    });
+  } catch (e) {
+    CHAT.notice('지난 대화를 불러오지 못했다.');
+  }
+}
+function connectChat(){
+  if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+    CHAT.setStatus('offline');
+    return;
+  }
+  CHAT.setStatus('connecting');
+  sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  loadChatHistory();
+  const channel = sbClient
+    .channel(CHAT_ROOM + '-db')
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: CHAT_TABLE, filter: `room=eq.${CHAT_ROOM}` },
+      ({ new: row }) => CHAT.receive({ id: row.client_id, name: row.name, text: row.text })
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        CHAT.setStatus('online');
+        CHAT.transport = {
+          async send(m){
+            const { error } = await sbClient.from(CHAT_TABLE).insert({
+              client_id: m.id, room: CHAT_ROOM, name: m.name, text: m.text
+            });
+            if (error) CHAT.notice('보내지 못했다.');
+          }
+        };
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        CHAT.transport = null;
+        CHAT.setStatus('offline');
+      }
+    });
+}
 const CN = ['#e9a24f', '#6fb3a8', '#a98be0', '#d0603f', '#7fa3d6', '#c9b99a'];
 const CHAT = {
   msgs: [], unread: 0, open: false, status: 'offline', transport: null, lastSend: 0, noticed: false,
@@ -1736,6 +1923,7 @@ const CHAT = {
   },
   send(raw){
     if (!kakaoUser) { CHAT.notice('카카오로 로그인하면 대화에 참여할 수 있다.'); return false; }
+    if (!kakaoUser.nick) { CHAT.notice('닉네임을 먼저 설정해줘.'); return false; }
     const text = String(raw).replace(/\s+/g, ' ').trim().slice(0, CHAT.MAX);
     if (!text) return false;
     const now = Date.now();
@@ -1785,6 +1973,7 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   }
   CHAT.setStatus('offline');
   chatRenderAccount();
+  connectChat();
   if (CHAT_PREVIEW) {
     CHAT.add({ sys: true, text: '미리보기 — 아직 서버에 연결되지 않았다' }, true);
     [['맨발의 아이', '12층에서 또 꺼졌어요…'], ['눈물의 여인', '보스 앞에서는 태우기를 아껴 둬요'],
@@ -1825,12 +2014,13 @@ function showAway(t){
   awayHideT = setTimeout(() => el.classList.remove('show'), 4500);
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { save(); }
+  if (document.hidden) { S.lastSeen = Date.now(); save(); }   // 화면을 벗어나는 순간을 정확히 찍어 둔다
   else { checkAway(); last = performance.now(); ui(); if (AC && AC.state !== 'running') AC.resume(); }
 });
-window.addEventListener('pagehide', save);
-window.addEventListener('beforeunload', save);
-setInterval(save, 5000);
+window.addEventListener('pagehide', () => { S.lastSeen = Date.now(); save(); touchProfile(); });
+window.addEventListener('beforeunload', () => { S.lastSeen = Date.now(); save(); touchProfile(); });
+setInterval(() => { if (!document.hidden) S.lastSeen = Date.now(); save(); }, 5000);   // 보고 있는 동안엔 계속 '방금'으로 갱신 — 새로고침해도 이미 번 시간을 또 자리비움으로 안 쳐준다
+setInterval(() => { if (!document.hidden) touchProfile(); }, 20000);   // 로그인한 유저의 진행도를 20초마다 서버에 반영
 setInterval(ui, 100);
 
 /* ---------- 시작 ---------- */

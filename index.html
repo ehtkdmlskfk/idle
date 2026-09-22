@@ -1895,7 +1895,14 @@ async function cloudLoadManual(){
     '클라우드 기록 — ' + cFloor + '층 · 영혼 ' + cSouls + ' (' + when + ' 저장)\n\n' +
     '클라우드 기록을 불러올까? 지금 이 기기의 진행도는 사라지고 위 클라우드 기록으로 덮어써진다.';
   if (!confirm(msg)) return;
-  try { localStorage.setItem(KEY, JSON.stringify(r.save)); } catch (e) { CHAT.notice('불러오지 못했다.'); return; }
+  try {
+    // localStorage뿐 아니라 메모리 속 S도 즉시 갱신해야 한다.
+    // 그렇지 않으면 reload() 직전 beforeunload/자동저장 타이머의 save()가
+    // (여전히 옛 값인) S를 다시 써서 방금 불러온 클라우드 기록을 덮어써버린다.
+    const d = def();
+    S = Object.assign(d, r.save, { lv: Object.assign(d.lv, r.save.lv), meta: Object.assign(d.meta, r.save.meta) });
+    localStorage.setItem(KEY, JSON.stringify(S));
+  } catch (e) { CHAT.notice('불러오지 못했다.'); return; }
   location.reload();
 }
 let nickForced = false;

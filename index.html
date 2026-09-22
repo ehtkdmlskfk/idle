@@ -218,6 +218,20 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 #chatbtn.ping{color:var(--hot);border-color:#7a5428}
 #chatbtn.ping::after{content:"";position:absolute;top:1px;right:1px;width:11px;height:11px;border-radius:50%;
   background:var(--blood);border:2px solid #15110d;box-shadow:0 0 8px rgba(196,64,47,.8)}
+.onlineBadge{position:absolute;right:56px;bottom:10px;height:40px;display:flex;align-items:center;gap:6px;
+  padding:0 12px 0 10px;border-radius:999px;border:1px solid #3a2f22;background:rgba(10,9,8,.55);
+  font-family:var(--disp);font-size:14px;color:var(--ember);opacity:0;transform:translateX(6px);
+  transition:opacity .35s,transform .35s;pointer-events:none}
+.onlineBadge.show{opacity:1;transform:translateX(0)}
+.obFlame{position:relative;width:8px;height:12px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;flex:none;
+  background:radial-gradient(circle at 50% 32%,var(--hot),var(--ember) 55%,#7a3a10 100%);
+  box-shadow:0 0 7px var(--ember),0 0 2px var(--hot);animation:obFlicker 1.7s ease-in-out infinite}
+@keyframes obFlicker{
+  0%,100%{transform:scaleY(1) scaleX(1) rotate(0deg);opacity:1}
+  28%{transform:scaleY(.82) scaleX(1.1) rotate(-3deg);opacity:.82}
+  52%{transform:scaleY(1.12) scaleX(.9) rotate(2deg);opacity:1}
+  77%{transform:scaleY(.92) scaleX(1.04) rotate(-1deg);opacity:.9}
+}
 #chat{position:fixed;inset:0;z-index:40;display:none;background:rgba(6,5,4,.55)}
 #chat.show{display:block}
 .csheet{position:absolute;left:50%;bottom:var(--kb,0px);transform:translateX(-50%);width:100%;max-width:480px;
@@ -225,7 +239,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   display:flex;flex-direction:column;border-radius:20px 20px 0 0;border:2px solid #3a2f22;border-bottom:0;
   background:linear-gradient(#15110d,#0c0a08);box-shadow:0 -10px 30px rgba(0,0,0,.6);animation:csup .26s ease-out}
 .chd{display:flex;align-items:center;gap:10px;padding:12px 10px 8px 16px}
+.chtt{display:flex;flex-direction:column;gap:2px;min-width:0}
 .ctt{font-family:var(--disp);font-size:22px;line-height:1;color:var(--hot)}
+.conline{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim);white-space:nowrap}
+.conline b{font-weight:700;color:var(--ember)}
+.coDot{width:6px;height:9px;flex:none;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;
+  background:radial-gradient(circle at 50% 32%,var(--hot),var(--ember) 55%,#7a3a10 100%);
+  box-shadow:0 0 5px var(--ember);animation:obFlicker 1.7s ease-in-out infinite}
 .cst{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11.5px;color:var(--dim)}
 .cdot{width:8px;height:8px;border-radius:50%;background:#5a4a39}
 .cst.online .cdot{background:#6fb3a8;box-shadow:0 0 6px #6fb3a8}
@@ -305,6 +325,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div id="boss">보스</div>
     <div id="evt"></div>
     <div id="buf"></div>
+    <div id="onlineBadge" class="onlineBadge" aria-hidden="true"><i class="obFlame"></i><span id="obNum">-</span></div>
     <button id="chatbtn" aria-label="채팅"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7l-4.5 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M8 10h8M8 13h5"/></svg></button>
     <div id="away"></div>
     <button id="burn"><span class="in"><span id="btxt">태우기</span><small>−15%</small></span></button>
@@ -332,10 +353,15 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 <div id="chat" role="dialog" aria-label="채팅">
   <div class="csheet">
     <div class="chd">
-      <span class="ctt">채팅</span>
+      <div class="chtt">
+        <span class="ctt">채팅</span>
+        <span class="conline" id="conline"><i class="coDot"></i><b id="conlineNum">-</b>명이 함께 타고 있다</span>
+      </div>
       <button class="cacc" id="cacc"></button>
       <div class="accMenu" id="accMenu">
         <button id="amNick">닉네임 변경</button>
+        <button id="amCloudSave">클라우드 저장</button>
+        <button id="amCloudLoad">클라우드 불러오기</button>
         <button id="amOut">로그아웃</button>
       </div>
       <span class="cst" id="cst"><i class="cdot"></i><span id="cstt">오프라인</span></span>
@@ -1704,22 +1730,44 @@ TABS.forEach((id, i) => {
 
 /* ---------- 카카오 로그인 (뼈대) ----------
    서버 없이 카카오 계정으로만 닉네임을 확인하는 단계까지만 구현한다.
-   지금은 로그인 상태를 이 세션에서만 기억한다 — 새로고침하면 풀린다.
-   서버가 생기면: 로그인 성공 시 받는 카카오 회원번호(id)를 서버로 보내
-   자체 세션(쿠키/토큰)을 발급받고, 그 세션으로 새로고침 후에도 로그인 상태를 유지하면 된다. */
+   로그인 성공 시 access_token을 localStorage에 저장해두고, 페이지를 새로 열 때
+   그 토큰이 아직 유효하면 자동으로 재로그인한다(팝업 없이 조용히). 카카오 SDK
+   access_token은 보통 몇 시간 정도만 유효하니, 그 이상 지나면 결국 다시 로그인 버튼을
+   눌러야 한다 — 이건 서버 세션이 아니라 토큰 유효기간의 한계라 어쩔 수 없다. */
 const KAKAO_JS_KEY = 'e0c53db58ced481c2e383fe128e99724';   // 카카오 디벨로퍼스 > 내 애플리케이션 > 앱 키 > JavaScript 키
+const KAKAO_TOKEN_LS_KEY = 'emberKakaoToken';
 let kakaoReady = false, kakaoUser = null;
 try {
   if (window.Kakao && !Kakao.isInitialized()) Kakao.init(KAKAO_JS_KEY);
   kakaoReady = !!(window.Kakao && Kakao.isInitialized() && KAKAO_JS_KEY !== 'YOUR_KAKAO_JAVASCRIPT_KEY');
 } catch (e) { kakaoReady = false; }
+function saveKakaoToken(){
+  try { localStorage.setItem(KAKAO_TOKEN_LS_KEY, Kakao.Auth.getAccessToken() || ''); } catch (e) {}
+}
+function clearKakaoToken(){
+  try { localStorage.removeItem(KAKAO_TOKEN_LS_KEY); } catch (e) {}
+}
 function kakaoLogin(){
   if (!kakaoReady) { CHAT.notice('아직 카카오 로그인이 연결되지 않았다. (JavaScript 키 설정 필요)'); return; }
   Kakao.Auth.login({
     success(){
+      saveKakaoToken();
       Kakao.API.request({ url: '/v2/user/me', success(res){ afterKakaoLogin(res); }, fail(){ CHAT.notice('사용자 정보를 가져오지 못했다.'); } });
     },
     fail(){ CHAT.notice('로그인에 실패했다.'); }
+  });
+}
+// 새로고침/재방문 시 저장된 토큰으로 조용히 재로그인 시도(팝업 없음). 실패하면 그냥 로그아웃 상태로 둔다.
+function tryRestoreKakaoSession(){
+  if (!kakaoReady) return;
+  let saved = null;
+  try { saved = localStorage.getItem(KAKAO_TOKEN_LS_KEY); } catch (e) {}
+  if (!saved) return;
+  try { Kakao.Auth.setAccessToken(saved); } catch (e) { clearKakaoToken(); return; }
+  Kakao.API.request({
+    url: '/v2/user/me',
+    success(res){ afterKakaoLogin(res); },
+    fail(){ clearKakaoToken(); try { Kakao.Auth.setAccessToken(null); } catch (e) {} }
   });
 }
 async function afterKakaoLogin(res){
@@ -1742,7 +1790,7 @@ async function afterKakaoLogin(res){
   }
 }
 function kakaoLogout(){
-  const done = () => { kakaoUser = null; myProfile = null; $('accMenu').classList.remove('show'); chatRenderAccount(); CHAT.notice('로그아웃했다.'); };
+  const done = () => { kakaoUser = null; myProfile = null; clearKakaoToken(); $('accMenu').classList.remove('show'); chatRenderAccount(); CHAT.notice('로그아웃했다.'); };
   if (kakaoReady && window.Kakao && Kakao.Auth.getAccessToken()) Kakao.Auth.logout(done);
   else done();
 }
@@ -1788,6 +1836,27 @@ async function touchProfile(){
   if (!kakaoUser || !kakaoUser.nick) return;
   await callProfileSync('touch', { stats: myStats() });
 }
+/* ---------- 클라우드 저장/불러오기 ----------
+   수동으로만 동작한다(자동 동기화 없음) — 기기 A에서 잠깐 플레이하고 닫으면
+   기기 B의 진행도를 조용히 덮어써버리는 사고를 막기 위해 저장/불러오기 둘 다
+   사람이 직접 눌러야만 서버와 주고받는다. */
+async function cloudSaveManual(){
+  if (!kakaoUser || !kakaoUser.nick) { CHAT.notice('로그인하고 닉네임을 설정해야 클라우드 저장을 쓸 수 있다.'); return; }
+  CHAT.notice('클라우드에 저장하는 중…');
+  const r = await callProfileSync('save_cloud', { save: S });
+  CHAT.notice(r && r.ok ? '클라우드에 저장했다.' : '저장하지 못했다. 잠시 후 다시 시도해줘.');
+}
+async function cloudLoadManual(){
+  if (!kakaoUser || !kakaoUser.nick) { CHAT.notice('로그인하고 닉네임을 설정해야 불러올 수 있다.'); return; }
+  CHAT.notice('클라우드 기록을 확인하는 중…');
+  const r = await callProfileSync('load_cloud');
+  if (!r || r.error) { CHAT.notice('불러오지 못했다.'); return; }
+  if (!r.save) { CHAT.notice('클라우드에 저장된 기록이 없다.'); return; }
+  const when = r.updated_at ? new Date(r.updated_at).toLocaleString() : '알 수 없는 시각';
+  if (!confirm('클라우드 기록(' + when + ' 저장)을 불러올까?\n지금 이 기기의 진행도는 사라지고 덮어써진다.')) return;
+  try { localStorage.setItem(KEY, JSON.stringify(r.save)); } catch (e) { CHAT.notice('불러오지 못했다.'); return; }
+  location.reload();
+}
 let nickForced = false;
 function openNickModal(prefill, forced){
   nickForced = !!forced;
@@ -1829,6 +1898,8 @@ async function submitNickname(){
   $('nmCancel').onclick = closeNickModal;
   $('nmInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitNickname(); } });
   $('amNick').onclick = () => { $('accMenu').classList.remove('show'); openNickModal(kakaoUser ? kakaoUser.nick || '' : '', false); };
+  $('amCloudSave').onclick = () => { $('accMenu').classList.remove('show'); cloudSaveManual(); };
+  $('amCloudLoad').onclick = () => { $('accMenu').classList.remove('show'); cloudLoadManual(); };
   $('amOut').onclick = () => { $('accMenu').classList.remove('show'); if (confirm('로그아웃할까?')) kakaoLogout(); };
   document.addEventListener('click', () => $('accMenu').classList.remove('show'));
   $('accMenu').addEventListener('click', e => e.stopPropagation());
@@ -1876,6 +1947,7 @@ function connectChat(){
   CHAT.setStatus('connecting');
   sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   loadChatHistory();
+  connectPresence();
   const channel = sbClient
     .channel(CHAT_ROOM + '-db')
     .on('postgres_changes',
@@ -1905,6 +1977,34 @@ function connectChat(){
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         CHAT.transport = null;
         CHAT.setStatus('offline');
+      }
+    });
+}
+/* ---------- 접속자 수 (Supabase Realtime Presence) ----------
+   로그인 여부와 상관없이 지금 이 페이지를 열어둔 사람 수를 센다.
+   로그인한 사람은 kakao_id로 묶어서 같은 계정 다중 탭은 1명으로만 잡힌다. */
+let presenceChannel = null;
+let onlineCount = 0;
+function updateOnlineUI(){
+  const shown = onlineCount > 0 ? String(onlineCount) : '-';
+  const n1 = $('obNum'), n2 = $('conlineNum');
+  if (n1) n1.textContent = shown;
+  if (n2) n2.textContent = shown;
+  const badge = $('onlineBadge');
+  if (badge) badge.classList.toggle('show', onlineCount > 0);
+}
+function connectPresence(){
+  if (!sbClient || presenceChannel) return;
+  const myKey = (kakaoUser && kakaoUser.id) ? ('k:' + kakaoUser.id) : ('a:' + Math.random().toString(36).slice(2));
+  presenceChannel = sbClient.channel(CHAT_ROOM + '-presence', { config: { presence: { key: myKey } } });
+  presenceChannel
+    .on('presence', { event: 'sync' }, () => {
+      try { onlineCount = Object.keys(presenceChannel.presenceState()).length; } catch (e) { onlineCount = 0; }
+      updateOnlineUI();
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        try { await presenceChannel.track({ at: Date.now() }); } catch (e) {}
       }
     });
 }
@@ -2005,6 +2105,7 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   }
   CHAT.setStatus('offline');
   chatRenderAccount();
+  tryRestoreKakaoSession();
   connectChat();
   if (CHAT_PREVIEW) {
     CHAT.add({ sys: true, text: '미리보기 — 아직 서버에 연결되지 않았다' }, true);

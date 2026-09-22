@@ -118,16 +118,17 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 #away.show{opacity:1;transform:translateY(0)}
 
 /* 새 버전 배포 알림 — 화면을 보고 있을 때만 뜨고, 안 보고 있으면 조용히 새로고침된다 */
-#upd{position:fixed;left:50%;top:0;transform:translateX(-50%) translateY(-100%);opacity:0;pointer-events:none;
+#upd,#updDone{position:fixed;left:50%;top:0;transform:translateX(-50%) translateY(-100%);opacity:0;pointer-events:none;
   width:100%;max-width:480px;z-index:60;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
   padding:calc(9px + env(safe-area-inset-top,0px)) 16px 9px;
   font-family:var(--ui);font-size:12.5px;font-weight:700;color:#2a1300;
   background:linear-gradient(#f4c479,#e08a2f);border-bottom:1px solid #ffdca0;box-shadow:0 4px 14px rgba(0,0,0,.5);
   transition:opacity .35s,transform .35s}
-#upd.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+#upd.show,#updDone.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
 #upd button{flex:none;min-height:30px;padding:0 14px;border:1px solid rgba(0,0,0,.3);border-radius:999px;
   font-family:var(--disp);font-size:13px;color:#2a1300;background:rgba(0,0,0,.15)}
 #upd button:active{transform:translateY(1px)}
+#updDone{color:#062a26;background:linear-gradient(#8fe0cf,#3f9a89);border-bottom:1px solid #c4f3e8}
 
 /* 태우기: 쿨다운 링이 달린 원형 스킬 버튼 */
 #burn{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:68px;height:68px;padding:4px;border:0;border-radius:50%;
@@ -293,6 +294,15 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 #nmSave:active{transform:translateY(2px);box-shadow:0 1px 0 #7a3a10}
 #nmSave:disabled{opacity:.5}
 .cin input:disabled{opacity:.55}
+.cm .cn.click{cursor:pointer}
+.cm .cn.click:active{opacity:.7}
+#pinfo{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,5,4,.65)}
+#pinfo.show{display:flex}
+.pinfoRows{margin-top:2px}
+.pinfoRow{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-family:var(--ui);font-size:13px}
+.pinfoRow:last-child{border-bottom:0}
+.pinfoRow span:first-child{color:var(--dim)}
+.pinfoRow span:last-child{color:var(--bone);font-weight:700}
 .chTabs{display:flex;gap:6px;padding:0 16px 8px}
 .chTab{flex:1;min-height:34px;padding:0 10px;border-radius:12px;border:1px solid #2f261c;background:#14100c;color:var(--dim);font-family:var(--disp);font-size:14px}
 .chTab.on{color:#2a1300;background:linear-gradient(#f0b25e,#c9711f);border-color:#ffd18a}
@@ -342,6 +352,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 <body>
 <div id="app">
   <div id="upd" role="status"><span>새 버전이 있다</span><button id="updBtn">새로고침</button></div>
+  <div id="updDone" role="status"><span>업데이트 완료</span></div>
   <header>
     <div class="floor"><b id="floor">1</b><span class="u">층</span><small id="best"></small></div>
     <div class="wallet">
@@ -410,6 +421,17 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
       </div>
     </div>
     <div class="rankPanel" id="rankPanel"></div>
+  </div>
+</div>
+
+<div id="pinfo" role="dialog" aria-label="플레이어 정보">
+  <div class="nmbox">
+    <div class="nmtt" id="pinfoNick">닉네임</div>
+    <div class="nmsub" id="pinfoMsg">불러오는 중…</div>
+    <div class="pinfoRows" id="pinfoRows"></div>
+    <div class="nmbtns">
+      <button id="pinfoClose" class="nmghost">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -2131,6 +2153,38 @@ function renderLeaderboard(rows){
     panel.appendChild(el);
   });
 }
+/* ---------- 플레이어 상세정보(채팅에서 상대 닉 클릭) ----------
+   nickname이 유일하다는 전제로 profiles 테이블에서 직접 조회한다(랭킹과 같은 방식).
+   메시지가 온 뒤 상대가 닉네임을 바꿨다면 못 찾을 수 있다. */
+async function showPlayerInfo(nickname){
+  $('pinfoNick').textContent = nickname;
+  $('pinfoMsg').textContent = '불러오는 중…';
+  $('pinfoRows').innerHTML = '';
+  $('pinfo').classList.add('show');
+  if (!sbClient) { $('pinfoMsg').textContent = '연결되지 않아 정보를 불러올 수 없다.'; return; }
+  try {
+    const { data, error } = await sbClient
+      .from(PROFILE_TABLE)
+      .select('nickname,best,total,runs')
+      .eq('nickname', nickname)
+      .maybeSingle();
+    if (error || !data) { $('pinfoMsg').textContent = '정보를 찾을 수 없다.'; return; }
+    $('pinfoMsg').textContent = '';
+    const rows = [
+      ['최고 도달층', fmt(data.best || 0) + '층'],
+      ['누적 재', fmt(data.total || 0)],
+      ['도전 횟수', fmt(data.runs || 0) + '회']
+    ];
+    rows.forEach(([label, val]) => {
+      const r = document.createElement('div'); r.className = 'pinfoRow';
+      const l = document.createElement('span'); l.textContent = label;
+      const v = document.createElement('span'); v.textContent = val;
+      r.appendChild(l); r.appendChild(v);
+      $('pinfoRows').appendChild(r);
+    });
+  } catch (e) { $('pinfoMsg').textContent = '정보를 불러오지 못했다.'; }
+}
+function pinfoClose(){ $('pinfo').classList.remove('show'); }
 function setChView(v){
   $('ctChat').classList.toggle('on', v === 'chat');
   $('ctRank').classList.toggle('on', v === 'rank');
@@ -2273,7 +2327,11 @@ function chatLine(m){
   if (m.sys) { d.className = 'cs'; d.textContent = m.text; return d; }
   d.className = 'cm' + (m.me ? ' me' : '');
   const n = document.createElement('span'); n.className = 'cn'; n.textContent = m.name;
-  if (!m.me) n.style.color = chatColor(m.name);
+  if (!m.me) {
+    n.style.color = chatColor(m.name);
+    n.classList.add('click');
+    n.addEventListener('click', () => showPlayerInfo(m.name));
+  }
   const t = document.createElement('span'); t.className = 'ct'; t.textContent = m.text;   // textContent 로만 넣는다(HTML 주입 방지)
   d.appendChild(n); d.appendChild(t);
   return d;
@@ -2293,7 +2351,13 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   $('ctChat').onclick = () => setChView('chat');
   $('ctRank').onclick = () => setChView('rank');
   $('chat').addEventListener('click', e => { if (e.target === $('chat')) chatClose(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && CHAT.open) chatClose(); });
+  $('pinfoClose').onclick = pinfoClose;
+  $('pinfo').addEventListener('click', e => { if (e.target === $('pinfo')) pinfoClose(); });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if ($('pinfo').classList.contains('show')) { pinfoClose(); return; }
+    if (CHAT.open) chatClose();
+  });
   ci.addEventListener('input', () => { cs.disabled = !ci.value.trim(); });
   const go = () => { if (CHAT.send(ci.value)) { ci.value = ''; cs.disabled = true; } };
   cs.addEventListener('pointerdown', e => e.preventDefault());       // 버튼을 눌러도 키보드가 내려가지 않게
@@ -2364,6 +2428,10 @@ setInterval(ui, 100);
    안 보고 있을 때(탭 전환/백그라운드)만 조용히 새로고침한다. */
 const UPD_CHECK_MS = 60000;
 let pageSig = null, updAvailable = false, updChecking = false;
+function silentReload(){                    // 유저가 직접 누른 게 아니라 조용히 적용되는 새로고침
+  try { sessionStorage.setItem('updJustApplied', '1'); } catch (e) {}
+  location.reload();
+}
 async function fetchPageSig(){
   try {
     const res = await fetch(location.href, { method: 'HEAD', cache: 'no-store' });
@@ -2386,15 +2454,22 @@ async function checkForUpdate(){
   if (pageSig === null) { pageSig = sig; return; }   // 최초 확인은 기준값만 저장
   if (sig === pageSig) return;
   updAvailable = true;
-  if (document.hidden) location.reload();            // 아무도 안 보고 있으면 조용히 적용
+  if (document.hidden) silentReload();                // 아무도 안 보고 있으면 조용히 적용
   else $('upd').classList.add('show');                // 보고 있으면 배너만
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && updAvailable) location.reload();   // 배너를 무시하다가 화면을 벗어나는 순간 적용
+  if (document.hidden && updAvailable) silentReload();       // 배너를 무시하다가 화면을 벗어나는 순간 적용
 });
 $('updBtn').onclick = () => location.reload();
 setInterval(checkForUpdate, UPD_CHECK_MS);
 checkForUpdate();
+try {
+  if (sessionStorage.getItem('updJustApplied')) {     // 이 탭에서 방금 조용히 새로고침됐던 경우에만 한 번 안내
+    sessionStorage.removeItem('updJustApplied');
+    $('updDone').classList.add('show');
+    setTimeout(() => $('updDone').classList.remove('show'), 3000);
+  }
+} catch (e) {}
 
 /* ---------- 시작 ---------- */
 if (fresh) {

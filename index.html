@@ -2358,7 +2358,7 @@ async function fetchGuildBrowse(q){
   list.innerHTML = '<div class="gMsg">불러오는 중…</div>';
   try {
     let query = sbClient.from(GUILD_TABLE).select('id,name,notice,member_count').order('member_count', { ascending: false }).limit(GUILD_LIST_N);
-    if (q) query = query.ilike('name', '%' + q + '%');
+    if (q) query = query.ilike('name', '%' + q.replace(/[%_]/g, c => '\\' + c) + '%');
     const { data, error } = await query;
     if (error) throw error;
     list.innerHTML = '';

@@ -264,9 +264,11 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .cst.connecting .cdot{background:var(--ember);animation:blink 1.2s ease-in-out infinite}
 .cx{display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:50%;background:none;color:var(--dim)}
 .cx svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
-.cacc{flex:none;display:flex;align-items:center;gap:4px;min-height:30px;padding:0 10px 0 12px;border-radius:999px;font-size:12px;font-weight:700;color:#2a1300;
+.cacc{position:relative;flex:none;display:flex;align-items:center;gap:4px;min-height:30px;padding:0 10px 0 12px;border-radius:999px;font-size:12px;font-weight:700;color:#2a1300;
   background:linear-gradient(#f4c479,#e08a2f);border:1px solid #ffdca0}
 .cacc.on{color:var(--ember);background:#1a150f;border-color:#5a4a30}
+.cacc.ping::after{content:"";position:absolute;top:-3px;right:-3px;width:11px;height:11px;border-radius:50%;
+  background:var(--blood);border:2px solid #15110d;box-shadow:0 0 8px rgba(196,64,47,.8);animation:blink 1.2s ease-in-out infinite}
 .cacc .caccCaret{font-size:9px;line-height:1;opacity:.85;transform:translateY(1px)}
 .chd{position:relative}
 .accMenu{position:absolute;top:100%;right:56px;margin-top:6px;display:none;flex-direction:column;min-width:132px;
@@ -1797,6 +1799,14 @@ function hintAccMenuOnce(){
   } catch (e) {}
   CHAT.notice('위의 이름을 다시 누르면 클라우드 저장 · 불러오기 메뉴가 열린다.');
 }
+// 채팅 로그의 안내 문구는 금방 위로 밀려 사라지니, 실제로 메뉴를 한 번
+// 열어보기 전까지는 닉네임 버튼에 빨간 점을 계속 띄워 둔다.
+const ACC_SEEN_LS_KEY = 'emberAccMenuSeen';
+function accMenuSeen(){ try { return !!localStorage.getItem(ACC_SEEN_LS_KEY); } catch (e) { return false; } }
+function markAccMenuSeen(){
+  try { localStorage.setItem(ACC_SEEN_LS_KEY, '1'); } catch (e) {}
+  const b = $('cacc'); if (b) b.classList.remove('ping');
+}
 async function afterKakaoLogin(res){
   const acc = res.kakao_account || {};
   const kakaoRawNick = String((acc.profile && acc.profile.nickname) || (res.properties && res.properties.nickname) || ('순례자' + res.id)).slice(0, 16);
@@ -1829,7 +1839,7 @@ function chatRenderAccount(){
     const nm = document.createElement('span'); nm.textContent = kakaoUser.nick || '닉네임 설정';
     const cr = document.createElement('span'); cr.className = 'caccCaret'; cr.textContent = '▾'; cr.setAttribute('aria-hidden', 'true');
     b.appendChild(nm); b.appendChild(cr);
-    b.classList.add('on'); b.onclick = toggleAccMenu;
+    b.classList.add('on'); b.classList.toggle('ping', !accMenuSeen()); b.onclick = toggleAccMenu;
     b.setAttribute('aria-haspopup', 'true');
     b.title = '눌러서 클라우드 저장 · 불러오기 · 닉네임 변경';
   }
@@ -1842,6 +1852,7 @@ function chatRenderAccount(){
 function toggleAccMenu(e){
   if (e) e.stopPropagation();
   if (!kakaoUser || !kakaoUser.nick) { openNickModal(kakaoUser ? '' : '', true); return; }
+  markAccMenuSeen();
   $('accMenu').classList.toggle('show');
 }
 

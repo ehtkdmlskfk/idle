@@ -318,6 +318,12 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .rk.me .rkNm{color:var(--hot);font-weight:700}
 .rk .rkV{flex:none;font-family:var(--disp);font-size:15px;color:var(--ember)}
 .rkMsg{padding:22px 4px;text-align:center;font-size:12.5px;color:var(--dim)}
+.rkSeg{margin:8px 0 2px}
+.rkHint{display:none;margin:2px 2px 10px;font-size:11.5px;line-height:1.5;color:var(--dim)}
+.rkHint.show{display:block}
+.rkNmWrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;overflow:hidden}
+.rkNmWrap .rkNm{flex:none;min-width:0}
+.rkSub{font-size:11px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cl{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:2px 16px 10px;-webkit-overflow-scrolling:touch;
   border-top:1px solid #241d16}
 .cm{padding:6px 0;font-size:14px;line-height:1.55;color:var(--bone);word-break:break-word;-webkit-user-select:text;user-select:text}
@@ -420,7 +426,14 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
         <button id="cs" disabled>보내기</button>
       </div>
     </div>
-    <div class="rankPanel" id="rankPanel"></div>
+    <div class="rankPanel" id="rankPanel">
+      <div class="seg rkSeg" id="rkSeg">
+        <button class="chip on" id="rkTabBest">최고층</button>
+        <button class="chip" id="rkTabEff">효율</button>
+      </div>
+      <div class="rkHint" id="rkHint">누적 재 1당 얼마나 높이 올라갔는지 — 적게 투자하고 멀리 간 사람이 위</div>
+      <div id="rankList"></div>
+    </div>
   </div>
 </div>
 
@@ -798,7 +811,7 @@ let E = null, spawnT = 0.4, heroT = 0, foeT = 0;
 let dead = false, deadT = 0, deadAge = 0;
 let secT = 0, gainAcc = 0, idleT = 12;
 let tab = 0, mode = 1;
-let shake = 0, pulse = 0, heroFlash = 0, flare = 0, lastTap = 0, lastHitSfx = 0;
+let shake = 0, pulse = 0, heroFlash = 0, flare = 0, lastHitSfx = 0;
 let burnT = 0, autoT = 0;
 let encT = 0, lastEnc = '';
 const ENC_CAP = 3, ENC_LIFE = 12, ENC_AUTO = 25;
@@ -1837,10 +1850,6 @@ function draw(dt, t){
 /* ---------- 입력 ---------- */
 $('stage').addEventListener('pointerdown', e => {
   if (dead) { if (deadAge > 1) deadT = 0; return; }
-  const now = performance.now();
-  if (now - lastTap < 80) return;
-  lastTap = now;
-  if (E) hit(atkV() * 0.5, 'tap');
 });
 $('burn').addEventListener('pointerdown', e => e.stopPropagation());
 $('burn').onclick = burn;
@@ -2119,39 +2128,79 @@ async function loadChatHistory(){
    해당 테이블에 공개 SELECT를 허용하는 RLS 정책도 있어야 한다(닉네임·최고층만 노출). */
 const PROFILE_TABLE = 'profiles';
 const RANK_N = 30;
-let rankCache = null, rankCacheAt = 0;
+const RANK_EFF_FETCH_CAP = 500;   // 효율 정렬은 서버에서 바로 못 시켜서, 넉넉히 받아와 클라이언트에서 계산·정렬한다
+let rankMode = 'best';
+let rankCache = { best: null, eff: null }, rankCacheAt = { best: 0, eff: 0 };
 async function fetchLeaderboard(force){
-  const panel = $('rankPanel');
-  if (!force && rankCache && Date.now() - rankCacheAt < 30000) { renderLeaderboard(rankCache); return; }
-  if (!sbClient) { panel.innerHTML = '<div class="rkMsg">연결되지 않았다.</div>'; return; }
-  panel.innerHTML = '<div class="rkMsg">불러오는 중…</div>';
+  const mode = rankMode;
+  const list = $('rankList');
+  if (!force && rankCache[mode] && Date.now() - rankCacheAt[mode] < 30000) { renderLeaderboard(rankCache[mode], mode); return; }
+  if (!sbClient) { list.innerHTML = '<div class="rkMsg">연결되지 않았다.</div>'; return; }
+  list.innerHTML = '<div class="rkMsg">불러오는 중…</div>';
   try {
-    const { data, error } = await sbClient
-      .from(PROFILE_TABLE)
-      .select('nickname,kakao_id,best')
-      .order('best', { ascending: false })
-      .limit(RANK_N);
-    if (error) throw error;
-    rankCache = data || []; rankCacheAt = Date.now();
-    renderLeaderboard(rankCache);
+    let rows;
+    if (mode === 'eff') {
+      const { data, error } = await sbClient
+        .from(PROFILE_TABLE)
+        .select('nickname,kakao_id,best,total')
+        .gt('total', 0)
+        .order('best', { ascending: false })
+        .limit(RANK_EFF_FETCH_CAP);
+      if (error) throw error;
+      rows = (data || [])
+        .map(r => Object.assign({}, r, { eff: r.best / r.total }))
+        .sort((a, b) => b.eff - a.eff)
+        .slice(0, RANK_N);
+    } else {
+      const { data, error } = await sbClient
+        .from(PROFILE_TABLE)
+        .select('nickname,kakao_id,best')
+        .order('best', { ascending: false })
+        .limit(RANK_N);
+      if (error) throw error;
+      rows = data || [];
+    }
+    rankCache[mode] = rows; rankCacheAt[mode] = Date.now();
+    renderLeaderboard(rows, mode);
   } catch (e) {
-    panel.innerHTML = '<div class="rkMsg">랭킹을 불러오지 못했다.</div>';
+    list.innerHTML = '<div class="rkMsg">랭킹을 불러오지 못했다.</div>';
   }
 }
-function renderLeaderboard(rows){
-  const panel = $('rankPanel');
-  panel.innerHTML = '';
-  if (!rows.length) { panel.innerHTML = '<div class="rkMsg">아직 기록이 없다.</div>'; return; }
+function renderLeaderboard(rows, mode){
+  const list = $('rankList');
+  list.innerHTML = '';
+  if (!rows.length) {
+    list.innerHTML = '<div class="rkMsg">' + (mode === 'eff' ? '아직 환생 기록이 있는 유저가 없다.' : '아직 기록이 없다.') + '</div>';
+    return;
+  }
   const myId = kakaoUser ? String(kakaoUser.id) : null;
   rows.forEach((row, i) => {
     const el = document.createElement('div');
     el.className = 'rk' + (i < 3 ? ' top' : '') + (myId && String(row.kakao_id) === myId ? ' me' : '');
     const no = document.createElement('span'); no.className = 'rkNo'; no.textContent = i + 1;
+    const wrap = document.createElement('span'); wrap.className = 'rkNmWrap';
     const nm = document.createElement('span'); nm.className = 'rkNm'; nm.textContent = row.nickname || '???';
-    const v = document.createElement('span'); v.className = 'rkV'; v.textContent = fmt(row.best || 0) + '층';
-    el.appendChild(no); el.appendChild(nm); el.appendChild(v);
-    panel.appendChild(el);
+    wrap.appendChild(nm);
+    const v = document.createElement('span'); v.className = 'rkV';
+    if (mode === 'eff') {
+      const sub = document.createElement('span'); sub.className = 'rkSub';
+      sub.textContent = fmt(row.best || 0) + '층 · 재' + fmt(row.total || 0);
+      wrap.appendChild(sub);
+      v.textContent = row.eff.toFixed(2);
+    } else {
+      v.textContent = fmt(row.best || 0) + '층';
+    }
+    el.appendChild(no); el.appendChild(wrap); el.appendChild(v);
+    list.appendChild(el);
   });
+}
+function setRankMode(mode){
+  if (rankMode === mode) return;
+  rankMode = mode;
+  $('rkTabBest').classList.toggle('on', mode === 'best');
+  $('rkTabEff').classList.toggle('on', mode === 'eff');
+  $('rkHint').classList.toggle('show', mode === 'eff');
+  fetchLeaderboard(false);
 }
 /* ---------- 플레이어 상세정보(채팅에서 상대 닉 클릭) ----------
    nickname이 유일하다는 전제로 profiles 테이블에서 직접 조회한다(랭킹과 같은 방식).
@@ -2173,7 +2222,8 @@ async function showPlayerInfo(nickname){
     const rows = [
       ['최고 도달층', fmt(data.best || 0) + '층'],
       ['누적 재', fmt(data.total || 0)],
-      ['도전 횟수', fmt(data.runs || 0) + '회']
+      ['도전 횟수', fmt(data.runs || 0) + '회'],
+      ['효율(층/재)', data.total > 0 ? (data.best / data.total).toFixed(2) : '-']
     ];
     rows.forEach(([label, val]) => {
       const r = document.createElement('div'); r.className = 'pinfoRow';
@@ -2350,6 +2400,8 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   $('cx').onclick = chatClose;
   $('ctChat').onclick = () => setChView('chat');
   $('ctRank').onclick = () => setChView('rank');
+  $('rkTabBest').onclick = () => setRankMode('best');
+  $('rkTabEff').onclick = () => setRankMode('eff');
   $('chat').addEventListener('click', e => { if (e.target === $('chat')) chatClose(); });
   $('pinfoClose').onclick = pinfoClose;
   $('pinfo').addEventListener('click', e => { if (e.target === $('pinfo')) pinfoClose(); });

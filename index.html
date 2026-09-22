@@ -117,6 +117,18 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   transition:opacity .35s,transform .35s}
 #away.show{opacity:1;transform:translateY(0)}
 
+/* 새 버전 배포 알림 — 화면을 보고 있을 때만 뜨고, 안 보고 있으면 조용히 새로고침된다 */
+#upd{position:fixed;left:50%;top:0;transform:translateX(-50%) translateY(-100%);opacity:0;pointer-events:none;
+  width:100%;max-width:480px;z-index:60;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+  padding:calc(9px + env(safe-area-inset-top,0px)) 16px 9px;
+  font-family:var(--ui);font-size:12.5px;font-weight:700;color:#2a1300;
+  background:linear-gradient(#f4c479,#e08a2f);border-bottom:1px solid #ffdca0;box-shadow:0 4px 14px rgba(0,0,0,.5);
+  transition:opacity .35s,transform .35s}
+#upd.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+#upd button{flex:none;min-height:30px;padding:0 14px;border:1px solid rgba(0,0,0,.3);border-radius:999px;
+  font-family:var(--disp);font-size:13px;color:#2a1300;background:rgba(0,0,0,.15)}
+#upd button:active{transform:translateY(1px)}
+
 /* 태우기: 쿨다운 링이 달린 원형 스킬 버튼 */
 #burn{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:68px;height:68px;padding:4px;border:0;border-radius:50%;
   background:conic-gradient(#ffd27a var(--p,100%),#2a221a 0);
@@ -252,9 +264,10 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .cst.connecting .cdot{background:var(--ember);animation:blink 1.2s ease-in-out infinite}
 .cx{display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:50%;background:none;color:var(--dim)}
 .cx svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
-.cacc{flex:none;min-height:30px;padding:0 12px;border-radius:999px;font-size:12px;font-weight:700;color:#2a1300;
+.cacc{flex:none;display:flex;align-items:center;gap:4px;min-height:30px;padding:0 10px 0 12px;border-radius:999px;font-size:12px;font-weight:700;color:#2a1300;
   background:linear-gradient(#f4c479,#e08a2f);border:1px solid #ffdca0}
-.cacc.on{color:var(--dim);background:#1a150f;border-color:#3a2f22}
+.cacc.on{color:var(--ember);background:#1a150f;border-color:#5a4a30}
+.cacc .caccCaret{font-size:9px;line-height:1;opacity:.85;transform:translateY(1px)}
 .chd{position:relative}
 .accMenu{position:absolute;top:100%;right:56px;margin-top:6px;display:none;flex-direction:column;min-width:132px;
   padding:6px;border-radius:14px;border:1px solid #3a2f22;background:#14100c;box-shadow:0 8px 22px rgba(0,0,0,.6);z-index:41}
@@ -311,6 +324,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <body>
 <div id="app">
+  <div id="upd" role="status"><span>새 버전이 있다</span><button id="updBtn">새로고침</button></div>
   <header>
     <div class="floor"><b id="floor">1</b><span class="u">층</span><small id="best"></small></div>
     <div class="wallet">
@@ -1759,16 +1773,29 @@ function kakaoLogin(){
 }
 // 새로고침/재방문 시 저장된 토큰으로 조용히 재로그인 시도(팝업 없음). 실패하면 그냥 로그아웃 상태로 둔다.
 function tryRestoreKakaoSession(){
-  if (!kakaoReady) return;
-  let saved = null;
-  try { saved = localStorage.getItem(KAKAO_TOKEN_LS_KEY); } catch (e) {}
-  if (!saved) return;
-  try { Kakao.Auth.setAccessToken(saved); } catch (e) { clearKakaoToken(); return; }
-  Kakao.API.request({
-    url: '/v2/user/me',
-    success(res){ afterKakaoLogin(res); },
-    fail(){ clearKakaoToken(); try { Kakao.Auth.setAccessToken(null); } catch (e) {} }
+  // Promise를 반환한다: 접속자 수(presence) 연결이 로그인 여부가 확정된 뒤에
+  // 시작되도록 하기 위함. kakaoUser는 afterKakaoLogin의 동기 구간에서 바로
+  // 세팅되므로, resolve 시점엔 이미 올바른 kakao id를 알 수 있다.
+  return new Promise((resolve) => {
+    if (!kakaoReady) return resolve();
+    let saved = null;
+    try { saved = localStorage.getItem(KAKAO_TOKEN_LS_KEY); } catch (e) {}
+    if (!saved) return resolve();
+    try { Kakao.Auth.setAccessToken(saved); } catch (e) { clearKakaoToken(); return resolve(); }
+    Kakao.API.request({
+      url: '/v2/user/me',
+      success(res){ afterKakaoLogin(res); resolve(); },
+      fail(){ clearKakaoToken(); try { Kakao.Auth.setAccessToken(null); } catch (e) {} resolve(); }
+    });
   });
+}
+const ACC_HINT_LS_KEY = 'emberAccMenuHint';
+function hintAccMenuOnce(){
+  try {
+    if (localStorage.getItem(ACC_HINT_LS_KEY)) return;
+    localStorage.setItem(ACC_HINT_LS_KEY, '1');
+  } catch (e) {}
+  CHAT.notice('위의 이름을 다시 누르면 클라우드 저장 · 불러오기 메뉴가 열린다.');
 }
 async function afterKakaoLogin(res){
   const acc = res.kakao_account || {};
@@ -1782,6 +1809,7 @@ async function afterKakaoLogin(res){
     myProfile = r.profile;
     chatRenderAccount();
     CHAT.notice(r.profile.nickname + '(으)로 로그인했다.');
+    hintAccMenuOnce();
     touchProfile();
   } else {
     chatRenderAccount();
@@ -1796,8 +1824,16 @@ function kakaoLogout(){
 }
 function chatRenderAccount(){
   const b = $('cacc'), ci = $('ci');
-  if (kakaoUser) { b.textContent = kakaoUser.nick || '닉네임 설정'; b.classList.add('on'); b.onclick = toggleAccMenu; }
-  else { b.textContent = '로그인'; b.classList.remove('on'); b.onclick = kakaoLogin; }
+  if (kakaoUser) {
+    b.textContent = '';
+    const nm = document.createElement('span'); nm.textContent = kakaoUser.nick || '닉네임 설정';
+    const cr = document.createElement('span'); cr.className = 'caccCaret'; cr.textContent = '▾'; cr.setAttribute('aria-hidden', 'true');
+    b.appendChild(nm); b.appendChild(cr);
+    b.classList.add('on'); b.onclick = toggleAccMenu;
+    b.setAttribute('aria-haspopup', 'true');
+    b.title = '눌러서 클라우드 저장 · 불러오기 · 닉네임 변경';
+  }
+  else { b.textContent = '로그인'; b.classList.remove('on'); b.onclick = kakaoLogin; b.removeAttribute('aria-haspopup'); b.removeAttribute('title'); }
   const ready = !!(kakaoUser && kakaoUser.nick);
   ci.disabled = !ready;
   ci.placeholder = ready ? '한마디 남긴다…' : (kakaoUser ? '닉네임을 먼저 설정해줘' : '카카오로 로그인하면 대화에 참여할 수 있다');
@@ -1853,7 +1889,12 @@ async function cloudLoadManual(){
   if (!r || r.error) { CHAT.notice('불러오지 못했다.'); return; }
   if (!r.save) { CHAT.notice('클라우드에 저장된 기록이 없다.'); return; }
   const when = r.updated_at ? new Date(r.updated_at).toLocaleString() : '알 수 없는 시각';
-  if (!confirm('클라우드 기록(' + when + ' 저장)을 불러올까?\n지금 이 기기의 진행도는 사라지고 덮어써진다.')) return;
+  const cFloor = isFinite(r.save.floor) ? r.save.floor : '?', cSouls = isFinite(r.save.souls) ? fmt(r.save.souls) : '?';
+  const hFloor = isFinite(S.floor) ? S.floor : '?', hSouls = isFinite(S.souls) ? fmt(S.souls) : '?';
+  const msg = '지금 이 기기 — ' + hFloor + '층 · 영혼 ' + hSouls + '\n' +
+    '클라우드 기록 — ' + cFloor + '층 · 영혼 ' + cSouls + ' (' + when + ' 저장)\n\n' +
+    '클라우드 기록을 불러올까? 지금 이 기기의 진행도는 사라지고 위 클라우드 기록으로 덮어써진다.';
+  if (!confirm(msg)) return;
   try { localStorage.setItem(KEY, JSON.stringify(r.save)); } catch (e) { CHAT.notice('불러오지 못했다.'); return; }
   location.reload();
 }
@@ -1891,6 +1932,7 @@ async function submitNickname(){
   $('nickModal').classList.remove('show');
   chatRenderAccount();
   CHAT.notice('닉네임을 "' + raw + '"(으)로 설정했다.');
+  hintAccMenuOnce();
   $('nmSave').disabled = false;
 }
 (() => {
@@ -2105,8 +2147,9 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   }
   CHAT.setStatus('offline');
   chatRenderAccount();
-  tryRestoreKakaoSession();
-  connectChat();
+  // 로그인 복원(비동기)이 끝난 뒤에 접속자 수(presence)를 연결해야
+  // 로그인 사용자가 익명 키로 잡히는 걸 막을 수 있다.
+  (async () => { await tryRestoreKakaoSession(); connectChat(); })();
   if (CHAT_PREVIEW) {
     CHAT.add({ sys: true, text: '미리보기 — 아직 서버에 연결되지 않았다' }, true);
     [['맨발의 아이', '12층에서 또 꺼졌어요…'], ['눈물의 여인', '보스 앞에서는 태우기를 아껴 둬요'],
@@ -2150,11 +2193,49 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { S.lastSeen = Date.now(); save(); }   // 화면을 벗어나는 순간을 정확히 찍어 둔다
   else { checkAway(); last = performance.now(); ui(); if (AC && AC.state !== 'running') AC.resume(); }
 });
-window.addEventListener('pagehide', () => { S.lastSeen = Date.now(); save(); touchProfile(); });
-window.addEventListener('beforeunload', () => { S.lastSeen = Date.now(); save(); touchProfile(); });
+window.addEventListener('pagehide', () => { if (!document.hidden) S.lastSeen = Date.now(); save(); touchProfile(); });
+window.addEventListener('beforeunload', () => { if (!document.hidden) S.lastSeen = Date.now(); save(); touchProfile(); });
 setInterval(() => { if (!document.hidden) S.lastSeen = Date.now(); save(); }, 5000);   // 보고 있는 동안엔 계속 '방금'으로 갱신 — 새로고침해도 이미 번 시간을 또 자리비움으로 안 쳐준다
 setInterval(() => { if (!document.hidden) touchProfile(); }, 20000);   // 로그인한 유저의 진행도를 20초마다 서버에 반영
 setInterval(ui, 100);
+
+/* ---------- 새 버전 배포 감지 ----------
+   별도 version.json 없이, 서버가 보내는 index.html의 ETag/Last-Modified가
+   배포될 때마다 자동으로 바뀌는 걸 이용한다. 화면을 보고 있을 땐 배너만 띄우고,
+   안 보고 있을 때(탭 전환/백그라운드)만 조용히 새로고침한다. */
+const UPD_CHECK_MS = 60000;
+let pageSig = null, updAvailable = false, updChecking = false;
+async function fetchPageSig(){
+  try {
+    const res = await fetch(location.href, { method: 'HEAD', cache: 'no-store' });
+    const tag = res.headers.get('etag') || res.headers.get('last-modified');
+    if (tag) return tag;
+  } catch (e) {}
+  try {
+    // ETag/Last-Modified가 없는 서버 대비: 본문 앞부분+길이로 대략 비교(배포 감지엔 충분)
+    const res = await fetch(location.href, { cache: 'no-store' });
+    const text = await res.text();
+    return text.length + ':' + text.slice(0, 300);
+  } catch (e) { return null; }
+}
+async function checkForUpdate(){
+  if (updChecking || updAvailable) return;
+  updChecking = true;
+  const sig = await fetchPageSig();
+  updChecking = false;
+  if (!sig) return;
+  if (pageSig === null) { pageSig = sig; return; }   // 최초 확인은 기준값만 저장
+  if (sig === pageSig) return;
+  updAvailable = true;
+  if (document.hidden) location.reload();            // 아무도 안 보고 있으면 조용히 적용
+  else $('upd').classList.add('show');                // 보고 있으면 배너만
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && updAvailable) location.reload();   // 배너를 무시하다가 화면을 벗어나는 순간 적용
+});
+$('updBtn').onclick = () => location.reload();
+setInterval(checkForUpdate, UPD_CHECK_MS);
+checkForUpdate();
 
 /* ---------- 시작 ---------- */
 if (fresh) {

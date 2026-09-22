@@ -1804,6 +1804,7 @@ function closeNickModal(){
 async function submitNickname(){
   const raw = $('nmInput').value.trim();
   if (!nickValid(raw)) { $('nmErr').textContent = '2~12자, 공백 없이 입력해줘.'; return; }
+  if (containsProfanity(raw)) { $('nmErr').textContent = '닉네임에 부적절한 표현이 있다.'; return; }
   $('nmSave').disabled = true; $('nmErr').textContent = '';
   const r = await callProfileSync('set_nickname', { nickname: raw, stats: myStats() });
   if (!r || r.error) {
@@ -1883,12 +1884,21 @@ function connectChat(){
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         CHAT.setStatus('online');
+        // 클라이언트가 직접 insert하지 않는다. 닉네임 사칭/도배를 막기 위해
+        // profile-sync Edge Function(action: 'send_chat')이 카카오 토큰으로 진짜 닉네임을
+        // 확인하고 서버 롤 키로 대신 insert한다. (public insert RLS 정책은 제거해야 함)
         CHAT.transport = {
           async send(m){
-            const { error } = await sbClient.from(CHAT_TABLE).insert({
-              client_id: m.id, room: CHAT_ROOM, name: m.name, text: m.text
-            });
-            if (error) CHAT.notice('보내지 못했다.');
+            const token = (kakaoReady && window.Kakao && Kakao.Auth.getAccessToken()) || null;
+            if (!token) { CHAT.notice('로그인이 만료됐다. 다시 로그인해줘.'); return; }
+            const r = await callProfileSync('send_chat', { room: CHAT_ROOM, text: m.text, client_id: m.id });
+            if (!r || r.error) {
+              const msg = r && r.error === 'cooldown' ? '너무 빨리 보냈다. 잠시 후 다시 말해줘.'
+                : r && r.error === 'no_nickname' ? '닉네임을 먼저 설정해줘.'
+                : r && r.error === 'no_kakao_token' ? '로그인이 만료됐다. 다시 로그인해줘.'
+                : '보내지 못했다.';
+              CHAT.notice(msg);
+            }
           }
         };
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -1896,6 +1906,27 @@ function connectChat(){
         CHAT.setStatus('offline');
       }
     });
+}
+/* ---------- 욕설 필터 (클라이언트 1차 방어 — 최종 방어는 DB 트리거) ---------- */
+const BAD_WORDS_KO = [
+  '씨발','시발','씨팔','시팔','씨바','ㅅㅂ','ㅆㅂ','병신','ㅄ','ㅂㅅ',
+  '좆','좇','좆같','개새끼','개새꺄','개색기','새끼','씹','씹새끼','씹치',
+  '지랄','존나','ㅈㄴ','느금마','느그애비','미친놈','미친년','걸레','창녀',
+  '애미','후장','자지','보지','fuck','fucking','shit','bitch','asshole'
+];
+function normFilter(s){ return String(s || '').replace(/\s+/g, ''); }
+function containsProfanity(text){
+  const norm = normFilter(text).toLowerCase();
+  return BAD_WORDS_KO.some(w => norm.includes(w.toLowerCase()));
+}
+function maskProfanity(text){
+  let out = text;
+  BAD_WORDS_KO.forEach(w => {
+    if (!w) return;
+    const esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(esc, 'gi'), m => '*'.repeat(m.length));
+  });
+  return out;
 }
 const CN = ['#e9a24f', '#6fb3a8', '#a98be0', '#d0603f', '#7fa3d6', '#c9b99a'];
 const CHAT = {
@@ -1924,7 +1955,7 @@ const CHAT = {
   send(raw){
     if (!kakaoUser) { CHAT.notice('카카오로 로그인하면 대화에 참여할 수 있다.'); return false; }
     if (!kakaoUser.nick) { CHAT.notice('닉네임을 먼저 설정해줘.'); return false; }
-    const text = String(raw).replace(/\s+/g, ' ').trim().slice(0, CHAT.MAX);
+    const text = maskProfanity(String(raw).replace(/\s+/g, ' ').trim().slice(0, CHAT.MAX));
     if (!text) return false;
     const now = Date.now();
     if (now - CHAT.lastSend < CHAT.COOL) { CHAT.notice('잠시 후에 다시 말할 수 있다.'); return false; }

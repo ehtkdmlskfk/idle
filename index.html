@@ -231,6 +231,10 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 #chatbtn.ping{color:var(--hot);border-color:#7a5428}
 #chatbtn.ping::after{content:"";position:absolute;top:1px;right:1px;width:11px;height:11px;border-radius:50%;
   background:var(--blood);border:2px solid #15110d;box-shadow:0 0 8px rgba(196,64,47,.8)}
+#socialbtn{position:absolute;right:10px;bottom:58px;width:40px;height:40px;padding:0;display:grid;place-items:center;border-radius:50%;
+  border:1px solid #3a2f22;background:rgba(10,9,8,.55);color:var(--dim);transition:transform .08s,color .2s}
+#socialbtn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#socialbtn:active{transform:scale(.93)}
 .onlineBadge{position:absolute;right:56px;bottom:10px;height:40px;display:flex;align-items:center;gap:6px;
   padding:0 12px 0 10px;border-radius:999px;border:1px solid #3a2f22;background:rgba(10,9,8,.55);
   font-family:var(--disp);font-size:14px;color:var(--ember);opacity:0;transform:translateX(6px);
@@ -247,6 +251,8 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 }
 #chat{position:fixed;inset:0;z-index:40;display:none;background:rgba(6,5,4,.55)}
 #chat.show{display:block}
+#social{position:fixed;inset:0;z-index:40;display:none;background:rgba(6,5,4,.55)}
+#social.show{display:block}
 .csheet{position:absolute;left:50%;bottom:var(--kb,0px);transform:translateX(-50%);width:100%;max-width:480px;
   height:min(72%,560px,calc(100% - var(--kb,0px) - env(safe-area-inset-top,0px) - 12px));
   display:flex;flex-direction:column;border-radius:20px 20px 0 0;border:2px solid #3a2f22;border-bottom:0;
@@ -413,6 +419,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div id="buf"></div>
     <div id="onlineBadge" class="onlineBadge" aria-hidden="true"><i class="obFlame"></i><span id="obNum">-</span></div>
     <button id="chatbtn" aria-label="채팅"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7l-4.5 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M8 10h8M8 13h5"/></svg></button>
+    <button id="socialbtn" aria-label="소셜"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.3"/><path d="M3.5 19c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/><path d="M14.7 14.3c2.3.4 3.8 2.2 3.8 4.7"/></svg></button>
     <div id="away"></div>
     <button id="burn"><span class="in"><span id="btxt">태우기</span><small>−15%</small></span></button>
     <div id="over"><div class="o1">불꽃이 꺼졌다</div><div class="o2" id="o2"></div><div class="o2" id="o4"></div><div class="o3" id="o3"></div></div>
@@ -453,11 +460,6 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
       <span class="cst" id="cst"><i class="cdot"></i><span id="cstt">오프라인</span></span>
       <button class="cx" id="cx" aria-label="닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
-    <div class="chTabs">
-      <button class="chTab on" id="ctChat">채팅</button>
-      <button class="chTab" id="ctRank">랭킹</button>
-      <button class="chTab" id="ctGuild">길드</button>
-    </div>
     <div id="chatBody" class="chatBody">
       <div class="gRoomTabs" id="gRoomTabs" style="display:none">
         <button class="chTab on" id="crRoomLobby">로비</button>
@@ -468,6 +470,21 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
         <input id="ci" type="text" maxlength="100" placeholder="한마디 남긴다…" autocomplete="off" autocapitalize="off" enterkeyhint="send" aria-label="메시지">
         <button id="cs" disabled>보내기</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="social" role="dialog" aria-label="소셜">
+  <div class="csheet">
+    <div class="chd">
+      <div class="chtt">
+        <span class="ctt">소셜</span>
+      </div>
+      <button class="cx" id="socialX" aria-label="닫기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="chTabs">
+      <button class="chTab on" id="ctRank">랭킹</button>
+      <button class="chTab" id="ctGuild">길드</button>
     </div>
     <div class="rankPanel" id="rankPanel">
       <div class="seg rkSeg" id="rkSeg">
@@ -685,6 +702,34 @@ const SYN = {
   madness:  { n: '광기의 계약', need: ['pact', 'spite'],    d: '공격력 +25%' }
 };
 const syn = id => SYN[id].need.every(x => rel(x));
+/* ---------- 업적 ----------
+   따로 저장하지 않고, 현재 상태(S)와 길드 가입 여부로 그때그때 판정한다. */
+const ACHV = [
+  { n: '지하 10층',    d: '최심 10층에 도달한다',        done: () => S.best >= 10 },
+  { n: '지하 30층',    d: '최심 30층에 도달한다',        done: () => S.best >= 30 },
+  { n: '지하 50층',    d: '최심 50층에 도달한다',        done: () => S.best >= 50 },
+  { n: '끝없는 계단',   d: '최심 100층에 도달한다',       done: () => S.best >= 100 },
+  { n: '첫 유물',      d: '유물을 처음 줍는다',           done: () => S.metRelics.length >= 1 },
+  { n: '유물 수집가',   d: '서로 다른 유물 10종을 만난다', done: () => S.metRelics.length >= 10 },
+  { n: '유물 도감 완성', d: '모든 유물을 만난다',          done: () => S.metRelics.length >= Object.keys(RELICS).length },
+  { n: '첫 조합',      d: '유물 조합을 하나 완성한다',    done: () => Object.keys(SYN).some(k => syn(k)) },
+  { n: '영구 각인',     d: '유물을 하나 영구히 새긴다',    done: () => S.eng.length >= 1 },
+  { n: '거듭된 불꽃',   d: '불꽃이 10번 꺼진다',           done: () => S.runs >= 10 },
+  { n: '첫 계승',      d: '순례자의 능력을 이어받는다',   done: () => S.eq.length >= 1 },
+  { n: '순례자 도감 완성', d: '모든 순례자를 만난다',       done: () => Object.keys(PIL).every(id => S.pil[id]) },
+  { n: '동료들과 함께',  d: '길드에 가입한다',             done: () => !!myGuild }
+];
+function achRow(a){
+  const done = a.done();
+  const b = document.createElement('div'); b.className = 'card pick' + (done ? ' can' : '');
+  b.style.setProperty('--tc', TC.safe);
+  if (!done) b.style.opacity = '.5';
+  b.innerHTML = '<div class="ic">' + ICON.safe + '</div><div class="mid"><div class="nm"><span class="n"></span></div><div class="ds"></div></div><div class="buy"><span class="c"></span></div>';
+  b.querySelector('.n').textContent = a.n;
+  b.querySelector('.ds').textContent = done ? a.d : '???';
+  b.querySelector('.c').textContent = done ? '달성' : '미달성';
+  return b;
+}
 const maxHP = () => UP.hp.val(S.lv.hp) * (1 + 0.15 * relLvl('anchor')) * (syn('ironwick') ? 1.25 : 1) * (1 + pv('hp'));
 const atkV  = () => UP.atk.val(S.lv.atk) * (1 + relLvl('last') * (S.hp < maxHP() * 0.2 ? 1 : 0)) * (1 - 0.1 * relLvl('frost')) * (syn('madness') ? 1.25 : 1) * bufM('atk') * (1 + pv('atk'));
 const apsV  = () => UP.spd.val(S.lv.spd) * (1 - 0.1 * relLvl('anchor')) * (1 + 0.25 * relLvl('spite') * (S.hp < maxHP() * 0.4 ? 1 : 0)) * (syn('frenzy') ? 1.2 : 1) * (1 + pv('aps'));
@@ -869,7 +914,7 @@ const DEATH = ['불꽃이 꺼졌다.', '어둠이 삼켰다. 그러나 재는 �
 let E = null, spawnT = 0.4, heroT = 0, foeT = 0;
 let dead = false, deadT = 0, deadAge = 0;
 let secT = 0, gainAcc = 0, idleT = 12;
-let tab = 0, mode = 1;
+let tab = 0, mode = 1, succSub = 'pil';
 let shake = 0, pulse = 0, heroFlash = 0, flare = 0, lastHitSfx = 0;
 let burnT = 0, autoT = 0;
 let encT = 0, lastEnc = '';
@@ -1530,6 +1575,23 @@ function buildPanel(){
       panel.appendChild(note('유물을 한 번이라도 주우면 이 자리에 나타난다. 각인하면 다음 불꽃부터 영구히(효과 ' + Math.round(ENG_FRAC * 100) + '%) 함께한다.'));
     }
   } else if (tab === 4) {
+    const m = document.createElement('div'); m.className = 'modes';
+    const seg = document.createElement('div'); seg.className = 'seg';
+    [['pil', '도감'], ['ach', '업적']].forEach(([v, t]) => {
+      const b = document.createElement('button');
+      b.className = 'chip' + (succSub === v ? ' on' : ''); b.textContent = t;
+      b.onclick = () => { succSub = v; buildPanel(); };
+      seg.appendChild(b);
+    });
+    m.appendChild(seg);
+    panel.appendChild(m);
+    if (succSub === 'ach') {
+      const done = ACHV.filter(a => a.done()).length;
+      const h = document.createElement('div'); h.className = 'sec';
+      h.textContent = '업적 ' + done + ' / ' + ACHV.length;
+      panel.appendChild(h);
+      ACHV.forEach(a => panel.appendChild(achRow(a)));
+    } else {
     const n = S.rems.length;
     const act = (nm, ds, cta, fn) => {
       const b = document.createElement('button'); b.className = 'card pick can';
@@ -1573,6 +1635,7 @@ function buildPanel(){
       }
       panel.appendChild(b);
     });
+    }
   } else if (tab === 3) {
     const e = S.encs[0], ev = e && ENC[e.id];
     if (S.buf) panel.appendChild(note('<b>지금 받는 기운</b> — ' + BUFN[S.buf.k] + ' ×' + S.buf.m + ' · 남은 처치 ' + S.buf.n));
@@ -2326,7 +2389,7 @@ async function fetchMyGuild(){
     if (error || !data || !data.guilds) { myGuild = null; myGuildRole = null; }
     else { myGuild = data.guilds; myGuildRole = data.role; }
   } catch (e) { myGuild = null; myGuildRole = null; }
-  $('gRoomTabs').style.display = (activeRoom !== undefined && $('chatBody').style.display !== 'none' && myGuild) ? '' : 'none';
+  $('gRoomTabs').style.display = myGuild ? '' : 'none';
   if (!myGuild && activeRoom !== CHAT_ROOM) switchChatRoom(CHAT_ROOM);
 }
 function guildMsg(html){ $('guildView').innerHTML = '<div class="gMsg">' + html + '</div>'; }
@@ -2515,17 +2578,21 @@ async function kickMember(kakaoId, nickname){
   await fetchMyGuild(); renderGuildDetail();
 }
 
-function setChView(v){
-  $('ctChat').classList.toggle('on', v === 'chat');
+function setSocialView(v){
+  SOCIAL.view = v;
   $('ctRank').classList.toggle('on', v === 'rank');
   $('ctGuild').classList.toggle('on', v === 'guild');
-  $('chatBody').style.display = v === 'chat' ? '' : 'none';
   $('rankPanel').classList.toggle('show', v === 'rank');
   $('guildPanel').classList.toggle('show', v === 'guild');
-  $('gRoomTabs').style.display = (v === 'chat' && myGuild) ? '' : 'none';
   if (v === 'rank') fetchLeaderboard(false);
   if (v === 'guild') renderGuildView();
 }
+function socialOpen(){
+  SOCIAL.open = true;
+  $('social').classList.add('show');
+  setSocialView(SOCIAL.view);
+}
+function socialClose(){ SOCIAL.open = false; $('social').classList.remove('show'); }
 function connectChatDb(){
   if (chatDbChannel) { try { sbClient.removeChannel(chatDbChannel); } catch (e) {} chatDbChannel = null; }
   CHAT.setStatus('connecting');
@@ -2636,6 +2703,7 @@ function maskProfanity(text){
   return out;
 }
 const CN = ['#e9a24f', '#6fb3a8', '#a98be0', '#d0603f', '#7fa3d6', '#c9b99a'];
+const SOCIAL = { open: false, view: 'rank' };
 const CHAT = {
   msgs: [], unread: 0, open: false, status: 'offline', transport: null, lastSend: 0, noticed: false,
   MAX: 100, COOL: 1000, KEEP: 80,
@@ -2701,9 +2769,12 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   $('chatbtn').addEventListener('pointerdown', e => e.stopPropagation());
   $('chatbtn').onclick = chatOpen;
   $('cx').onclick = chatClose;
-  $('ctChat').onclick = () => setChView('chat');
-  $('ctRank').onclick = () => setChView('rank');
-  $('ctGuild').onclick = () => setChView('guild');
+  $('socialbtn').addEventListener('pointerdown', e => e.stopPropagation());
+  $('socialbtn').onclick = socialOpen;
+  $('socialX').onclick = socialClose;
+  $('ctRank').onclick = () => setSocialView('rank');
+  $('ctGuild').onclick = () => setSocialView('guild');
+  $('social').addEventListener('click', e => { if (e.target === $('social')) socialClose(); });
   $('crRoomLobby').onclick = () => switchChatRoom(CHAT_ROOM);
   $('crRoomGuild').onclick = () => { if (myGuild) switchChatRoom('guild-' + myGuild.id); };
   $('gmSave').onclick = submitGuildModal;
@@ -2717,6 +2788,7 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if ($('pinfo').classList.contains('show')) { pinfoClose(); return; }
+    if (SOCIAL.open) { socialClose(); return; }
     if (CHAT.open) chatClose();
   });
   ci.addEventListener('input', () => { cs.disabled = !ci.value.trim(); });

@@ -41,7 +41,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .floor b.bump{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
 .floor .u{font-family:var(--disp);font-size:20px;color:var(--ember)}
 .floor small{flex-basis:100%;font-size:11px;color:var(--dim);white-space:nowrap}
-.wallet{display:flex;flex-direction:column;gap:5px;align-items:flex-end}
+.wallet{position:relative;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
 .pill{display:flex;align-items:center;gap:6px;min-width:120px;padding:3px 10px 3px 4px;border-radius:999px;
   background:linear-gradient(#0b0907,#171310);border:1px solid #3a2f22;box-shadow:inset 0 1px 3px #000}
 .pill .coin{flex:none;width:20px;height:20px;border-radius:50%;
@@ -50,6 +50,14 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .pill .lb{font-size:11px;color:var(--dim)}
 .pill b{margin-left:auto;font-family:var(--disp);font-weight:400;font-size:18px;line-height:1.2;color:var(--bone)}
 .pill em{font-style:normal;font-size:11px;font-weight:700;color:var(--ember)}
+/* 길드 버프 뱃지 — 지갑 위에 살짝 겹쳐 걸어두는 형태라 별도 자리를 차지하지 않는다 */
+.gbuf{display:none;position:absolute;top:-9px;left:-6px;align-items:center;gap:2px;
+  font-size:9.5px;font-weight:700;color:#1a1410;letter-spacing:.2px;
+  background:linear-gradient(135deg,#f1c27d,#c9791f);padding:2px 7px 2px 5px;border-radius:999px;
+  box-shadow:0 0 0 1px #2a1f14,0 2px 4px rgba(0,0,0,.45);white-space:nowrap;pointer-events:none}
+.gbuf.show{display:flex}
+.gbuf .gi{flex:none;width:6px;height:6px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff1c4,#e9631f 60%);box-shadow:0 0 3px #ff8a3a}
 
 /* 전투 화면 */
 #stage{position:relative;margin:0 12px;height:clamp(170px,28vh,240px);border-radius:18px;border:2px solid #3a2f22;overflow:hidden;background:#0a0908;
@@ -407,6 +415,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   <header>
     <div class="floor"><b id="floor">1</b><span class="u">층</span><small id="best"></small></div>
     <div class="wallet">
+      <span class="gbuf" id="gbuf"><i class="gi"></i><b id="gbufPct"></b></span>
       <div class="pill"><i class="coin"></i><span class="lb">영혼</span><b id="souls">0</b></div>
       <div class="pill ash"><i class="coin"></i><span class="lb">재</span><b id="ash">0</b><em id="prev"></em></div>
     </div>
@@ -1791,6 +1800,9 @@ function ui(){
   $('souls').textContent = fmt(S.souls);
   $('ash').textContent = fmt(S.ash);
   $('prev').textContent = dead ? '' : '+' + fmt(ashGain(S.floor));
+  const gbPct = Math.round(guildBuff() * 100);
+  const gbEl = $('gbuf');
+  if (gbEl) { gbEl.classList.toggle('show', gbPct > 0); $('gbufPct').textContent = '길드 +' + gbPct + '%'; }
   $('hpfill').style.transform = 'scaleX(' + hf + ')';
   $('hptxt').textContent = '불꽃 ' + fmt(Math.max(0, S.hp)) + ' / ' + fmt(mx);
   $('hpbar').classList.toggle('low', hf < 0.3);

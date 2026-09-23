@@ -249,13 +249,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   transition:opacity .35s,transform .35s;pointer-events:none}
 .onlineBadge.show{opacity:1;transform:translateX(0);pointer-events:auto;cursor:pointer}
 .onlinePop{position:absolute;right:10px;bottom:56px;z-index:5;width:min(220px,60vw);max-height:260px;display:none;
-  flex-direction:column;border-radius:14px;border:1px solid #3a2f22;background:linear-gradient(#15110d,#0c0a08);
+  flex-direction:column;overflow:hidden;border-radius:14px;border:1px solid #3a2f22;background:linear-gradient(#15110d,#0c0a08);
   box-shadow:0 8px 24px rgba(0,0,0,.5)}
 .onlinePop.show{display:flex}
-.onlinePopTt{display:flex;align-items:center;justify-content:space-between;padding:9px 6px 7px 12px;
+.onlinePopTt{flex:none;display:flex;align-items:center;justify-content:space-between;padding:9px 6px 7px 12px;
   font-family:var(--disp);font-size:13px;color:var(--dim);border-bottom:1px solid #211b14}
 .onlinePopTt button{flex:none;width:26px;height:26px;border:0;background:none;color:var(--dim);font-size:16px;line-height:1}
-.onlinePopList{overflow-y:auto;padding:4px 4px}
+.onlinePopList{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 4px}
 .onlinePopList .opRow{display:flex;align-items:center;gap:7px;padding:6px 8px;font-size:12.5px;color:var(--bone)}
 .onlinePopList .opDot{flex:none;width:6px;height:6px;border-radius:50%;background:#6fb3a8;box-shadow:0 0 5px #6fb3a8}
 .onlinePopList .opMsg{padding:8px;font-size:12px;color:var(--dim)}
@@ -2477,6 +2477,7 @@ const GUILD_MEMBERS_TABLE = 'guild_members';
 const GUILD_LIST_N = 30;
 let myGuild = null;        // { id, name, notice, leader_kakao_id, member_count, donated }
 let myGuildRole = null;    // 'leader' | 'member'
+let guildDonateBusy = false;   // 연타 방지 — 서버 응답 오기 전엔 로컬 카운트/재화가 아직 안 깎여 있어 중복 클릭이 그대로 다 통과해버린다
 let guildMembersCache = null;
 let guildBrowseCache = null, guildBrowseCacheAt = 0;
 
@@ -2582,11 +2583,13 @@ async function renderGuildDetail(){
   barBg.appendChild(barFg); lvWrap.appendChild(barBg);
   head.appendChild(lvWrap);
   const donRow = document.createElement('div'); donRow.style.cssText = 'display:flex;gap:6px;margin-top:8px';
-  const donSmallBtn = document.createElement('button'); donSmallBtn.className = 'gMakeBtn'; donSmallBtn.style.flex = '1';
+  const donSmallBtn = document.createElement('button'); donSmallBtn.className = 'gMakeBtn'; donSmallBtn.style.flex = '1'; donSmallBtn.id = 'donSmallBtn';
   donSmallBtn.textContent = '재 ' + fmt(GUILD_DONATE_TIERS.small) + ' 기부';
+  donSmallBtn.disabled = guildDonateBusy;
   donSmallBtn.onclick = () => donateGuild('small');
-  const donMediumBtn = document.createElement('button'); donMediumBtn.className = 'gMakeBtn'; donMediumBtn.style.flex = '1';
+  const donMediumBtn = document.createElement('button'); donMediumBtn.className = 'gMakeBtn'; donMediumBtn.style.flex = '1'; donMediumBtn.id = 'donMediumBtn';
   donMediumBtn.textContent = '재 ' + fmt(GUILD_DONATE_TIERS.medium) + ' 기부';
+  donMediumBtn.disabled = guildDonateBusy;
   donMediumBtn.onclick = () => donateGuild('medium');
   donRow.appendChild(donSmallBtn); donRow.appendChild(donMediumBtn);
   head.appendChild(donRow);
@@ -2702,27 +2705,36 @@ async function joinGuild(id, name, btn){
 }
 async function donateGuild(tier){
   if (!myGuild) return;
+  if (guildDonateBusy) return;   // 응답 오기 전 연타 차단 — 로컬 카운트는 응답 후에나 올라가므로 이게 없으면 여러 번 통과한다
   const amount = GUILD_DONATE_TIERS[tier];
   if (!amount) return;
   if (guildDonateCountToday() >= GUILD_DONATE_DAILY_LIMIT) { CHAT.notice('오늘 기부 횟수를 다 썼다.'); return; }
   if (amount > S.ash) { CHAT.notice('가진 재보다 많이 기부할 수 없다.'); return; }
-  const r = await callProfileSync('guild_donate', { tier });
-  if (!r || r.error) {
-    const msg = r && r.error === 'daily_limit' ? '오늘 기부 횟수를 다 썼다.'
-      : r && r.error === 'not_enough_ash' ? '가진 재보다 많이 기부할 수 없다.'
-      : '기부하지 못했다.';
-    CHAT.notice(msg);
-    return;
+  guildDonateBusy = true;
+  const btnS = $('donSmallBtn'), btnM = $('donMediumBtn');
+  if (btnS) btnS.disabled = true;
+  if (btnM) btnM.disabled = true;
+  try {
+    const r = await callProfileSync('guild_donate', { tier });
+    if (!r || r.error) {
+      const msg = r && r.error === 'daily_limit' ? '오늘 기부 횟수를 다 썼다.'
+        : r && r.error === 'not_enough_ash' ? '가진 재보다 많이 기부할 수 없다.'
+        : '기부하지 못했다.';
+      CHAT.notice(msg);
+      return;
+    }
+    S.ash -= amount;
+    myGuild.donated = (myGuild.donated || 0) + amount;
+    const todayKst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    S.guildDonateCount = guildDonateCountToday() + 1;
+    S.guildDonateDate = todayKst;
+    save();
+    CHAT.notice('길드에 재 ' + fmt(amount) + '을(를) 기부했다.');
+    ui();
+  } finally {
+    guildDonateBusy = false;
+    renderGuildDetail();   // 실패/성공 관계없이 버튼 상태·남은 횟수 문구를 최신 상태로 다시 그린다
   }
-  S.ash -= amount;
-  myGuild.donated = (myGuild.donated || 0) + amount;
-  const todayKst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  S.guildDonateCount = guildDonateCountToday() + 1;
-  S.guildDonateDate = todayKst;
-  save();
-  CHAT.notice('길드에 재 ' + fmt(amount) + '을(를) 기부했다.');
-  renderGuildDetail();
-  ui();
 }
 async function leaveGuild(){
   const msg = myGuildRole === 'leader' && (myGuild.member_count || 1) > 1

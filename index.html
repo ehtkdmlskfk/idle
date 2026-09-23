@@ -1392,6 +1392,8 @@ function update(dt){
     return;
   }
   S.hp -= drain() * dt;
+  const at = ashGain(S.best) * ASH_AWAY_FRAC / 3600 * dt;   // 화면을 보고 있는 동안에도 방치와 같은 비율로 재가 조금씩 쌓인다
+  S.ash += at; S.total += at;
   if (burnT > 0) burnT = Math.max(0, burnT - dt);
   if (S.meta.auto) { autoT += dt; if (autoT >= 0.5) { autoT = 0; autoBuy(); } }
   if (S.meta.autoEnc && S.encs.length) { encT += dt; if (encT >= ENC_AUTO) resolveEnc(0, S.stance ? 1 : 0); }

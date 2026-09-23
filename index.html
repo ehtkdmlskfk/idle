@@ -247,7 +247,18 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   padding:0 12px 0 10px;border-radius:999px;border:1px solid #3a2f22;background:rgba(10,9,8,.55);
   font-family:var(--disp);font-size:14px;color:var(--ember);opacity:0;transform:translateX(6px);
   transition:opacity .35s,transform .35s;pointer-events:none}
-.onlineBadge.show{opacity:1;transform:translateX(0)}
+.onlineBadge.show{opacity:1;transform:translateX(0);pointer-events:auto;cursor:pointer}
+.onlinePop{position:absolute;right:10px;bottom:56px;z-index:5;width:min(220px,60vw);max-height:260px;display:none;
+  flex-direction:column;border-radius:14px;border:1px solid #3a2f22;background:linear-gradient(#15110d,#0c0a08);
+  box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.onlinePop.show{display:flex}
+.onlinePopTt{display:flex;align-items:center;justify-content:space-between;padding:9px 6px 7px 12px;
+  font-family:var(--disp);font-size:13px;color:var(--dim);border-bottom:1px solid #211b14}
+.onlinePopTt button{flex:none;width:26px;height:26px;border:0;background:none;color:var(--dim);font-size:16px;line-height:1}
+.onlinePopList{overflow-y:auto;padding:4px 4px}
+.onlinePopList .opRow{display:flex;align-items:center;gap:7px;padding:6px 8px;font-size:12.5px;color:var(--bone)}
+.onlinePopList .opDot{flex:none;width:6px;height:6px;border-radius:50%;background:#6fb3a8;box-shadow:0 0 5px #6fb3a8}
+.onlinePopList .opMsg{padding:8px;font-size:12px;color:var(--dim)}
 .obFlame{position:relative;width:8px;height:12px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;flex:none;
   background:radial-gradient(circle at 50% 32%,var(--hot),var(--ember) 55%,#7a3a10 100%);
   box-shadow:0 0 7px var(--ember),0 0 2px var(--hot);animation:obFlicker 1.7s ease-in-out infinite}
@@ -429,7 +440,11 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div id="boss">보스</div>
     <div id="evt"></div>
     <div id="buf"></div>
-    <div id="onlineBadge" class="onlineBadge" aria-hidden="true"><i class="obFlame"></i><span id="obNum">-</span></div>
+    <div id="onlineBadge" class="onlineBadge" role="button" aria-label="접속자 목록 보기"><i class="obFlame"></i><span id="obNum">-</span></div>
+    <div id="onlinePop" class="onlinePop">
+      <div class="onlinePopTt"><span>지금 접속 중</span><button id="onlinePopX" aria-label="닫기">×</button></div>
+      <div id="onlinePopList" class="onlinePopList"></div>
+    </div>
     <button id="chatbtn" aria-label="채팅"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7l-4.5 3.5V17H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M8 10h8M8 13h5"/></svg></button>
     <button id="socialbtn" aria-label="소셜"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.3"/><path d="M3.5 19c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/><path d="M14.7 14.3c2.3.4 3.8 2.2 3.8 4.7"/></svg></button>
     <div id="away"></div>
@@ -2048,8 +2063,10 @@ function draw(dt, t){
 
 /* ---------- 입력 ---------- */
 $('stage').addEventListener('pointerdown', e => {
+  if ($('onlinePop').classList.contains('show')) $('onlinePop').classList.remove('show');
   if (dead) { if (deadAge > 1) deadT = 0; return; }
 });
+$('onlinePop').addEventListener('pointerdown', e => e.stopPropagation());
 $('burn').addEventListener('pointerdown', e => e.stopPropagation());
 $('burn').onclick = burn;
 $('snd').addEventListener('pointerdown', e => e.stopPropagation());
@@ -2821,12 +2838,43 @@ function connectPresence(){
     .on('presence', { event: 'sync' }, () => {
       try { onlineCount = Object.keys(presenceChannel.presenceState()).length; } catch (e) { onlineCount = 0; }
       updateOnlineUI();
+      if ($('onlinePop') && $('onlinePop').classList.contains('show')) renderOnlinePop();
     })
     .subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
-        try { await presenceChannel.track({ at: Date.now() }); } catch (e) {}
+        try { await presenceChannel.track({ at: Date.now(), nick: CHAT.me() }); } catch (e) {}
       }
     });
+}
+function onlineNicks(){
+  if (!presenceChannel) return [];
+  let state;
+  try { state = presenceChannel.presenceState(); } catch (e) { return []; }
+  const names = [];
+  Object.keys(state).forEach(k => {
+    const entries = state[k] || [];
+    const nick = (entries[0] && entries[0].nick) ? String(entries[0].nick) : '이름 모를 순례자';
+    names.push(nick);
+  });
+  return names.sort((a, b) => a.localeCompare(b, 'ko'));
+}
+function renderOnlinePop(){
+  const list = $('onlinePopList'); if (!list) return;
+  const names = onlineNicks();
+  list.innerHTML = '';
+  if (!names.length) { list.innerHTML = '<div class="opMsg">아무도 없다.</div>'; return; }
+  names.forEach(n => {
+    const row = document.createElement('div'); row.className = 'opRow';
+    row.innerHTML = '<i class="opDot"></i><span></span>';
+    row.lastElementChild.textContent = n;
+    list.appendChild(row);
+  });
+}
+function toggleOnlinePop(){
+  const pop = $('onlinePop'); if (!pop) return;
+  const show = !pop.classList.contains('show');
+  pop.classList.toggle('show', show);
+  if (show) renderOnlinePop();
 }
 /* ---------- 욕설 필터 (클라이언트 1차 방어 — 최종 방어는 DB 트리거) ---------- */
 const BAD_WORDS_KO = [
@@ -2916,6 +2964,9 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   $('chatbtn').addEventListener('pointerdown', e => e.stopPropagation());
   $('chatbtn').onclick = chatOpen;
   $('cx').onclick = chatClose;
+  $('onlineBadge').addEventListener('pointerdown', e => e.stopPropagation());
+  $('onlineBadge').onclick = toggleOnlinePop;
+  $('onlinePopX').onclick = () => $('onlinePop').classList.remove('show');
   $('socialbtn').addEventListener('pointerdown', e => e.stopPropagation());
   $('socialbtn').onclick = socialOpen;
   $('socialX').onclick = socialClose;

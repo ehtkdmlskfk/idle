@@ -764,6 +764,15 @@ const guildLevelProgress = total => {
 const guildLevelFor = total => guildLevelProgress(total).lv;
 const GUILD_BUFF_PER_LV = 0.01;                     // 길드 레벨당 영혼·재 획득 +1%
 const guildBuff = () => myGuild ? (guildLevelFor(myGuild.donated) - 1) * GUILD_BUFF_PER_LV : 0;
+/* 기부는 자유 입력이 아니라 정해진 두 등급 중 하나만 고른다(오입력 방지) — 서버(profile-sync)가
+   실제 검증·차감을 하고, 하루 3회 제한도 서버 기준(KST)이 최종 판정이다. 여기 카운트는 UI 표시용. */
+const GUILD_DONATE_TIERS = { small: 100, medium: 300 };
+const GUILD_DONATE_DAILY_LIMIT = 3;
+const guildDonateCountToday = () => {
+  const todayKst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  if (S.guildDonateDate !== todayKst) return 0;
+  return S.guildDonateCount || 0;
+};
 const ASH_AWAY_FRAC = 0.2;   // 방치 중 재 수급 — 최고층 기준 사망 보상의 이 비율만큼을 시간당으로 준다
 
 /* ---------- 소리 ---------- */
@@ -2423,10 +2432,11 @@ function pinfoClose(){ $('pinfo').classList.remove('show'); }
    카카오 토큰으로 신원을 확인한 뒤 서버 롤 키로 처리한다(닉네임/채팅과 같은 원칙).
    ⚠ 서버(profile-sync)에 guild_create / guild_join / guild_leave / guild_kick /
       guild_set_notice / guild_donate 액션 추가가 필요하다 — 아래 GUILD_SETUP.md 참고.
-      guild_donate는 { amount }를 받아 guilds.donated += amount 로 누적하고, 가능하면
-      호출자의 최근 동기화된 profiles.ash(touch로 저장된 값)보다 amount가 크지 않은지
-      서버에서 한번 더 확인해 주는 게 좋다(클라이언트가 보내는 amount는 그 자체로는 검증되지 않음).
-      guilds 테이블에 donated bigint not null default 0 컬럼 추가 필요. */
+      guild_donate는 { tier: 'small'|'medium' }을 받아 서버가 정해진 금액(100/300)만큼
+      guilds.donated += amount 로 누적한다 — 자유 입력 금액은 받지 않고, 하루 3회 제한도
+      서버(guild_members.donate_count/donate_date)가 최종 판정한다.
+      guilds 테이블에 donated bigint not null default 0 컬럼, guild_members 테이블에
+      donate_count integer default 0 / donate_date date 컬럼 추가 필요. */
 const GUILD_TABLE = 'guilds';
 const GUILD_MEMBERS_TABLE = 'guild_members';
 const GUILD_LIST_N = 30;
@@ -2523,12 +2533,17 @@ async function renderGuildDetail(){
   barBg.appendChild(barFg); lvWrap.appendChild(barBg);
   head.appendChild(lvWrap);
   const donRow = document.createElement('div'); donRow.style.cssText = 'display:flex;gap:6px;margin-top:8px';
-  const donIn = document.createElement('input'); donIn.type = 'number'; donIn.min = '1'; donIn.placeholder = '기부할 재';
-  donIn.style.cssText = 'flex:1;min-width:0';
-  const donBtn = document.createElement('button'); donBtn.className = 'gMakeBtn'; donBtn.textContent = '기부';
-  donBtn.onclick = () => donateGuild(parseInt(donIn.value, 10), donIn);
-  donRow.appendChild(donIn); donRow.appendChild(donBtn);
+  const donSmallBtn = document.createElement('button'); donSmallBtn.className = 'gMakeBtn'; donSmallBtn.style.flex = '1';
+  donSmallBtn.textContent = '재 ' + fmt(GUILD_DONATE_TIERS.small) + ' 기부';
+  donSmallBtn.onclick = () => donateGuild('small');
+  const donMediumBtn = document.createElement('button'); donMediumBtn.className = 'gMakeBtn'; donMediumBtn.style.flex = '1';
+  donMediumBtn.textContent = '재 ' + fmt(GUILD_DONATE_TIERS.medium) + ' 기부';
+  donMediumBtn.onclick = () => donateGuild('medium');
+  donRow.appendChild(donSmallBtn); donRow.appendChild(donMediumBtn);
   head.appendChild(donRow);
+  const donHint = document.createElement('div'); donHint.style.cssText = 'font-size:11px;color:#8a8070;margin-top:4px;text-align:right';
+  donHint.textContent = '오늘 ' + (GUILD_DONATE_DAILY_LIMIT - guildDonateCountToday()) + '/' + GUILD_DONATE_DAILY_LIMIT + '회 남음';
+  head.appendChild(donHint);
   const acts = document.createElement('div'); acts.className = 'gActs';
   const leaveBtn = document.createElement('button'); leaveBtn.className = 'danger';
   leaveBtn.textContent = myGuildRole === 'leader' ? '길드 해체/위임' : '길드 탈퇴';
@@ -2632,17 +2647,26 @@ async function joinGuild(id, name, btn){
   CHAT.notice('"' + name + '"에 가입했다.');
   await fetchMyGuild(); renderGuildView();
 }
-async function donateGuild(amount, inputEl){
+async function donateGuild(tier){
   if (!myGuild) return;
-  if (!Number.isFinite(amount) || amount < 1) { CHAT.notice('1 이상의 숫자를 입력해줘.'); return; }
-  amount = Math.floor(amount);
+  const amount = GUILD_DONATE_TIERS[tier];
+  if (!amount) return;
+  if (guildDonateCountToday() >= GUILD_DONATE_DAILY_LIMIT) { CHAT.notice('오늘 기부 횟수를 다 썼다.'); return; }
   if (amount > S.ash) { CHAT.notice('가진 재보다 많이 기부할 수 없다.'); return; }
-  const r = await callProfileSync('guild_donate', { amount });
-  if (!r || r.error) { CHAT.notice('기부하지 못했다.'); return; }
+  const r = await callProfileSync('guild_donate', { tier });
+  if (!r || r.error) {
+    const msg = r && r.error === 'daily_limit' ? '오늘 기부 횟수를 다 썼다.'
+      : r && r.error === 'not_enough_ash' ? '가진 재보다 많이 기부할 수 없다.'
+      : '기부하지 못했다.';
+    CHAT.notice(msg);
+    return;
+  }
   S.ash -= amount;
   myGuild.donated = (myGuild.donated || 0) + amount;
+  const todayKst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  S.guildDonateCount = guildDonateCountToday() + 1;
+  S.guildDonateDate = todayKst;
   save();
-  if (inputEl) inputEl.value = '';
   CHAT.notice('길드에 재 ' + fmt(amount) + '을(를) 기부했다.');
   renderGuildDetail();
   ui();

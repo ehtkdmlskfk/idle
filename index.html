@@ -738,6 +738,7 @@ const drain = () => maxHP() * 0.010 * (1 + 0.04 * S.floor) * ALT.ember.val(S.met
 const killHeal = () => 0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0) + pv('heal');
 const need  = f => (f % 10 === 0 ? 1 : 4);
 const ashGain = f => Math.max(1, Math.floor(Math.pow(f, 1.5) / 3 * (1 + pv('ash'))));
+const ASH_AWAY_FRAC = 0.2;   // 방치 중 재 수급 — 최고층 기준 사망 보상의 이 비율만큼을 시간당으로 준다
 
 /* ---------- 소리 ---------- */
 let AC = null, MG = null, REC = null;
@@ -2831,8 +2832,11 @@ function checkAway(){
   }
   const g = Math.max(1, Math.round(rate * capped * eff));
   S.souls += g;
+  const ashRate = ashGain(S.best) * ASH_AWAY_FRAC / 3600;
+  const ga = Math.max(0, Math.round(ashRate * capped * eff));
+  if (ga > 0) { S.ash += ga; S.total += ga; }
   const dur = t => { const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60); return h ? h + '시간' + (m ? ' ' + m + '분' : '') : Math.max(1, m) + '분'; };
-  const msg = dur(el) + ' 만에 돌아왔다 — 영혼 ' + fmt(g) + '개' + (el > capped + 1 ? ' (최대 ' + capH + '시간까지 쌓인다)' : '');
+  const msg = dur(el) + ' 만에 돌아왔다 — 영혼 ' + fmt(g) + '개' + (ga > 0 ? ' · 재 ' + fmt(ga) + '개' : '') + (el > capped + 1 ? ' (최대 ' + capH + '시간까지 쌓인다)' : '');
   say(msg, 'gold');
   showAway(msg);
   ui(); save();

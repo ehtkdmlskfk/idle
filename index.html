@@ -2480,9 +2480,17 @@ let myGuildRole = null;    // 'leader' | 'member'
 let guildDonateBusy = false;   // 연타 방지 — 서버 응답 오기 전엔 로컬 카운트/재화가 아직 안 깎여 있어 중복 클릭이 그대로 다 통과해버린다
 let guildMembersCache = null;
 let guildBrowseCache = null, guildBrowseCacheAt = 0;
+/* 길드 가입 여부가 확정되기 전엔(fetchMyGuild가 아직 응답 전) guildBuff()가 무조건 0으로 계산된다.
+   특히 부재중 보상(checkAway)은 페이지를 여는 즉시 동기적으로 실행되는데, 그 시점엔 로그인 복원+길드
+   조회가 아직 네트워크 왕복 중이라 길드원이어도 버프 없이 계산돼버리는 문제가 있었다 — 아래 플래그/프로미스로
+   "길드 여부가 확정될 때까지" 부재중 보상 계산 자체를 미룬다. */
+let guildLoaded = false, resolveGuildReady;
+const guildReadyPromise = new Promise(res => { resolveGuildReady = res; });
+function markGuildLoaded(){ if (!guildLoaded) { guildLoaded = true; resolveGuildReady(); } }
+setTimeout(markGuildLoaded, 4000);   // 네트워크가 느리거나 비로그인 상태여도 화면이 무한정 멈추지 않도록 하는 안전장치
 
 async function fetchMyGuild(){
-  if (!sbClient || !kakaoUser) { myGuild = null; myGuildRole = null; return; }
+  if (!sbClient || !kakaoUser) { myGuild = null; myGuildRole = null; markGuildLoaded(); return; }
   try {
     const { data, error } = await sbClient
       .from(GUILD_MEMBERS_TABLE)
@@ -2492,6 +2500,7 @@ async function fetchMyGuild(){
     if (error || !data || !data.guilds) { myGuild = null; myGuildRole = null; }
     else { myGuild = data.guilds; myGuildRole = data.role; }
   } catch (e) { myGuild = null; myGuildRole = null; }
+  finally { markGuildLoaded(); }
   $('gRoomTabs').style.display = myGuild ? '' : 'none';
   if (!myGuild && activeRoom !== CHAT_ROOM) switchChatRoom(CHAT_ROOM);
 }
@@ -3032,10 +3041,11 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
 })();
 
 /* ---------- 부재 중 보상 / 저장 ---------- */
-function checkAway(){
+async function checkAway(){
   const el = (Date.now() - S.lastSeen) / 1000;
-  S.lastSeen = Date.now();
+  S.lastSeen = Date.now();   // 경과 시간 측정은 길드 조회를 기다리지 않고 그 자리에서 바로 찍는다 — 여기서 지연되면 시간 계산 자체가 틀어진다
   if (el < 5) return;
+  if (!guildLoaded) await guildReadyPromise;   // 길드 버프가 0으로 확정되기 전에는(로딩 중) 보상을 계산하지 않는다
   const capH = ALT.away.val(S.meta.away), eff = ALT.awayEff.val(S.meta.awayEff);
   const capped = Math.min(el, capH * 3600);
   let rate = S.sps;
@@ -3147,8 +3157,7 @@ if (fresh) {
   if (S.buf && !(BUFN[S.buf.k] && S.buf.n > 0 && isFinite(S.buf.m))) S.buf = null;
   S.hp = Math.max(1, Math.min(S.hp, maxHP()));
   if (S.hp <= 1) S.hp = maxHP();
-  checkAway();
-  say('다시 어둠 속. 불꽃은 아직 타고 있다.');
+  checkAway().then(() => say('다시 어둠 속. 불꽃은 아직 타고 있다.'));
 }
 $('snd').textContent = VLB[S.vol];
 resize();

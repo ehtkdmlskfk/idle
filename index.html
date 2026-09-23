@@ -565,7 +565,7 @@ const def = () => ({
   souls: 0, ash: 0, total: 0, best: 1, runs: 0,
   floor: 1, kills: 0, hp: 40, sps: 0, lastSeen: Date.now(),
   lv: { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0 },
-  meta: { ember: 0, leg: 0, desc: 0, hand: 0, eye: 0, auto: 0, autoEnc: 0, autoOpen: 0, slot: 0, spark: 0, away: 0, awayEff: 0, eng: 0 },
+  meta: { ember: 0, leg: 0, desc: 0, hand: 0, eye: 0, auto: 0, autoEnc: 0, autoOpen: 0, autoRelic: 0, slot: 0, spark: 0, away: 0, awayEff: 0, eng: 0 },
   relics: [], offers: [], rr: 0, mute: false, vol: 1, evt: null,
   encs: [], buf: null, stance: 0,
   pil: {}, eq: [], rems: [], pity: 0, nick: '',
@@ -658,6 +658,7 @@ const critMult = () => 2 + 0.5 * relLvl('gambit');
 const ALT = {
   auto:  { name: '자동 성장', sub: '가장 싼 성장을 알아서 산다', base: 12, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
   autoEnc: { name: '자동 선택', sub: '사건을 성향대로 알아서 고른다', base: 10, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
+  autoRelic: { name: '자동 유물', sub: '유물이 나타나면 알아서 골라 준다', base: 10, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
   autoOpen: { name: '자동 개봉', sub: '유해를 얻는 즉시 알아서 연다', base: 8, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
   slot:  { name: '계승의 자리', sub: '함께 이어받을 수 있는 순례자', base: 30, g: 3, max: 2, val: l => 2 + l, show: v => v + '명' },
   eng:   { name: '각인의 자리', sub: '영구히 새겨 둘 수 있는 유물', base: 50, g: 2.8, max: 2, val: l => 1 + l, show: v => v + '개' },
@@ -920,6 +921,8 @@ let shake = 0, pulse = 0, heroFlash = 0, flare = 0, lastHitSfx = 0;
 let burnT = 0, autoT = 0;
 let encT = 0, lastEnc = '';
 const ENC_CAP = 3, ENC_LIFE = 12, ENC_AUTO = 25;
+let relicT = 0;
+const RELIC_AUTO = 8;   // 자동 유물을 켜면 유물이 나타난 뒤 이만큼(초) 지나면 알아서 고른다
 const burnCd = () => BURN_CD * Math.max(0.3, 1 - pv('cd'));   // 대기 상한 / 유효 층수 / 자동 선택까지 초
 const BURN_CD = 12;
 const P = [], F = [];   // 파티클, 떠오르는 숫자
@@ -1315,12 +1318,26 @@ function reroll(){
   if (picks.length < 3) picks.push(...drawRelics(back, w, 3 - picks.length));
   S.offers[0] = picks;
   S.ash -= c; S.rr = (S.rr || 0) + 1;
+  relicT = 0;
   sfx('buy');
   try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
   buildPanel(); ui(); save();
 }
+function autoPickRelic(){
+  const o = S.offers[0]; if (!o) return;
+  relicT = 0;
+  const completesSyn = id => Object.keys(SYN).some(k => {
+    const need = SYN[k].need;
+    return need.indexOf(id) >= 0 && need.every(x => x === id || rel(x));
+  });
+  const score = id => (completesSyn(id) ? 100 : 0) + RELICS[id].g;
+  let best = o[0], bestScore = -1;
+  o.forEach(id => { const s = score(id); if (s > bestScore) { bestScore = s; best = id; } });
+  pickRelic(best);
+}
 function pickRelic(id){
   if (!S.offers.length) return;
+  relicT = 0;
   const before = maxHP(), had = Object.keys(SYN).filter(k => syn(k));
   S.relics.push(id);
   if (S.metRelics.indexOf(id) < 0) S.metRelics.push(id);
@@ -1379,6 +1396,8 @@ function update(dt){
   if (S.meta.auto) { autoT += dt; if (autoT >= 0.5) { autoT = 0; autoBuy(); } }
   if (S.meta.autoEnc && S.encs.length) { encT += dt; if (encT >= ENC_AUTO) resolveEnc(0, S.stance ? 1 : 0); }
   else encT = 0;
+  if (S.meta.autoRelic && S.offers.length) { relicT += dt; if (relicT >= RELIC_AUTO) autoPickRelic(); }
+  else relicT = 0;
   if (!E) {
     spawnT -= dt;
     if (spawnT <= 0) spawn();
@@ -1471,10 +1490,11 @@ const ICON = {
   slot:  svg('<circle cx="8" cy="9" r="2.6"/><circle cx="16" cy="9" r="2.6"/><path d="M3 19c0-3 2.2-5 5-5s5 2 5 5M11 19c0-3 2.2-5 5-5s5 2 5 5"/>'),
   pil:   svg('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5"/>'),
   autoEnc: svg('<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>'),
+  autoRelic: svg('<path d="M12 3l7 7-7 11-7-11z"/><path d="M9 12l2 2 4-4"/>'),
   safe:  svg('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>'),
   bold:  svg('<path d="M12 3c.8 3.6 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.2 2-4 .2 1.6 1 2.4 2 2.4-.6-3 .2-5.6 1-8.4z"/><path d="M12 14v3"/>')
 };
-const TC = { atk: '#d0603f', hp: '#e9a24f', spd: '#f0d27a', greed: '#a98be0', crit: '#ffe066', auto: '#6fb3a8', away: '#7fa3d6', awayEff: '#8fbf9a', ember: '#e08a4a', hand: '#c9b99a', eye: '#7fb2d6', leg: '#c9b99a', desc: '#9a8f7c', spark: '#ffcf5c', relic: '#e9a24f', eng: '#d8b46a', autoEnc: '#9ec7a0', autoOpen: '#8fbf9a', slot: '#e9a24f', safe: '#8fbf9a', bold: '#d0603f' };
+const TC = { atk: '#d0603f', hp: '#e9a24f', spd: '#f0d27a', greed: '#a98be0', crit: '#ffe066', auto: '#6fb3a8', away: '#7fa3d6', awayEff: '#8fbf9a', ember: '#e08a4a', hand: '#c9b99a', eye: '#7fb2d6', leg: '#c9b99a', desc: '#9a8f7c', spark: '#ffcf5c', relic: '#e9a24f', eng: '#d8b46a', autoEnc: '#9ec7a0', autoRelic: '#e9a24f', autoOpen: '#8fbf9a', slot: '#e9a24f', safe: '#8fbf9a', bold: '#d0603f' };
 function relicRow(id, pickable){
   const r = RELICS[id];
   const b = document.createElement(pickable ? 'button' : 'div');
@@ -1542,8 +1562,10 @@ function buildPanel(){
       rb.innerHTML = '<div class="ic">' + ICON.auto + '</div><div class="mid"><div class="nm"><span class="n">다시 뽑기</span></div><div class="ds">지금 보이는 유물을 버리고 새로 뽑는다</div></div><div class="buy"><span class="c">' + fmt(c) + '</span></div>';
       rb.onclick = reroll;
       panel.appendChild(rb);
+      if (S.meta.autoRelic) { const a = document.createElement('div'); a.id = 'relicauto'; a.className = 'note'; a.style.cssText = 'margin-top:6px;font-size:11.5px;color:#6fb3a8'; panel.appendChild(a); }
     } else {
-      panel.appendChild(note('7층을 내려갈 때마다 유물 하나를 고를 수 있다. 유물은 이번 불꽃이 꺼지면 사라진다.<br>귀한 등급일수록 드물게 나타나며, 깊이 내려갈수록 귀한 유물을 만나기 쉬워진다.<br>특정 유물 둘을 함께 지니면 <b>조합</b>이 발동한다.'));
+      panel.appendChild(note('7층을 내려갈 때마다 유물 하나를 고를 수 있다. 유물은 이번 불꽃이 꺼지면 사라진다.<br>귀한 등급일수록 드물게 나타나며, 깊이 내려갈수록 귀한 유물을 만나기 쉬워진다.<br>특정 유물 둘을 함께 지니면 <b>조합</b>이 발동한다.' +
+        (S.meta.autoRelic ? '' : '<br>제단에서 <b>자동 유물</b>을 열면 조합을 완성하거나 더 귀한 쪽을 알아서 골라 준다.')));
     }
     if (S.relics.length) {
       const h = document.createElement('div'); h.className = 'sec'; h.textContent = '지닌 유물 ' + S.relics.length;
@@ -1749,6 +1771,8 @@ function ui(){
   else bf.classList.remove('show');
   const ea = $('encauto');
   if (ea) ea.textContent = S.encs.length ? Math.max(0, Math.ceil(ENC_AUTO - encT)) + '초 뒤 ' + (S.stance ? '모험' : '안전') + ' 쪽으로 자동 선택' : '';
+  const ra = $('relicauto');
+  if (ra) ra.textContent = S.offers.length ? Math.max(0, Math.ceil(RELIC_AUTO - relicT)) + '초 뒤 자동으로 고른다' : '';
   $('t2').classList.toggle('ping', altAffordable());
   const bb = $('burn'), ready = !dead && !!E && burnT <= 0 && S.hp >= mx * 0.3;
   bb.disabled = !ready;

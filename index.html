@@ -2124,7 +2124,7 @@ function tryRestoreKakaoSession(){
     try { Kakao.Auth.setAccessToken(saved); } catch (e) { clearKakaoToken(); return resolve(); }
     Kakao.API.request({
       url: '/v2/user/me',
-      success(res){ afterKakaoLogin(res); resolve(); },
+      async success(res){ await afterKakaoLogin(res); resolve(); },
       fail(){ clearKakaoToken(); try { Kakao.Auth.setAccessToken(null); } catch (e) {} resolve(); }
     });
   });
@@ -2159,6 +2159,7 @@ async function afterKakaoLogin(res){
     CHAT.notice(r.profile.nickname + '(으)로 로그인했다.');
     hintAccMenuOnce();
     touchProfile();
+    retrackPresence();
   } else {
     chatRenderAccount();
     CHAT.notice('처음 왔다 — 닉네임을 정해줘.');
@@ -2289,6 +2290,7 @@ async function submitNickname(){
   chatRenderAccount();
   CHAT.notice('닉네임을 "' + raw + '"(으)로 설정했다.');
   hintAccMenuOnce();
+  retrackPresence();
   $('nmSave').disabled = false;
 }
 (() => {
@@ -2869,6 +2871,10 @@ function renderOnlinePop(){
     row.lastElementChild.textContent = n;
     list.appendChild(row);
   });
+}
+async function retrackPresence(){
+  if (!presenceChannel) return;
+  try { await presenceChannel.track({ at: Date.now(), nick: CHAT.me() }); } catch (e) {}
 }
 function toggleOnlinePop(){
   const pop = $('onlinePop'); if (!pop) return;

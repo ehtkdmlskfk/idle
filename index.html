@@ -364,6 +364,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .gMember .gmNm{flex:1;min-width:0;font-size:13.5px;color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gMember.me .gmNm{color:var(--hot);font-weight:700}
 .gMember .gmRole{flex:none;font-size:10.5px;font-weight:700;color:var(--ember)}
+.gMember .gmDon{flex:none;font-size:12px;color:#e9a24f;min-width:50px;text-align:right}
 .gMember .gmBest{flex:none;font-size:12px;color:var(--dim);min-width:46px;text-align:right}
 .gMember .gmKick{flex:none;font-size:11px;color:#e07a6b;background:none;border:0;padding:2px 4px}
 .gRoomTabs{display:flex;gap:6px;padding:0 16px 8px}
@@ -2436,7 +2437,8 @@ function pinfoClose(){ $('pinfo').classList.remove('show'); }
       guilds.donated += amount 로 누적한다 — 자유 입력 금액은 받지 않고, 하루 3회 제한도
       서버(guild_members.donate_count/donate_date)가 최종 판정한다.
       guilds 테이블에 donated bigint not null default 0 컬럼, guild_members 테이블에
-      donate_count integer default 0 / donate_date date 컬럼 추가 필요. */
+      donate_count integer default 0 / donate_date date / donated bigint default 0
+      (길드원별 누적 기부량 — 길드원 목록에 정렬·표시용) 컬럼 추가 필요. */
 const GUILD_TABLE = 'guilds';
 const GUILD_MEMBERS_TABLE = 'guild_members';
 const GUILD_LIST_N = 30;
@@ -2562,9 +2564,9 @@ async function fetchGuildMembers(){
   try {
     const { data, error } = await sbClient
       .from(GUILD_MEMBERS_TABLE)
-      .select('kakao_id,nickname,role,profiles(best)')
+      .select('kakao_id,nickname,role,donated,profiles(best)')
       .eq('guild_id', myGuild.id)
-      .order('role', { ascending: true })
+      .order('donated', { ascending: false })
       .limit(100);
     if (error) throw error;
     guildMembersCache = data || [];
@@ -2574,8 +2576,9 @@ async function fetchGuildMembers(){
       const el = document.createElement('div'); el.className = 'gMember' + (myId && String(m.kakao_id) === myId ? ' me' : '');
       const nmw = document.createElement('span'); nmw.className = 'gmNm'; nmw.textContent = m.nickname || '???';
       const role = document.createElement('span'); role.className = 'gmRole'; role.textContent = m.role === 'leader' ? '길드장' : '';
+      const don = document.createElement('span'); don.className = 'gmDon'; don.textContent = '재 ' + fmt(m.donated || 0);
       const best = document.createElement('span'); best.className = 'gmBest'; best.textContent = fmt((m.profiles && m.profiles.best) || 0) + '층';
-      el.appendChild(nmw); el.appendChild(role); el.appendChild(best);
+      el.appendChild(nmw); el.appendChild(role); el.appendChild(don); el.appendChild(best);
       if (myGuildRole === 'leader' && String(m.kakao_id) !== myId) {
         const kick = document.createElement('button'); kick.className = 'gmKick'; kick.textContent = '추방';
         kick.onclick = () => kickMember(m.kakao_id, m.nickname);

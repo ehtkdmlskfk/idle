@@ -1743,7 +1743,8 @@ function updatePanel(){
     r.el.classList.toggle('can', p.n > 0);
   });
   const nt = $('altnote');
-  if (nt) nt.innerHTML = '불꽃이 꺼지면 재가 남는다. 재는 쓰더라도 누적된 만큼 모든 것을 강하게 한다.<br><b>누적 재 ' + fmt(S.total) + '</b> — 공격·체력 +' + fmt(S.total * 10) + '%, 영혼 +' + fmt(S.total * 5) + '%';
+  if (nt) nt.innerHTML = '불꽃이 꺼지면 재가 남는다. 재는 쓰더라도 누적된 만큼 모든 것을 강하게 한다.<br><b>누적 재 ' + fmt(S.total) + '</b> — 공격·체력 +' + fmt(S.total * 10) + '%, 영혼 +' + fmt(S.total * 5) + '%' +
+    '<br><span style="color:#7d725f">자리를 비워도 최고기록층 기준으로 영혼·재가 계속 쌓인다 — "긴 잠"/"식지 않는 온기"로 쌓이는 시간과 효율이 늘어난다.</span>';
 }
 function altAffordable(){
   return Object.keys(ALT).some(k => plan(ALT[k], S.meta[k], S.ash, 1).n > 0);
@@ -2851,9 +2852,9 @@ function checkAway(){
   const capped = Math.min(el, capH * 3600);
   let rate = S.sps;
   if (!rate) {
-    // sps가 아직 없으면(막 시작했거나 오래 쉬었으면) 현재 스탯 기준 이론치로 추정
-    const kps = apsV() / need(S.floor);
-    const avgSoul = 2 * Math.pow(1.19, S.floor - 1) * soulM();
+    // sps가 아직 없으면(막 시작했거나 오래 쉬었으면) 최고기록층 기준으로 이론치를 추정
+    const kps = apsV() / need(S.best);
+    const avgSoul = 2 * Math.pow(1.19, S.best - 1) * soulM();
     rate = kps * avgSoul;
   }
   const g = Math.max(1, Math.round(rate * capped * eff));

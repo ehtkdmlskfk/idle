@@ -159,6 +159,8 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .o2:empty{display:none}
 .o3{min-height:18px;font-size:12px;color:var(--dim)}
 .o3:not(:empty){animation:blink 1.4s ease-in-out infinite}
+.o5{max-width:82%;font-size:11px;line-height:1.45;color:var(--dim);opacity:.75}
+.o5:empty{display:none}
 
 /* 불꽃 / 적 체력 바 */
 .bars{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 14px 0}
@@ -239,6 +241,9 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 #chatbtn.ping{color:var(--hot);border-color:#7a5428}
 #chatbtn.ping::after{content:"";position:absolute;top:1px;right:1px;width:11px;height:11px;border-radius:50%;
   background:var(--blood);border:2px solid #15110d;box-shadow:0 0 8px rgba(196,64,47,.8)}
+/* 클라우드 저장 권유 표시 — 새 자리를 만들지 않고 채팅 버튼 왼쪽 위 모서리에 작은 점만 얹는다(안 읽은 채팅 점은 오른쪽 위) */
+#chatbtn.cloud::before{content:"";position:absolute;top:1px;left:1px;width:9px;height:9px;border-radius:50%;
+  background:var(--ember);border:2px solid #15110d;box-shadow:0 0 6px rgba(233,162,79,.7)}
 #socialbtn{position:absolute;right:10px;bottom:58px;width:40px;height:40px;padding:0;display:grid;place-items:center;border-radius:50%;
   border:1px solid #3a2f22;background:rgba(10,9,8,.55);color:var(--dim);transition:transform .08s,color .2s}
 #socialbtn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -449,7 +454,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <button id="socialbtn" aria-label="소셜"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.3"/><path d="M3.5 19c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/><path d="M14.7 14.3c2.3.4 3.8 2.2 3.8 4.7"/></svg></button>
     <div id="away"></div>
     <button id="burn"><span class="in"><span id="btxt">태우기</span><small>−15%</small></span></button>
-    <div id="over"><div class="o1">불꽃이 꺼졌다</div><div class="o2" id="o2"></div><div class="o2" id="o4"></div><div class="o3" id="o3"></div></div>
+    <div id="over"><div class="o1">불꽃이 꺼졌다</div><div class="o2" id="o2"></div><div class="o2" id="o4"></div><div class="o3" id="o3"></div><div class="o5" id="o5"></div></div>
   </div>
 
   <div class="bars">
@@ -995,7 +1000,7 @@ const DEATH = ['불꽃이 꺼졌다.', '어둠이 삼켰다. 그러나 재는 �
 /* ---------- 런타임 ---------- */
 let E = null, spawnT = 0.4, heroT = 0, foeT = 0;
 let dead = false, deadT = 0, deadAge = 0;
-let secT = 0, gainAcc = 0, idleT = 12;
+let secT = 0, gainAcc = 0, idleT = 12, nudgeT = 150;
 let tab = 0, mode = 1, succSub = 'pil';
 let shake = 0, pulse = 0, heroFlash = 0, flare = 0, lastHitSfx = 0;
 let burnT = 0, autoT = 0;
@@ -1331,6 +1336,7 @@ function kill(){
       S.best = S.floor;
       if (S.floor > 2) say('가장 깊은 곳 — ' + S.floor + '층', 'gold');
       if (FLOOR_LINES[S.floor]) say(FLOOR_LINES[S.floor]);
+      if ([20, 50, 100, 150, 200, 300].indexOf(S.floor) >= 0) cloudNudge('기록을 잃으면 아깝다. ');
     }
     if (from % 7 === 0) offerRelic();
     S.encs = S.encs.filter(e => S.floor - e.f < ENC_LIFE);
@@ -1347,6 +1353,7 @@ function die(){
   $('o2').textContent = S.floor + '층까지 내려갔다 — 재 +' + fmt(g);
   $('o4').textContent = addRemain(S.floor);
   $('o3').textContent = '';
+  $('o5').textContent = (S.runs >= 3 && S.runs % 4 === 3) ? (cloudNudgeText() || '') : '';   // 죽을 때 4번에 한 번, 흐린 한 줄
   $('over').classList.add('show');
   for (let i = 0; i < 40; i++) {
     P.push({ k: 'ash', x: G.hx + rint(-8, 8), y: G.hy + rint(0, 30), vx: rint(-25, 25), vy: rint(-90, -20), life: rint(1, 2.4), max: 2.4, r: rint(1, 2.6) });
@@ -1499,6 +1506,8 @@ function update(dt){
   if (secT >= 1) { secT -= 1; S.sps = S.sps * 0.9 + gainAcc * 0.1; gainAcc = 0; }
   idleT -= dt;
   if (idleT <= 0) { idleT = rint(22, 38); say(pick(IDLE)); }
+  nudgeT -= dt;
+  if (nudgeT <= 0) { nudgeT = 20 * 60; cloudNudge(''); }   // 클라우드 저장 권유 — 로그 한 줄, 20분마다
 }
 
 /* ---------- 구매 ---------- */
@@ -2164,6 +2173,33 @@ function markAccMenuSeen(){
   try { localStorage.setItem(ACC_SEEN_LS_KEY, '1'); } catch (e) {}
   const b = $('cacc'); if (b) b.classList.remove('ping');
 }
+/* ---------- 클라우드 저장 권유 ----------
+   화면에 새 자리를 만들지 않고, 이미 있는 곳에만 슬쩍 끼운다:
+   (1) 게임 로그 한 줄(20분마다 + 20·50·100층… 새 기록을 세운 순간), (2) 사망 화면 아래 흐린 한 줄(4번에 한 번),
+   (3) 채팅 버튼 모서리의 작은 점(조건이 풀릴 때까지 계속).
+   로그인 안 한 사람 → 로그인 안내, 로그인했지만 이 기기에서 저장한 적 없거나 7일 넘음 → 저장 안내.
+   클라우드 저장은 수동이라 "로그인만 하면 끝"이 아니라는 점까지 같이 알려 준다. */
+const CLOUD_SAVE_LS_KEY = 'emberCloudSavedAt';
+const CLOUD_STALE_MS = 7 * 24 * 3600 * 1000;
+function cloudSavedAt(){ try { return Number(localStorage.getItem(CLOUD_SAVE_LS_KEY)) || 0; } catch (e) { return 0; } }
+function markCloudSaved(){ try { localStorage.setItem(CLOUD_SAVE_LS_KEY, String(Date.now())); } catch (e) {} }
+function cloudNudgeText(){
+  if (!kakaoUser) return '로그인하면 클라우드 저장으로 기기를 바꿔도 기록을 지킬 수 있다.';
+  if (!kakaoUser.nick) return null;   // 닉네임 설정 중엔 건드리지 않는다
+  const at = cloudSavedAt();
+  if (!at) return '이 기기에선 클라우드 저장을 한 적이 없다 — 이름을 눌러 저장해두자.';
+  if (Date.now() - at > CLOUD_STALE_MS) return '클라우드 저장한 지 오래됐다 — 이름을 눌러 다시 저장해두자.';
+  return null;
+}
+let lastNudgeAt = 0;
+function cloudNudge(prefix){
+  const t = cloudNudgeText(); if (!t) return;
+  if (Date.now() - lastNudgeAt < 5 * 60 * 1000) return;   // 어떤 경로든 5분 안에 두 번은 안 띄운다
+  lastNudgeAt = Date.now();
+  say(prefix + t, 'gold');
+}
+function updateCloudHint(){ const b = $('chatbtn'); if (b) b.classList.toggle('cloud', !!cloudNudgeText()); }
+setInterval(updateCloudHint, 30000);
 async function afterKakaoLogin(res){
   const acc = res.kakao_account || {};
   const kakaoRawNick = String((acc.profile && acc.profile.nickname) || (res.properties && res.properties.nickname) || ('순례자' + res.id)).slice(0, 16);
@@ -2206,6 +2242,7 @@ function chatRenderAccount(){
   ci.disabled = !ready;
   ci.placeholder = ready ? '한마디 남긴다…' : (kakaoUser ? '닉네임을 먼저 설정해줘' : '카카오로 로그인하면 대화에 참여할 수 있다');
   if (!ready) { ci.value = ''; $('cs').disabled = true; }
+  updateCloudHint();
 }
 function toggleAccMenu(e){
   if (e) e.stopPropagation();
@@ -2249,6 +2286,7 @@ async function cloudSaveManual(){
   if (!kakaoUser || !kakaoUser.nick) { CHAT.notice('로그인하고 닉네임을 설정해야 클라우드 저장을 쓸 수 있다.'); return; }
   CHAT.notice('클라우드에 저장하는 중…');
   const r = await callProfileSync('save_cloud', { save: S });
+  if (r && r.ok) { markCloudSaved(); updateCloudHint(); }
   CHAT.notice(r && r.ok ? '클라우드에 저장했다.' : '저장하지 못했다. 잠시 후 다시 시도해줘.');
 }
 async function cloudLoadManual(){
@@ -2271,6 +2309,7 @@ async function cloudLoadManual(){
     const d = def();
     S = Object.assign(d, r.save, { lv: Object.assign(d.lv, r.save.lv), meta: Object.assign(d.meta, r.save.meta) });
     localStorage.setItem(KEY, JSON.stringify(S));
+    markCloudSaved();
   } catch (e) { CHAT.notice('불러오지 못했다.'); return; }
   location.reload();
 }
@@ -2878,6 +2917,7 @@ function connectChat(){
   connectPresence();
   connectChatDb();
   fetchMyGuild();
+  updateCloudHint();
 }
 /* ---------- 접속자 수 (Supabase Realtime Presence) ----------
    로그인 여부와 상관없이 지금 이 페이지를 열어둔 사람 수를 센다.

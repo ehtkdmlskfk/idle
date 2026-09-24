@@ -767,16 +767,17 @@ const killHeal = () => 0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0)
 const need  = f => (f % 10 === 0 ? 1 : 4);
 /* 초반(1~) 며칠은 '쭉쭉 올라가는' 손맛을 위해 더 낮은 증가율로, 30층부터는 원래 강도로, 60층부터는 이미 완화된 강도로 3단 전환 */
 const HP_EARLY_FLOOR = 30, HP_EARLY_RATE = 1.15;
-const HP_SOFT_FLOOR = 60, HP_SOFT_RATE = 1.17;
+const HP_MID_RATE = 1.18;   // 30~60층 구간 (예전 1.21 — 후반보다 오히려 가팔라서 낮춤)
+const HP_SOFT_FLOOR = 60, HP_SOFT_RATE = 1.15;   // 60층~ (예전 1.17)
 const monHpBase = f => {
   if (f <= HP_EARLY_FLOOR) return Math.pow(HP_EARLY_RATE, f - 1);
   const atEarlyEnd = Math.pow(HP_EARLY_RATE, HP_EARLY_FLOOR - 1);
-  if (f <= HP_SOFT_FLOOR) return atEarlyEnd * Math.pow(1.21, f - HP_EARLY_FLOOR);
-  const atSoftStart = atEarlyEnd * Math.pow(1.21, HP_SOFT_FLOOR - HP_EARLY_FLOOR);
+  if (f <= HP_SOFT_FLOOR) return atEarlyEnd * Math.pow(HP_MID_RATE, f - HP_EARLY_FLOOR);
+  const atSoftStart = atEarlyEnd * Math.pow(HP_MID_RATE, HP_SOFT_FLOOR - HP_EARLY_FLOOR);
   return atSoftStart * Math.pow(HP_SOFT_RATE, f - HP_SOFT_FLOOR);
 };
 /* 같은 구간부터 재(영구 재화) 수급에 완만한 가속 보너스를 얹어 메타 강화 속도를 보완 */
-const ashGain = f => Math.max(1, Math.floor(Math.pow(f, 1.5) / 3 * (1 + 0.015 * Math.max(0, f - HP_SOFT_FLOOR)) * (1 + pv('ash')) * (1 + guildBuff())));
+const ashGain = f => Math.max(1, Math.floor(Math.pow(f, 1.7) / 3 * (1 + 0.015 * Math.max(0, f - HP_SOFT_FLOOR)) * (1 + pv('ash')) * (1 + guildBuff())));
 /* ---------- 길드 레벨/기부 ----------
    기부는 재(영구 재화, S.ash)로만 받는다 — 영혼은 불꽃이 꺼지면 초기화되는 런 내 재화라
    "길드에 영구히 쌓인다"는 개념과 안 맞고, 죽기 전에만 기부해야 하는 이상한 제약이 생긴다.
@@ -2475,6 +2476,7 @@ function pinfoClose(){ $('pinfo').classList.remove('show'); }
 const GUILD_TABLE = 'guilds';
 const GUILD_MEMBERS_TABLE = 'guild_members';
 const GUILD_LIST_N = 30;
+const GUILD_MAX_MEMBERS = 20;   // 길드 최대 인원 — 서버(guild_join)도 같은 값으로 막아야 한다(클라 검사는 UX용, 우회 가능)
 let myGuild = null;        // { id, name, notice, leader_kakao_id, member_count, donated }
 let myGuildRole = null;    // 'leader' | 'member'
 let guildDonateBusy = false;   // 연타 방지 — 서버 응답 오기 전엔 로컬 카운트/재화가 아직 안 깎여 있어 중복 클릭이 그대로 다 통과해버린다
@@ -2550,15 +2552,16 @@ async function fetchGuildBrowse(q){
       const el = document.createElement('div'); el.className = 'gRow';
       const wrap = document.createElement('div'); wrap.className = 'gNmWrap';
       const nm = document.createElement('div'); nm.className = 'gNm'; nm.textContent = g.name;
-      const sub = document.createElement('div'); sub.className = 'gSub'; sub.textContent = 'Lv.' + guildLevelFor(g.donated) + ' · ' + (g.member_count || 1) + '명' + (g.notice ? ' · ' + g.notice : '');
+      const sub = document.createElement('div'); sub.className = 'gSub'; sub.textContent = 'Lv.' + guildLevelFor(g.donated) + ' · ' + (g.member_count || 1) + '/' + GUILD_MAX_MEMBERS + '명' + (g.notice ? ' · ' + g.notice : '');
       wrap.appendChild(nm); wrap.appendChild(sub);
       el.appendChild(wrap);
       if (myGuild && myGuild.id === g.id) {
         const mine = document.createElement('span'); mine.className = 'gMineTag'; mine.textContent = '내 길드';
         el.appendChild(mine);
       } else if (!myGuild) {
-        const btn = document.createElement('button'); btn.className = 'gJoinBtn'; btn.textContent = '가입';
-        btn.onclick = () => joinGuild(g.id, g.name, btn);
+        const btn = document.createElement('button'); btn.className = 'gJoinBtn';
+        if ((g.member_count || 1) >= GUILD_MAX_MEMBERS) { btn.textContent = '정원 마감'; btn.disabled = true; }
+        else { btn.textContent = '가입'; btn.onclick = () => joinGuild(g.id, g.name, btn); }
         el.appendChild(btn);
       }
       list.appendChild(el);
@@ -2579,7 +2582,7 @@ async function renderGuildDetail(){
     head.appendChild(nb);
   }
   const stats = document.createElement('div'); stats.className = 'gStats';
-  stats.innerHTML = '<span><b>' + (myGuild.member_count || 1) + '</b>명</span><span><b>' + (myGuildRole === 'leader' ? '길드장' : '길드원') + '</b></span>';
+  stats.innerHTML = '<span><b>' + (myGuild.member_count || 1) + '/' + GUILD_MAX_MEMBERS + '</b>명</span><span><b>' + (myGuildRole === 'leader' ? '길드장' : '길드원') + '</b></span>';
   head.appendChild(stats);
   const lvWrap = document.createElement('div'); lvWrap.style.cssText = 'margin:8px 0 4px';
   const p = guildLevelProgress(myGuild.donated);
@@ -2705,7 +2708,10 @@ async function joinGuild(id, name, btn){
   if (btn) btn.disabled = true;
   const r = await callProfileSync('guild_join', { guild_id: id });
   if (!r || r.error) {
-    CHAT.notice(r && r.error === 'already_in_guild' ? '이미 다른 길드에 속해 있다.' : '가입하지 못했다.');
+    CHAT.notice(r && r.error === 'already_in_guild' ? '이미 다른 길드에 속해 있다.'
+      : r && r.error === 'guild_full' ? '길드 정원(' + GUILD_MAX_MEMBERS + '명)이 가득 찼다.'
+      : '가입하지 못했다.');
+    if (r && r.error === 'guild_full') { renderGuildBrowse(); return; }   // 그 사이 정원이 찼으면 목록을 새로고침해 '정원 마감'으로 바꾼다
     if (btn) btn.disabled = false;
     return;
   }

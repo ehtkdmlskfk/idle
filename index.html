@@ -742,6 +742,10 @@ const ACHV = [
   { n: '지하 30층',    d: '최심 30층에 도달한다',        done: () => S.best >= 30 },
   { n: '지하 50층',    d: '최심 50층에 도달한다',        done: () => S.best >= 50 },
   { n: '끝없는 계단',   d: '최심 100층에 도달한다',       done: () => S.best >= 100 },
+  { n: '잊힌 성소',     d: '최심 150층에 도달한다',       done: () => S.best >= 150 },
+  { n: '거꾸로 선 성당', d: '최심 200층에 도달한다',       done: () => S.best >= 200 },
+  { n: '별 없는 하늘',   d: '최심 250층에 도달한다',       done: () => S.best >= 250 },
+  { n: '세어지지 않는 계단', d: '최심 300층에 도달한다',   done: () => S.best >= 300 },
   { n: '첫 유물',      d: '유물을 처음 줍는다',           done: () => S.metRelics.length >= 1 },
   { n: '유물 수집가',   d: '서로 다른 유물 10종을 만난다', done: () => S.metRelics.length >= 10 },
   { n: '유물 도감 완성', d: '모든 유물을 만난다',          done: () => S.metRelics.length >= Object.keys(RELICS).length },
@@ -995,6 +999,88 @@ const FLOOR_LINES = {
   40: '이제 어둠이 너를 부른다.',
   50: '아무도 이곳까지 오지 못했다. 아마도.'
 };
+/* ---------- 구역(50층마다 바뀌는 풍경) ----------
+   50층부터 50층 단위로 색조·몬스터 이름·보스 이름·안개(먼지) 방향이 바뀐다. 전부 데이터라 구역만 추가하면 된다.
+   마지막 구역(300층~) 이후로는 50층마다 같은 구역의 색상만 돌려서(hue 회전) 끝없이 새 풍경이 나온다.
+   pal: 기둥·바닥·지평선·적 몸통 / tint: 밝은 영역에 깔리는 색(ta=세기) / eye·boss: 적 눈·보스 눈 / dust: 떠다니는 먼지(vy<0이면 위로)
+   pc·pw·ph: 배경 기둥 개수·너비·높이 배율 */
+const DEFPAL = { pillar: '#1b1612', ground: '#13100d', line: '#2f271e', body: '#3a3026', stroke: '#5a4a39' };
+const ZONES = [
+  { id: 50,  n: '뼈의 회랑',       enter: '벽이 전부 뼈로 되어 있다. 아래로 갈수록 오래된 뼈다.',
+    pal: { pillar: '#241d16', ground: '#17130e', line: '#4a3d2c', body: '#453b2e', stroke: '#75634a' },
+    tint: '150,125,85', ta: .08, eye: '255,160,90', boss: '245,232,200', dust: { c: '190,175,150', vy: 18 }, pc: 11, pw: .55, ph: 1,
+    names: ['뼈 줍는 것', '줄지어 선 해골', '턱뼈를 가진 것', '속이 빈 기사', '갈비뼈로 된 새', '이름 없는 유골'],
+    bosses: ['뼈의 문지기', '늑골의 왕', '수의를 두른 자', '종지기의 그림자', '마지막 유골'] },
+  { id: 100, n: '재의 심연',       enter: '심연이 숨을 쉰다. 불꽃이 그 박자에 맞춰 흔들린다.',
+    pal: { pillar: '#1a1724', ground: '#110f18', line: '#352f4a', body: '#2f2b3f', stroke: '#544c78' },
+    tint: '110,90,170', ta: .09, eye: '170,120,255', boss: '225,210,255', dust: { c: '150,140,190', vy: -16 }, pc: 4, pw: 1.7, ph: 1,
+    names: ['재의 그림자', '거꾸로 걷는 것', '숨을 참는 것', '불을 모르는 것', '등을 돌린 사제', '재가 된 순례자'],
+    bosses: ['재의 문지기', '심연의 산파', '침묵하는 종', '거울 속의 나', '재의 여왕의 그림자'] },
+  { id: 150, n: '잊힌 성소',       enter: '성소는 오래전에 버려졌다. 제단 위엔 아직 젖은 촛농이 있다.',
+    pal: { pillar: '#13201c', ground: '#0d1613', line: '#2b453c', body: '#243830', stroke: '#456b5d' },
+    tint: '70,150,130', ta: .08, eye: '110,255,200', boss: '210,255,240', dust: { c: '120,190,170', vy: 12 }, pc: 7, pw: 1.1, ph: 1.1,
+    names: ['이끼 낀 성인', '녹슨 종', '기도하다 굳은 것', '물에 잠긴 사제', '촛대를 든 뿌리', '신을 잃은 수호자'],
+    bosses: ['성소의 수문장', '잊힌 이름', '마지막 기도', '물속의 신부', '뿌리의 주인'] },
+  { id: 200, n: '거꾸로 선 성당',   enter: '성당이 뒤집혀 있다. 천장이 발밑에 깔려 있다.',
+    pal: { pillar: '#251416', ground: '#180d0f', line: '#4a2a2f', body: '#3d2529', stroke: '#70404a' },
+    tint: '190,70,70', ta: .09, eye: '255,205,90', boss: '255,240,200', dust: { c: '210,120,105', vy: -24 }, pc: 6, pw: .9, ph: 1.25,
+    names: ['천장에 매달린 것', '뒤집힌 성가대', '핏빛 유리창', '목 없는 사제', '불타는 성체', '거꾸로 기도하는 자'],
+    bosses: ['대사제의 잔상', '붉은 종탑', '천장의 주교', '성가대장', '거꾸로 선 신'] },
+  { id: 250, n: '별 없는 하늘',     enter: '지하인데 위로 하늘이 열려 있다. 별은 하나도 없다.',
+    pal: { pillar: '#111624', ground: '#0a0e18', line: '#2c3656', body: '#212a3f', stroke: '#40507f' },
+    tint: '80,120,220', ta: .08, eye: '200,225,255', boss: '255,255,255', dust: { c: '190,210,255', vy: 10 }, pc: 3, pw: .6, ph: 1.3,
+    names: ['별을 삼킨 것', '떨어진 빛', '밤의 파수꾼', '이름 없는 별자리', '고개 숙인 거인', '검게 식은 별'],
+    bosses: ['첫 번째 밤', '별을 지운 자', '하늘의 눈꺼풀', '북쪽 없는 나침반', '마지막 별빛'] },
+  { id: 300, n: '세어지지 않는 계단', enter: '계단은 끝나지 않는다. 네 불꽃만 여기까지 왔다.',
+    pal: { pillar: '#1f1a11', ground: '#15110a', line: '#4d3f24', body: '#3e3322', stroke: '#8a7242' },
+    tint: '230,190,110', ta: .09, eye: '255,255,255', boss: '255,230,150', dust: { c: '240,210,150', vy: -10 }, pc: 9, pw: 1, ph: 1,
+    names: ['계단을 세는 것', '같은 얼굴들', '발자국 없는 것', '되돌아온 순례자', '불꽃의 그림자', '기억하지 못하는 것'],
+    bosses: ['첫 계단', '아직 오르는 자', '세어지지 않는 것', '계단의 끝', '불꽃'] }
+];
+const ZV = {};   // 300층 이후 색상 변주 캐시
+function hexRgb(h){ const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rotRgb(rgb, deg){
+  const r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  let h = 0, sat = 0;
+  if (d > 0) {
+    sat = d / (1 - Math.abs(2 * l - 1));
+    h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  h = (h + deg) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const v = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return v.map(t => Math.round((t + m) * 255));
+}
+function zoneVariant(base, k){
+  if (ZV[k]) return ZV[k];
+  const deg = (k * 53) % 360;
+  const rc = str => rotRgb(str.split(',').map(Number), deg).join(',');
+  const rh = hx => '#' + rotRgb(hexRgb(hx), deg).map(v => v.toString(16).padStart(2, '0')).join('');
+  const p = base.pal;
+  return (ZV[k] = Object.assign({}, base, {
+    id: base.id + 50 * k, enter: '계단은 끝나지 않는다. 빛깔만 바뀔 뿐이다.',
+    tint: rc(base.tint), eye: rc(base.eye), boss: rc(base.boss), dust: { c: rc(base.dust.c), vy: base.dust.vy },
+    pal: { pillar: rh(p.pillar), ground: rh(p.ground), line: rh(p.line), body: rh(p.body), stroke: rh(p.stroke) }
+  }));
+}
+function zoneOf(f){
+  if (f < ZONES[0].id) return null;
+  let i = ZONES.length - 1;
+  while (i > 0 && ZONES[i].id > f) i--;
+  const z = ZONES[i];
+  if (i < ZONES.length - 1 || f < z.id + 50) return z;
+  return zoneVariant(z, Math.floor((f - z.id) / 50));
+}
+const zoneMonName = (z, f) => z.names[Math.floor((f - z.id) / 9) % z.names.length];
+const zoneBossName = (z, f) => z.bosses[Math.floor((f - z.id) / 10) % z.bosses.length];
+let zoneBanner = null, curZoneId = 0;
+function zoneCheck(){
+  const z = zoneOf(S.floor), id = z ? z.id : 0;
+  if (id === curZoneId) return;
+  curZoneId = id;
+  if (z) zoneBanner = { n: z.n, sub: '지하 ' + z.id + '층 ~', c: z.eye, t: 0 };
+}
 const DEATH = ['불꽃이 꺼졌다.', '어둠이 삼켰다. 그러나 재는 남는다.', '재가 되어 흩어진다.', '끝이 아니다. 다시 타오른다.'];
 
 /* ---------- 런타임 ---------- */
@@ -1247,6 +1333,7 @@ function newRun(){
   S.lv = { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0 };
   S.souls = ALT.leg.val(S.meta.leg);
   S.floor = ALT.desc.val(S.meta.desc);
+  zoneCheck();
   S.kills = 0;
   S.relics = []; S.offers = []; S.rr = 0;
   S.encs = []; S.buf = null; encT = 0;
@@ -1259,13 +1346,14 @@ function newRun(){
 function spawn(){
   const f = S.floor, boss = f % 10 === 0, tier = Math.floor((f - 1) / 6);
   const evt = boss ? null : S.evt;
+  const zn = zoneOf(f), baseName = zn ? zoneMonName(zn, f) : NAMES[Math.min(NAMES.length - 1, tier)];
   const hp = 9 * monHpBase(f) * (boss ? bossHpM(f) : 1) * (evt === 'treasure' ? 0.75 : evt === 'curse' ? 1.6 : 1);
   E = {
     hp, max: hp, boss, tier,
     dmg: foeDmgBase(f) * (boss ? bossDmgM(f) : 1) * (evt === 'curse' ? 1.4 : evt === 'rest' ? 0.7 : 1),
     soul: soulBase(f) * (boss ? bossSoulM(f) : 1) * (evt === 'treasure' ? 3 : evt === 'curse' ? 2.2 : 1),
-    name: boss ? BOSSES[(f / 10 - 1) % BOSSES.length] :
-          (evt === 'treasure' ? '보물의 파수꾼' : evt === 'curse' ? '저주받은 ' + NAMES[Math.min(NAMES.length - 1, tier)] : NAMES[Math.min(NAMES.length - 1, tier)]),
+    name: boss ? (zn ? zoneBossName(zn, f) : BOSSES[(f / 10 - 1) % BOSSES.length]) :
+          (evt === 'treasure' ? '보물의 파수꾼' : evt === 'curse' ? '저주받은 ' + baseName : baseName),
     flash: 0, lunge: 0, seed: Math.random() * 10
   };
   heroT = 0; foeT = 0;
@@ -1325,7 +1413,7 @@ function kill(){
   S.kills++;
   if (S.kills >= need(S.floor)) {
     const from = S.floor;
-    S.kills = 0; S.floor++;
+    S.kills = 0; S.floor++; zoneCheck();
     if (pv('rest') > 0) S.hp = Math.min(maxHP(), S.hp + maxHP() * pv('rest'));
     rollEvent();
     const wellL = relLvl('well');
@@ -1336,6 +1424,8 @@ function kill(){
       S.best = S.floor;
       if (S.floor > 2) say('가장 깊은 곳 — ' + S.floor + '층', 'gold');
       if (FLOOR_LINES[S.floor]) say(FLOOR_LINES[S.floor]);
+      const zz = zoneOf(S.floor);
+      if (zz && S.floor === zz.id) { say(zz.enter, 'gold'); flare = 1; try { navigator.vibrate && navigator.vibrate([18, 40, 18]); } catch (e) {} }   // 새 구역에 처음 닿은 순간
       if ([20, 50, 100, 150, 200, 300].indexOf(S.floor) >= 0) cloudNudge('기록을 잃으면 아깝다. ');
     }
     if (from % 7 === 0) offerRelic();
@@ -1904,6 +1994,7 @@ function draw(dt, t){
   const hy = gy - candleH - fs * 1.1;
   const boss = !!(E && E.boss);
   const bh = H * 0.36 * (boss ? 1.5 : 1);
+  const Z = zoneOf(S.floor), pal = Z ? Z.pal : DEFPAL;
   G.hx = hx; G.hy = hy; G.gy = gy; G.ex = ex; G.bh = bh;
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1915,13 +2006,14 @@ function draw(dt, t){
   /* 배경: 층마다 달라지는 기둥 */
   let sd = S.floor * 9301 + 49297;
   const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
-  ctx.fillStyle = '#1b1612';
-  for (let i = 0; i < 7; i++) {
-    const px = rnd() * W, pw = 12 + rnd() * 30, ph = H * (0.35 + rnd() * 0.55);
+  ctx.fillStyle = pal.pillar;
+  const pcnt = Z ? Z.pc : 7;
+  for (let i = 0; i < pcnt; i++) {
+    const px = rnd() * W, pw = (12 + rnd() * 30) * (Z ? Z.pw : 1), ph = Math.min(gy, H * (0.35 + rnd() * 0.55) * (Z ? Z.ph : 1));
     ctx.fillRect(px, gy - ph, pw, ph);
   }
-  ctx.fillStyle = '#13100d'; ctx.fillRect(0, gy, W, H - gy);
-  ctx.fillStyle = '#2f271e'; ctx.fillRect(0, gy, W, 1);
+  ctx.fillStyle = pal.ground; ctx.fillRect(0, gy, W, H - gy);
+  ctx.fillStyle = pal.line; ctx.fillRect(0, gy, W, 1);
 
   /* 적 몸통 */
   if (E) {
@@ -1935,9 +2027,9 @@ function draw(dt, t){
       ctx.lineTo(x + bw - (2 * bw * i / 6), gy - (i % 2 ? bw * 0.35 : 0) + Math.sin(t * 3 + i) * 2);
     }
     ctx.closePath();
-    ctx.fillStyle = E.flash > 0.05 ? '#9b8971' : '#3a3026';
+    ctx.fillStyle = E.flash > 0.05 ? '#9b8971' : pal.body;
     ctx.fill();
-    ctx.strokeStyle = '#5a4a39'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = pal.stroke; ctx.lineWidth = 1; ctx.stroke();
     E.flash = Math.max(0, E.flash - dt * 6);
     E.lunge = Math.max(0, E.lunge - dt * 5);
   }
@@ -1954,6 +2046,9 @@ function draw(dt, t){
     ctx.fillStyle = '#b9ad98';
     ctx.beginPath(); ctx.ellipse(hx + 6, gy - candleH + 7 + hpF * 5, 2, 5 + hpF * 4, 0, 0, Math.PI * 2); ctx.fill();
   }
+
+  /* 구역 색조 — 불빛이 닿는 곳에만 은은하게 깔린다 */
+  if (Z) { ctx.fillStyle = 'rgba(' + Z.tint + ',' + Z.ta + ')'; ctx.fillRect(0, 0, W, H); }
 
   /* 어둠 — 빛의 반경은 불꽃의 양 */
   const fl = 1 + 0.07 * Math.sin(t * 17) + 0.05 * Math.sin(t * 29 + 1);
@@ -1997,7 +2092,7 @@ function draw(dt, t){
     const spread = H * 0.17 * (E.boss ? 1.5 : 1) * 0.65;
     const eyeY = gy - bh * 0.62 + bob;
     const blink = Math.sin(t * 1.7 + E.seed * 7) > 0.97 ? 0.15 : 1;
-    const col = E.boss ? '239,230,211' : '255,90,70';
+    const col = Z ? (E.boss ? Z.boss : Z.eye) : (E.boss ? '239,230,211' : '255,90,70');
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < n; i++) {
       const ox = n > 1 ? (i - (n - 1) / 2) * (spread * 2 / (n - 1)) : 0;
@@ -2012,6 +2107,23 @@ function draw(dt, t){
     ctx.globalCompositeOperation = 'source-over';
   }
 
+  /* 구역 분위기 — 어둠 속에서도 보이는 것: 적의 기운, 지평선, 떠다니는 먼지 */
+  if (Z) {
+    if (E && !dead) {
+      const ac = E.boss ? Z.boss : Z.eye, ax = ex - E.lunge * 38, ay = gy - bh * 0.55, ar = H * (E.boss ? 0.62 : 0.42);
+      ctx.globalCompositeOperation = 'lighter';
+      const ag = ctx.createRadialGradient(ax, ay, 0, ax, ay, ar);
+      ag.addColorStop(0, 'rgba(' + ac + ',' + (E.boss ? 0.16 : 0.10) + ')'); ag.addColorStop(1, 'rgba(' + ac + ',0)');
+      ctx.fillStyle = ag; ctx.fillRect(ax - ar, ay - ar, ar * 2, ar * 2);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.fillStyle = 'rgba(' + Z.tint + ',0.22)'; ctx.fillRect(0, gy, W, 1);
+    if (!RM && P.length < 300 && Math.random() < dt * 3) {
+      const up = Z.dust.vy < 0;
+      P.push({ k: 'dust', c: Z.dust.c, x: Math.random() * W, y: up ? H * 0.98 : -4, vx: rint(-6, 6), vy: Z.dust.vy * (0.6 + Math.random() * 0.8), life: 3 + Math.random() * 3, r: 0.8 + Math.random() * 1.4 });
+    }
+  }
+
   /* 파티클 */
   for (let i = P.length - 1; i >= 0; i--) {
     const p = P[i];
@@ -2021,6 +2133,11 @@ function draw(dt, t){
       if (p.k === 'ash') { p.vx *= 0.98; p.vy += 25 * dt; }
       const a = Math.max(0, p.life / p.max);
       ctx.fillStyle = p.k === 'ember' ? 'rgba(255,190,100,' + a + ')' : 'rgba(150,140,125,' + a * 0.8 + ')';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    } else if (p.k === 'dust') {
+      p.life -= dt; if (p.life <= 0 || p.y < -8 || p.y > H + 8) { P.splice(i, 1); continue; }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      ctx.fillStyle = 'rgba(' + p.c + ',' + (Math.min(1, p.life / 1.2) * 0.5) + ')';
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     } else if (p.k === 'mote') {
       p.t += dt / 0.65;
@@ -2072,6 +2189,23 @@ function draw(dt, t){
   if (flare > 0) {
     ctx.fillStyle = 'rgba(255,214,140,' + flare * 0.22 + ')'; ctx.fillRect(0, 0, W, H);
     flare = Math.max(0, flare - dt * 3);
+  }
+
+  /* 구역 진입 배너 */
+  if (zoneBanner) {
+    zoneBanner.t += dt;
+    const bt = zoneBanner.t;
+    if (bt > 3.4) zoneBanner = null;
+    else {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, bt * 2.5, (3.4 - bt) * 2));
+      ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0a0908';
+      ctx.font = '400 22px "Do Hyeon","Noto Sans KR",sans-serif'; ctx.lineWidth = 4;
+      ctx.strokeText(zoneBanner.n, W / 2, H * 0.24); ctx.fillStyle = 'rgb(' + zoneBanner.c + ')'; ctx.fillText(zoneBanner.n, W / 2, H * 0.24);
+      ctx.font = '400 12px "Do Hyeon","Noto Sans KR",sans-serif'; ctx.lineWidth = 3;
+      ctx.strokeText(zoneBanner.sub, W / 2, H * 0.24 + 20); ctx.fillStyle = '#b9ad98'; ctx.fillText(zoneBanner.sub, W / 2, H * 0.24 + 20);
+      ctx.restore();
+    }
   }
 
   /* 피격 플래시 */

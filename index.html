@@ -3308,26 +3308,37 @@ function silentReload(){                    // 유저가 직접 누른 게 아�
   location.reload();
 }
 async function fetchPageSig(){
+  // 서명은 항상 'e:'(ETag/Last-Modified) 또는 'b:'(본문) 접두사를 붙여 종류를 구분한다.
+  // 실패/에러 응답이면 null → 이번 체크는 건너뜀 (형식이 섞여 오탐하는 걸 방지)
   try {
     const res = await fetch(location.href, { method: 'HEAD', cache: 'no-store' });
-    const tag = res.headers.get('etag') || res.headers.get('last-modified');
-    if (tag) return tag;
-  } catch (e) {}
+    if (!res.ok) return null;
+    let tag = res.headers.get('etag');
+    if (tag) return 'e:' + tag.replace(/^W\//, '');   // 약한 ETag 접두사(W/)는 CDN이 붙였다 뗐다 하므로 제거
+    tag = res.headers.get('last-modified');
+    if (tag) return 'e:' + tag;
+  } catch (e) { return null; }
   try {
-    // ETag/Last-Modified가 없는 서버 대비: 본문 앞부분+길이로 대략 비교(배포 감지엔 충분)
+    // HEAD는 정상인데 ETag/Last-Modified가 아예 없는 서버 대비
     const res = await fetch(location.href, { cache: 'no-store' });
+    if (!res.ok) return null;
     const text = await res.text();
-    return text.length + ':' + text.slice(0, 300);
+    return 'b:' + text.length + ':' + text.slice(0, 300);
   } catch (e) { return null; }
 }
+let pendingSig = null;
 async function checkForUpdate(){
   if (updChecking || updAvailable) return;
+  if (navigator.onLine === false) return;             // 복귀 직후 네트워크 미준비 상태는 건너뜀
   updChecking = true;
   const sig = await fetchPageSig();
   updChecking = false;
   if (!sig) return;
   if (pageSig === null) { pageSig = sig; return; }   // 최초 확인은 기준값만 저장
-  if (sig === pageSig) return;
+  if (sig[0] !== pageSig[0]) return;                  // 서명 종류가 다르면 비교하지 않음
+  if (sig === pageSig) { pendingSig = null; return; } // 원래 값으로 돌아오면(CDN 엣지 왔다갔다) 무시
+  // 다른 값이 감지됨: 같은 새 값이 두 번 연속 나올 때만 진짜 배포로 인정
+  if (pendingSig !== sig) { pendingSig = sig; setTimeout(checkForUpdate, 15000); return; }
   updAvailable = true;
   if (document.hidden) silentReload();                // 아무도 안 보고 있으면 조용히 적용
   else $('upd').classList.add('show');                // 보고 있으면 배너만

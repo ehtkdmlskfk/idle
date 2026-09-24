@@ -762,14 +762,32 @@ const maxHP = () => UP.hp.val(S.lv.hp) * (1 + 0.15 * relLvl('anchor')) * (syn('i
 const atkV  = () => UP.atk.val(S.lv.atk) * (1 + relLvl('last') * (S.hp < maxHP() * 0.2 ? 1 : 0)) * (1 - 0.1 * relLvl('frost')) * (syn('madness') ? 1.25 : 1) * bufM('atk') * (1 + pv('atk'));
 const apsV  = () => UP.spd.val(S.lv.spd) * (1 - 0.1 * relLvl('anchor')) * (1 + 0.25 * relLvl('spite') * (S.hp < maxHP() * 0.4 ? 1 : 0)) * (syn('frenzy') ? 1.2 : 1) * (1 + pv('aps'));
 const soulM = () => UP.greed.val(S.lv.greed) * (syn('crown') ? 1.3 : 1) * bufM('greed') * (1 + pv('soul')) * (1 + guildBuff());
-const drain = () => maxHP() * 0.010 * (1 + 0.04 * S.floor) * ALT.ember.val(S.meta.ember) * (1 - 0.3 * relLvl('cloak')) * (1 + 0.3 * relLvl('pact')) * (1 - 0.2 * relLvl('frost')) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm'));
+const drain = () => maxHP() * 0.010 * drainK(S.floor) * ALT.ember.val(S.meta.ember) * (1 - 0.3 * relLvl('cloak')) * (1 + 0.3 * relLvl('pact')) * (1 - 0.2 * relLvl('frost')) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm'));
 const killHeal = () => 0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0) + pv('heal');
 const need  = f => (f % 10 === 0 ? 1 : 4);
 /* 초반(1~) 며칠은 '쭉쭉 올라가는' 손맛을 위해 더 낮은 증가율로, 30층부터는 원래 강도로, 60층부터는 이미 완화된 강도로 3단 전환 */
 const HP_EARLY_FLOOR = 30, HP_EARLY_RATE = 1.15;
 const HP_MID_RATE = 1.18;   // 30~60층 구간 (예전 1.21 — 후반보다 오히려 가팔라서 낮춤)
 const HP_SOFT_FLOOR = 60, HP_SOFT_RATE = 1.15;   // 60층~ (예전 1.17)
-const monHpBase = f => {
+/* ---- 100층 이후: 기하급수 대신 '촘촘한' 완만한 증가 ----
+   100층까지는 위의 3단 곡선 그대로. 그 뒤로는 몬스터 체력·피해·영혼 보상이 층당 POST_RATE(×1.045)씩만 오른다.
+   완전히 선형으로 풀면 깊은 층일수록 재 보상이 커지는 되먹임 때문에 며칠 만에 수백~수천 층으로 폭주해서,
+   아주 작은 지수 증가로 남겨 두었다. 보스 배율도 이 구간에선 거의 없앤다 — 층당 4.5%면 체력 ×1.5도 9층 넘는 벽이라
+   보스층마다 사망이 몰려 며칠씩 막힌다(시뮬: 보스층이 전체의 10%인데 사망의 35~57%). 불꽃 소모 계수(층당 +0.04)도 100층 이후엔 +0.01로 완화.
+   100층 전 보스도 예전 5/1.6에서 3/1.3으로 낮춤 — 사망의 48%가 보스층에 몰리던 것이 17% 안팎으로 내려오고 진행 속도는 그대로다. */
+const POST_FLOOR = 100, POST_RATE = 1.045;
+const POST_BOSS = { hp: 1.1, dmg: 1.05, soul: 2 };   // 100층 이후 보스 배율
+const PRE_BOSS  = { hp: 3,   dmg: 1.3,  soul: 4 };   // 100층까지 보스 배율 (예전 5 / 1.6 / 4)
+const POST_DRAIN_STEP = 0.01;
+const postK = f => Math.pow(POST_RATE, f - POST_FLOOR);
+const foeDmgBase = f => f <= POST_FLOOR ? 2 * Math.pow(1.14, f - 1) : 2 * Math.pow(1.14, POST_FLOOR - 1) * postK(f);
+const soulBase   = f => f <= POST_FLOOR ? 2 * Math.pow(1.19, f - 1) : 2 * Math.pow(1.19, POST_FLOOR - 1) * postK(f);
+const bossHpM   = f => f <= POST_FLOOR ? PRE_BOSS.hp   : POST_BOSS.hp;
+const bossDmgM  = f => f <= POST_FLOOR ? PRE_BOSS.dmg  : POST_BOSS.dmg;
+const bossSoulM = f => f <= POST_FLOOR ? PRE_BOSS.soul : POST_BOSS.soul;
+const drainK = f => f <= POST_FLOOR ? 1 + 0.04 * f : 1 + 0.04 * POST_FLOOR + POST_DRAIN_STEP * (f - POST_FLOOR);
+const monHpBase = f => f <= POST_FLOOR ? monHpPre(f) : monHpPre(POST_FLOOR) * postK(f);
+const monHpPre = f => {
   if (f <= HP_EARLY_FLOOR) return Math.pow(HP_EARLY_RATE, f - 1);
   const atEarlyEnd = Math.pow(HP_EARLY_RATE, HP_EARLY_FLOOR - 1);
   if (f <= HP_SOFT_FLOOR) return atEarlyEnd * Math.pow(HP_MID_RATE, f - HP_EARLY_FLOOR);
@@ -1027,7 +1045,7 @@ function rollEvent(){
    - 대기열에 쌓아 두고(최대 ENC_CAP개), 안 고르면 ENC_LIFE층 뒤에 저절로 지나간다. 지나가도 잃는 것은 없다.
    - 직접 고르면 보상. 각 사건은 [안전 / 모험] 두 선택지. 제단의 '자동 선택'을 열면 성향대로 ENC_AUTO초 뒤 알아서 고른다. */
 const BUFN = { atk: '공격력', greed: '영혼 획득', calm: '불꽃 소모' };
-const soulU = f => 2 * Math.pow(1.19, f - 1) * soulM();     // 그 층에서 한 마리 처치했을 때의 영혼
+const soulU = f => soulBase(f) * soulM();     // 그 층에서 한 마리 처치했을 때의 영혼
 const su = (n, f) => fmt(n * soulU(f));
 const eSouls = (n, f) => { const g = n * soulU(f); S.souls += g; return g; };
 const eLose = (n, f) => { const g = Math.min(S.souls, n * soulU(f)); S.souls -= g; return g; };
@@ -1236,11 +1254,11 @@ function newRun(){
 function spawn(){
   const f = S.floor, boss = f % 10 === 0, tier = Math.floor((f - 1) / 6);
   const evt = boss ? null : S.evt;
-  const hp = 9 * monHpBase(f) * (boss ? 5 : 1) * (evt === 'treasure' ? 0.75 : evt === 'curse' ? 1.6 : 1);
+  const hp = 9 * monHpBase(f) * (boss ? bossHpM(f) : 1) * (evt === 'treasure' ? 0.75 : evt === 'curse' ? 1.6 : 1);
   E = {
     hp, max: hp, boss, tier,
-    dmg: 2 * Math.pow(1.14, f - 1) * (boss ? 1.6 : 1) * (evt === 'curse' ? 1.4 : evt === 'rest' ? 0.7 : 1),
-    soul: 2 * Math.pow(1.19, f - 1) * (boss ? 4 : 1) * (evt === 'treasure' ? 3 : evt === 'curse' ? 2.2 : 1),
+    dmg: foeDmgBase(f) * (boss ? bossDmgM(f) : 1) * (evt === 'curse' ? 1.4 : evt === 'rest' ? 0.7 : 1),
+    soul: soulBase(f) * (boss ? bossSoulM(f) : 1) * (evt === 'treasure' ? 3 : evt === 'curse' ? 2.2 : 1),
     name: boss ? BOSSES[(f / 10 - 1) % BOSSES.length] :
           (evt === 'treasure' ? '보물의 파수꾼' : evt === 'curse' ? '저주받은 ' + NAMES[Math.min(NAMES.length - 1, tier)] : NAMES[Math.min(NAMES.length - 1, tier)]),
     flash: 0, lunge: 0, seed: Math.random() * 10
@@ -2499,13 +2517,27 @@ async function fetchMyGuild(){
       .select('role,guilds(id,name,notice,leader_kakao_id,member_count,donated)')
       .eq('kakao_id', String(kakaoUser.id))
       .maybeSingle();
-    if (error || !data || !data.guilds) { myGuild = null; myGuildRole = null; }
+    if (error) throw error;   // 조회 실패(네트워크 등)는 "길드 없음"이 아니다 — 이전 상태를 그대로 둔다
+    if (!data || !data.guilds) { myGuild = null; myGuildRole = null; }
     else { myGuild = data.guilds; myGuildRole = data.role; }
-  } catch (e) { myGuild = null; myGuildRole = null; }
+  } catch (e) { /* 이전 길드 상태 유지 — 여기서 null로 만들면 버프·길드 채팅 탭이 잠깐의 오류로 사라진다 */ }
   finally { markGuildLoaded(); }
   $('gRoomTabs').style.display = myGuild ? '' : 'none';
   if (!myGuild && activeRoom !== CHAT_ROOM) switchChatRoom(CHAT_ROOM);
 }
+/* 길드 정보 조용히 갱신 — 다른 길드원의 기부로 오른 길드 레벨(버프)이나 추방 여부가
+   접속 중에도 반영되게 한다. 화면을 보고 있을 때만 3분마다, 그리고 탭에 돌아올 때 한 번. */
+async function refreshMyGuildQuiet(){
+  if (!sbClient || !kakaoUser) return;
+  const prevId = myGuild ? myGuild.id : null;
+  await fetchMyGuild();
+  if (prevId && !myGuild) {
+    CHAT.notice('길드에서 제외되었다.');
+    if (SOCIAL.open && SOCIAL.view === 'guild') renderGuildView();
+  }
+}
+setInterval(() => { if (!document.hidden) refreshMyGuildQuiet(); }, 180000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMyGuildQuiet(); });
 function guildMsg(html){ $('guildView').innerHTML = '<div class="gMsg">' + html + '</div>'; }
 async function renderGuildView(){
   if (!kakaoUser || !kakaoUser.nick) { guildMsg('로그인하고 닉네임을 설정하면 길드를 만들거나 가입할 수 있다.'); return; }
@@ -2544,10 +2576,11 @@ async function fetchGuildBrowse(q){
   try {
     let query = sbClient.from(GUILD_TABLE).select('id,name,notice,member_count,donated').order('member_count', { ascending: false }).limit(GUILD_LIST_N);
     if (q) query = query.ilike('name', '%' + q.replace(/[%_]/g, c => '\\' + c) + '%');
+    else query = query.lt('member_count', GUILD_MAX_MEMBERS);   // 인원순 정렬이라 만석 길드가 맨 위를 다 차지한다 — 기본 목록엔 가입 가능한 곳만
     const { data, error } = await query;
     if (error) throw error;
     list.innerHTML = '';
-    if (!data || !data.length) { list.innerHTML = '<div class="gMsg">' + (q ? '일치하는 길드가 없다.' : '아직 만들어진 길드가 없다 — 첫 길드를 만들어보자.') + '</div>'; return; }
+    if (!data || !data.length) { list.innerHTML = '<div class="gMsg">' + (q ? '일치하는 길드가 없다.' : '가입할 수 있는 길드가 없다 — 새 길드를 만들어보자.') + '</div>'; return; }
     data.forEach(g => {
       const el = document.createElement('div'); el.className = 'gRow';
       const wrap = document.createElement('div'); wrap.className = 'gNmWrap';
@@ -3058,7 +3091,7 @@ async function checkAway(){
   if (!rate) {
     // sps가 아직 없으면(막 시작했거나 오래 쉬었으면) 최고기록층 기준으로 이론치를 추정
     const kps = apsV() / need(S.best);
-    const avgSoul = 2 * Math.pow(1.19, S.best - 1) * soulM();
+    const avgSoul = soulBase(S.best) * soulM();
     rate = kps * avgSoul;
   }
   const g = Math.max(1, Math.round(rate * capped * eff));

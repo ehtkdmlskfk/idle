@@ -253,7 +253,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   font-family:var(--disp);font-size:14px;color:var(--ember);opacity:0;transform:translateX(6px);
   transition:opacity .35s,transform .35s;pointer-events:none}
 .onlineBadge.show{opacity:1;transform:translateX(0);pointer-events:auto;cursor:pointer}
-.onlinePop{position:absolute;right:10px;bottom:56px;z-index:5;width:min(220px,60vw);max-height:260px;display:none;
+.onlinePop{position:fixed;z-index:42;width:min(230px,72vw);max-height:min(260px,48vh);display:none;
   flex-direction:column;overflow:hidden;border-radius:14px;border:1px solid #3a2f22;background:linear-gradient(#15110d,#0c0a08);
   box-shadow:0 8px 24px rgba(0,0,0,.5)}
 .onlinePop.show{display:flex}
@@ -3074,7 +3074,7 @@ function connectPresence(){
     .on('presence', { event: 'sync' }, () => {
       try { onlineCount = Object.keys(presenceChannel.presenceState()).length; } catch (e) { onlineCount = 0; }
       updateOnlineUI();
-      if ($('onlinePop') && $('onlinePop').classList.contains('show')) renderOnlinePop();
+      if ($('onlinePop') && $('onlinePop').classList.contains('show')) { renderOnlinePop(); positionOnlinePop(); }
     })
     .subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
@@ -3110,12 +3110,32 @@ async function retrackPresence(){
   if (!presenceChannel) return;
   try { await presenceChannel.track({ at: Date.now(), nick: CHAT.me() }); } catch (e) {}
 }
+function positionOnlinePop(){
+  const pop = $('onlinePop'), badge = $('onlineBadge');
+  if (!pop || !badge) return;
+  const m = 10;
+  const br = badge.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let left = br.right - pw;
+  left = Math.min(Math.max(left, m), window.innerWidth - pw - m);
+  let top = br.top - 8 - ph;           // 기본: 뱃지 위에 띄운다
+  if (top < m) top = br.bottom + 8;    // 위 공간이 부족하면 아래로
+  top = Math.min(Math.max(top, m), window.innerHeight - ph - m);
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+}
 function toggleOnlinePop(){
   const pop = $('onlinePop'); if (!pop) return;
   const show = !pop.classList.contains('show');
-  pop.classList.toggle('show', show);
-  if (show) renderOnlinePop();
+  if (show) {
+    renderOnlinePop();
+    pop.classList.add('show');
+    positionOnlinePop();
+  } else {
+    pop.classList.remove('show');
+  }
 }
+window.addEventListener('resize', () => { if ($('onlinePop') && $('onlinePop').classList.contains('show')) positionOnlinePop(); });
 /* ---------- 욕설 필터 (클라이언트 1차 방어 — 최종 방어는 DB 트리거) ---------- */
 const BAD_WORDS_KO = [
   '씨발','시발','씨팔','시팔','씨바','ㅅㅂ','ㅆㅂ','병신','ㅄ','ㅂㅅ',

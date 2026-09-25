@@ -233,6 +233,25 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .wipe{display:block;margin:22px auto 0;padding:8px 12px;background:none;border:0;color:#5a4a39;font-size:12px;text-decoration:underline}
 .wipe.arm{color:var(--blood)}
 
+/* 유품: 장착 슬롯 3자리 + 자동까기 릴 */
+.hlslots{display:flex;gap:8px;margin:4px 0 10px}
+.hlslot{flex:1;text-align:center;padding:10px 4px;border-radius:14px;border:1px solid #2f261c;background:linear-gradient(#1d1812,#14100c);transition:border-color .3s,box-shadow .3s}
+.hlslot .ic{width:32px;height:32px;margin:0 auto 6px;background:radial-gradient(circle at 50% 25%,rgba(255,255,255,.08),rgba(0,0,0,.35)),#0e0b08;border:1px solid #3a2f22}
+.hlslot .ic svg{width:18px;height:18px}
+.hlslot .hn{font-size:10.5px;color:var(--dim);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hlslot .hv{font-family:var(--disp);font-size:14px;line-height:1.25;color:var(--hot)}
+.hlslot .hv.empty{color:#5a4a39;font-family:var(--ui);font-size:11.5px}
+.hlreel{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0;min-height:34px}
+.hlchip{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#1a1410;
+  border:2px solid var(--gc,#9a8f7c);background:radial-gradient(circle at 35% 30%,#fff,var(--gc,#9a8f7c) 70%);
+  box-shadow:0 0 6px var(--gc,#9a8f7c);opacity:0;transform:scale(.4);animation:hlpop .3s ease-out forwards}
+.hlchip svg{width:60%;height:60%;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.hlchip.t2{width:30px;height:30px}
+.hlchip.t3{width:36px;height:36px;box-shadow:0 0 12px var(--gc)}
+.hlchip.t4{width:44px;height:44px;box-shadow:0 0 18px var(--gc);animation:hlpop .3s ease-out forwards,hlglow 1.4s ease-in-out .3s infinite}
+@keyframes hlpop{0%{opacity:0;transform:scale(.3) rotate(-8deg)}60%{opacity:1;transform:scale(1.15) rotate(3deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes hlglow{0%,100%{box-shadow:0 0 10px var(--gc)}50%{box-shadow:0 0 24px var(--gc)}}
+
 /* 채팅: 스테이지 오른쪽 아래 버튼 + 아래에서 올라오는 시트 */
 #chatbtn{position:absolute;right:10px;bottom:10px;width:40px;height:40px;padding:0;display:grid;place-items:center;border-radius:50%;
   border:1px solid #3a2f22;background:rgba(10,9,8,.55);color:var(--dim);transition:transform .08s,color .2s}
@@ -320,9 +339,12 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .nmbtns{display:flex;gap:8px;margin-top:12px}
 .nmbtns button{flex:1;min-height:44px;border-radius:12px;font-family:var(--disp);font-size:16px}
 .nmghost{border:1px solid #3a2f22;background:#1a150f;color:var(--dim)}
-#nmSave{border:0;background:linear-gradient(#f4b862,#cf7a22);color:#2a1300;box-shadow:0 3px 0 #7a3a10}
-#nmSave:active{transform:translateY(2px);box-shadow:0 1px 0 #7a3a10}
+#nmSave,#tlForce{border:0;background:linear-gradient(#f4b862,#cf7a22);color:#2a1300;box-shadow:0 3px 0 #7a3a10}
+#nmSave:active,#tlForce:active{transform:translateY(2px);box-shadow:0 1px 0 #7a3a10}
 #nmSave:disabled{opacity:.5}
+/* 다른 탭/창에서 이미 실행 중일 때 뜨는 차단막 — 방치 보상 중복·저장 덮어쓰기를 막는다 */
+#tablock{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,5,4,.85)}
+#tablock.show{display:flex}
 .cin input:disabled{opacity:.55}
 .cm .cn.click{cursor:pointer}
 .cm .cn.click:active{opacity:.7}
@@ -571,6 +593,17 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 
 <div id="rv" role="dialog" aria-label="유해를 열었다"><div class="rvbox" id="rvbox"></div></div>
 
+<div id="tablock" role="dialog" aria-label="다른 탭에서 실행 중">
+  <div class="nmbox">
+    <div class="nmtt">다른 곳에서 이미 열려 있다</div>
+    <div class="nmsub">같은 게임이 다른 탭이나 창에서 켜져 있으면 방치 보상이 겹치거나 진행이 서로 덮어써질 수 있다. 그쪽을 닫은 뒤 이어하는 걸 권한다.</div>
+    <div class="nmbtns">
+      <button id="tlRetry" class="nmghost">다시 확인</button>
+      <button id="tlForce">그래도 여기서 이어하기</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (() => {
 'use strict';
@@ -601,7 +634,8 @@ const def = () => ({
   relics: [], offers: [], rr: 0, mute: false, vol: 1, evt: null,
   encs: [], buf: null, stance: 0,
   pil: {}, eq: [], rems: [], pity: 0, nick: '',
-  eng: [], metRelics: []
+  eng: [], metRelics: [],
+  hl: { hand: null, neck: null, chest: null }, hlQueue: 0, hlSeen: { common: 0, rare: 0, epic: 0, legend: 0 }
 });
 function load(){
   try {
@@ -699,7 +733,7 @@ const ALT = {
   ember: { name: '온기', sub: '불꽃이 사그라드는 속도',  base: 3, g: 1.8, val: l => Math.pow(0.94, l), show: v => '×' + v.toFixed(2) },
   hand:  { name: '재의 손', sub: '공격력',               base: 6, g: 1.9, val: l => 1 + 0.2 * l,       show: v => '×' + v.toFixed(2) },
   eye:   { name: '재의 눈', sub: '영혼 획득',            base: 4, g: 1.8, val: l => 1 + 0.25 * l,      show: v => '×' + v.toFixed(2) },
-  leg:   { name: '유품', sub: '다음 불꽃의 시작 영혼',    base: 2, g: 1.8, val: l => 25 * l,            show: v => fmt(v) },
+  leg:   { name: '유산', sub: '다음 불꽃의 시작 영혼',    base: 2, g: 1.8, val: l => 25 * l,            show: v => fmt(v) },
   desc:  { name: '기억', sub: '다음 불꽃의 시작 층',      base: 5, g: 1.7, val: l => 1 + 2 * l,         show: v => v + '층' },
   spark: { name: '재의 불씨', sub: '치명타 확률',         base: 8, g: 1.85, val: l => 0.01 * l,         show: v => '+' + (v * 100).toFixed(0) + '%p' }
 };
@@ -735,6 +769,57 @@ const SYN = {
   madness:  { n: '광기의 계약', need: ['pact', 'spite'],    d: '공격력 +25%' }
 };
 const syn = id => SYN[id].need.every(x => rel(x));
+/* ---------- 유품 ----------
+   쓰러진 순례자가 남긴 물건. 손 · 목 · 품 세 자리에 하나씩 지닌다. 등급은 처음부터 열려 있어
+   운이 좋으면 낮은 층에서도 전설이 나오지만, 실제 세기(powerScale)는 최고기록층에 맞춰 자라서
+   하루아침에 밸런스가 터지지 않는다 — 같은 등급이라도 나중에 다시 얻으면 더 세진다. */
+const HL_SLOTS = { hand: { n: '손', k: 'atk', ic: 'hand' }, neck: { n: '목', k: 'hp', ic: 'hlNeck' }, chest: { n: '품', k: 'soul', ic: 'hlChest' } };
+const HL_TIERS = [
+  { k: 'common', n: '평범', c: '#9a8f7c', mul: 1,   w: 64 },
+  { k: 'rare',   n: '희귀', c: '#6fb3a8', mul: 1.9, w: 28 },
+  { k: 'epic',   n: '영롱', c: '#e9a24f', mul: 3.4, w: 7  },
+  { k: 'legend', n: '전설', c: '#ffe3a6', mul: 6,   w: 1  }
+];
+const HL_BASE = { hand: 0.09, neck: 0.09, chest: 0.11 };
+const HL_KILL_CHANCE = 0.05;   // 처치할 때 유품이 남을 확률
+const HL_QUEUE_CAP = 200;   // 유해(REM_CAP)처럼 상한을 둔다 — 아주 오래 자리를 비워도 무한정 쌓이지 않게, 넘치는 만큼은 그 자리에서 조용히 깐다
+function addHlQueue(n){
+  if (!(n > 0)) return;
+  S.hlQueue = (S.hlQueue || 0) + n;
+  while (S.hlQueue > HL_QUEUE_CAP) {
+    const it = hlItem();
+    S.hlSeen[it.tier] = (S.hlSeen[it.tier] || 0) + 1;
+    hlTryEquip(it);
+    S.hlQueue--;
+  }
+}
+const hlTier = k => HL_TIERS.find(t => t.k === k) || HL_TIERS[0];
+/* 초 장식 강도 — 무한히 오르는 게임이라 층수를 딱 자르되, 이미 존이 갈리는 경계(50/300층)에 맞춘다.
+   0=저층(첫 존 전) 1=중층(존 6개 구간) 2=고층(300층 이후, 존 색조가 돌아가며 반복되는 구간) */
+const HL_FX_TIER = f => f >= 300 ? 2 : (f >= 50 ? 1 : 0);
+const HL_FX_MUL = [0.55, 1, 1.6];   // 구간별 유품 장식 orb 크기·밝기 배수
+const hlPowerScale = f => Math.min(1, 0.25 + f / 60);   // 최고기록층이 45층 이상이면 온전한 수치(0.25 + f/60이 45에서 1.0), 낮을수록 눌려서 나온다
+const HL_AWAY_RATE = f => Math.max(0.3, Math.min(4, 0.3 + f / 40));   // 시간당 유품 — 최고기록층 기준으로 완만히 늘고 상한이 있다
+const hlVal = (slot, tierKey, f) => HL_BASE[slot] * hlTier(tierKey).mul * hlPowerScale(f);
+function rollHlTier(){
+  let r = Math.random() * 100;
+  for (const t of HL_TIERS) { if (r < t.w) return t.k; r -= t.w; }
+  return 'common';
+}
+function hlItem(){
+  const ks = Object.keys(HL_SLOTS), slot = ks[Math.floor(Math.random() * ks.length)], tier = rollHlTier();
+  return { slot, tier, val: hlVal(slot, tier, S.best) };
+}
+function hlTryEquip(it){        // 슬롯이 비었거나, 지금 지닌 것보다 수치가 좋을 때만 장착
+  const cur = S.hl[it.slot];
+  if (!cur || it.val > cur.val) { S.hl[it.slot] = it; return true; }
+  return false;
+}
+const hlBonus = kind => {       // atkV/maxHP/soulM에서 pv()처럼 더해 쓴다
+  let t = 0;
+  for (const s in HL_SLOTS) { const it = S.hl[s]; if (it && HL_SLOTS[s].k === kind) t += it.val; }
+  return t;
+};
 /* ---------- 업적 ----------
    따로 저장하지 않고, 현재 상태(S)와 길드 가입 여부로 그때그때 판정한다. */
 const ACHV = [
@@ -767,10 +852,10 @@ function achRow(a){
   b.querySelector('.c').textContent = done ? '달성' : '미달성';
   return b;
 }
-const maxHP = () => UP.hp.val(S.lv.hp) * (1 + 0.15 * relLvl('anchor')) * (syn('ironwick') ? 1.25 : 1) * (1 + pv('hp'));
-const atkV  = () => UP.atk.val(S.lv.atk) * (1 + relLvl('last') * (S.hp < maxHP() * 0.2 ? 1 : 0)) * (1 - 0.1 * relLvl('frost')) * (syn('madness') ? 1.25 : 1) * bufM('atk') * (1 + pv('atk'));
+const maxHP = () => UP.hp.val(S.lv.hp) * (1 + 0.15 * relLvl('anchor')) * (syn('ironwick') ? 1.25 : 1) * (1 + pv('hp')) * (1 + hlBonus('hp'));
+const atkV  = () => UP.atk.val(S.lv.atk) * (1 + relLvl('last') * (S.hp < maxHP() * 0.2 ? 1 : 0)) * (1 - 0.1 * relLvl('frost')) * (syn('madness') ? 1.25 : 1) * bufM('atk') * (1 + pv('atk')) * (1 + hlBonus('atk'));
 const apsV  = () => UP.spd.val(S.lv.spd) * (1 - 0.1 * relLvl('anchor')) * (1 + 0.25 * relLvl('spite') * (S.hp < maxHP() * 0.4 ? 1 : 0)) * (syn('frenzy') ? 1.2 : 1) * (1 + pv('aps'));
-const soulM = () => UP.greed.val(S.lv.greed) * (syn('crown') ? 1.3 : 1) * bufM('greed') * (1 + pv('soul')) * (1 + guildBuff());
+const soulM = () => UP.greed.val(S.lv.greed) * (syn('crown') ? 1.3 : 1) * bufM('greed') * (1 + pv('soul')) * (1 + guildBuff()) * (1 + hlBonus('soul'));
 const drain = () => maxHP() * 0.010 * drainK(S.floor) * ALT.ember.val(S.meta.ember) * (1 - 0.3 * relLvl('cloak')) * (1 + 0.3 * relLvl('pact')) * (1 - 0.2 * relLvl('frost')) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm'));
 const killHeal = () => 0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0) + pv('heal');
 const need  = f => (f % 10 === 0 ? 1 : 4);
@@ -891,7 +976,12 @@ const SFX = {
   crit:  () => tone(880, 1320, 0.12, 'square', 0.14),
   enc:   () => { tone(330, 330, 0.25, 'sine', 0.13); tone(494, 494, 0.4, 'sine', 0.13, 0.1); },
   test:  () => { tone(660, 660, 0.18, 'sine', 0.18); tone(880, 880, 0.18, 'sine', 0.18, 0.16); tone(1100, 1100, 0.3, 'sine', 0.18, 0.32); },
-  syn:   () => { tone(523, 523, 0.25, 'sine', 0.15); tone(659, 659, 0.25, 'sine', 0.15, 0.07); tone(784, 784, 0.25, 'sine', 0.15, 0.14); tone(1047, 1047, 0.6, 'sine', 0.16, 0.21); }
+  syn:   () => { tone(523, 523, 0.25, 'sine', 0.15); tone(659, 659, 0.25, 'sine', 0.15, 0.07); tone(784, 784, 0.25, 'sine', 0.15, 0.14); tone(1047, 1047, 0.6, 'sine', 0.16, 0.21); },
+  /* 유품 자동까기 — 등급이 높을수록 화음이 겹쳐서 더 웅장해진다(전설은 3중 화음) */
+  hlCommon: () => tone(700, 640, 0.05, 'triangle', 0.10),
+  hlRare:   () => { tone(700, 640, 0.05, 'triangle', 0.10); tone(880, 880, 0.12, 'sine', 0.11, 0.03); },
+  hlEpic:   () => { tone(700, 640, 0.06, 'triangle', 0.11); tone(659, 659, 0.13, 'sine', 0.12, 0.03); tone(988, 988, 0.16, 'sine', 0.12, 0.08); },
+  hlLegend: () => { tone(700, 640, 0.06, 'triangle', 0.13); tone(659, 659, 0.15, 'sine', 0.14, 0.03); tone(880, 880, 0.15, 'sine', 0.14, 0.08); tone(1319, 1319, 0.32, 'sine', 0.15, 0.15); }
 };
 
 /* ---------- 폴백: WebAudio 가 안 깨어나는 기기에서는 같은 소리를 WAV 로 합성해 <audio> 로 재생 ---------- */
@@ -1411,6 +1501,7 @@ function kill(){
   if (E.boss && !RM) shake = 12;
   sfx('kill');
   S.kills++;
+  if (Math.random() < HL_KILL_CHANCE) { addHlQueue(1); if (tab === 4 && succSub === 'hl') buildPanel(); }
   if (S.kills >= need(S.floor)) {
     const from = S.floor;
     S.kills = 0; S.floor++; zoneCheck();
@@ -1670,6 +1761,8 @@ const ICON = {
   autoOpen: svg('<path d="M4 10h16l-1.5 9h-13z"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
   slot:  svg('<circle cx="8" cy="9" r="2.6"/><circle cx="16" cy="9" r="2.6"/><path d="M3 19c0-3 2.2-5 5-5s5 2 5 5M11 19c0-3 2.2-5 5-5s5 2 5 5"/>'),
   pil:   svg('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5"/>'),
+  hlNeck:  svg('<path d="M5 4c0 5 3 8 7 8s7-3 7-8"/><path d="M12 12v3"/><circle cx="12" cy="17" r="2.6"/>'),
+  hlChest: svg('<path d="M12 20s-6-3.6-8-7.4C2.6 9.6 4 6 7.2 6c2 0 3.6 1.1 4.8 2.6C13.2 7.1 14.8 6 16.8 6 20 6 21.4 9.6 20 12.6 18 16.4 12 20 12 20z"/>'),
   autoEnc: svg('<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>'),
   autoRelic: svg('<path d="M12 3l7 7-7 11-7-11z"/><path d="M9 12l2 2 4-4"/>'),
   safe:  svg('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>'),
@@ -1715,6 +1808,50 @@ function engRow(id){
 }
 function note(html){
   const n = document.createElement('div'); n.className = 'note'; n.innerHTML = html; return n;
+}
+/* ---------- 유품 UI ---------- */
+let hlSlotEls = {}, hlOpening = false;
+function renderHlSlot(slot){
+  const wrap = hlSlotEls[slot]; if (!wrap) return;
+  const it = S.hl[slot], hv = wrap.querySelector('.hv');
+  if (it) {
+    const t = hlTier(it.tier);
+    wrap.querySelector('.ic').style.setProperty('--tc', t.c);
+    hv.className = 'hv'; hv.style.color = t.c;
+    hv.textContent = t.n + ' · ' + KIND[HL_SLOTS[slot].k].f(it.val);
+  } else {
+    wrap.querySelector('.ic').style.setProperty('--tc', '#5a4a39');
+    hv.className = 'hv empty'; hv.style.color = '';
+    hv.textContent = '비어 있음';
+  }
+}
+function updateHlSlots(){ Object.keys(HL_SLOTS).forEach(renderHlSlot); }
+function hlOpenAll(){
+  if (hlOpening || !S.hlQueue) return;
+  hlOpening = true;
+  const total = S.hlQueue;
+  const reel = $('hlreel'); if (reel) reel.innerHTML = '';
+  const gap = total > 30 ? 45 : total > 10 ? 70 : 110;
+  const step = () => {
+    if (!S.hlQueue) { hlOpening = false; save(); buildPanel(); return; }
+    const it = hlItem(), ti = HL_TIERS.findIndex(t => t.k === it.tier);
+    S.hlSeen[it.tier] = (S.hlSeen[it.tier] || 0) + 1;
+    const got = hlTryEquip(it);
+    S.hlQueue--;   // 한 개 깔 때마다 즉시 큐에서 제거 — 중간에 앱이 꺼져도 남은 개수가 그대로 보존된다(예전엔 시작할 때 통째로 0으로 비우고 끝나야만 저장해서, 애니메이션 도중 끊기면 나머지가 전부 사라졌다)
+    if (reel) {
+      const c = document.createElement('div');
+      c.className = 'hlchip t' + (ti + 1);
+      c.style.setProperty('--gc', HL_TIERS[ti].c);
+      c.innerHTML = ICON[HL_SLOTS[it.slot].ic];
+      c.title = HL_TIERS[ti].n + (got ? ' · 장착됨' : '');
+      reel.appendChild(c);
+    }
+    sfx(ti >= 3 ? 'hlLegend' : ti >= 2 ? 'hlEpic' : ti >= 1 ? 'hlRare' : 'hlCommon');
+    if (got) updateHlSlots();
+    if (S.hlQueue % 5 === 0) save();   // 몇 개마다 한 번씩 중간 저장
+    setTimeout(step, gap);
+  };
+  step();
 }
 function buildPanel(){
   const panel = $('panel');
@@ -1781,7 +1918,7 @@ function buildPanel(){
   } else if (tab === 4) {
     const m = document.createElement('div'); m.className = 'modes';
     const seg = document.createElement('div'); seg.className = 'seg';
-    [['pil', '도감'], ['ach', '업적']].forEach(([v, t]) => {
+    [['pil', '도감'], ['hl', '유품'], ['ach', '업적']].forEach(([v, t]) => {
       const b = document.createElement('button');
       b.className = 'chip' + (succSub === v ? ' on' : ''); b.textContent = t;
       b.onclick = () => { succSub = v; buildPanel(); };
@@ -1795,6 +1932,38 @@ function buildPanel(){
       h.textContent = '업적 ' + done + ' / ' + ACHV.length;
       panel.appendChild(h);
       ACHV.forEach(a => panel.appendChild(achRow(a)));
+    } else if (succSub === 'hl') {
+      const slotsWrap = document.createElement('div'); slotsWrap.className = 'hlslots';
+      hlSlotEls = {};
+      Object.keys(HL_SLOTS).forEach(slot => {
+        const w = document.createElement('div'); w.className = 'hlslot';
+        w.innerHTML = '<div class="ic"></div><div class="hn"></div><div class="hv"></div>';
+        w.querySelector('.ic').innerHTML = ICON[HL_SLOTS[slot].ic];
+        w.querySelector('.hn').textContent = HL_SLOTS[slot].n + ' · ' + KIND[HL_SLOTS[slot].k].n;
+        slotsWrap.appendChild(w);
+        hlSlotEls[slot] = w;
+      });
+      panel.appendChild(slotsWrap);
+      updateHlSlots();
+      const q = S.hlQueue || 0;
+      if (q > 0) {
+        panel.appendChild(note('<b>쓰러진 순례자가 남긴 유품 ' + q + '개</b> — 자동으로 까면 순서대로 열리고, 지금 지닌 것보다 나은 것만 저절로 장착된다.'));
+        const btn = document.createElement('button'); btn.className = 'card pick can'; btn.id = 'hlopenbtn';
+        btn.style.setProperty('--tc', TC.relic);
+        btn.innerHTML = '<div class="ic">' + ICON.leg + '</div><div class="mid"><div class="nm"><span class="n">자동으로 까기</span></div><div class="ds">유품 ' + q + '개를 순서대로 연다</div></div><div class="buy"><span class="c">까기</span></div>';
+        btn.onclick = () => { btn.disabled = true; btn.classList.remove('can'); hlOpenAll(); };
+        panel.appendChild(btn);
+      } else {
+        panel.appendChild(note('몬스터를 처치하거나 자리를 비운 동안 이따금 순례자의 <b>유품</b>이 남는다. 손 · 목 · 품 세 자리에 지니며, 운이 좋으면 낮은 층에서도 귀한 등급이 나오지만 실제 세기는 최고기록층에 맞춰 자란다.'));
+      }
+      const reel = document.createElement('div'); reel.className = 'hlreel'; reel.id = 'hlreel';
+      panel.appendChild(reel);
+      const seenTotal = HL_TIERS.reduce((s, t) => s + (S.hlSeen[t.k] || 0), 0);
+      if (seenTotal > 0) {
+        const sum = document.createElement('div'); sum.className = 'ds';
+        sum.textContent = '지금까지 연 유품 — ' + HL_TIERS.map(t => (S.hlSeen[t.k] || 0) > 0 ? t.n + ' ' + fmt(S.hlSeen[t.k]) + '개' : null).filter(Boolean).join(' · ');
+        panel.appendChild(sum);
+      }
     } else {
     const n = S.rems.length;
     const act = (nm, ds, cta, fn) => {
@@ -1950,7 +2119,7 @@ function ui(){
   }
   $('t1').classList.toggle('ping', S.offers.length > 0);
   $('t3').classList.toggle('ping', S.encs.length > 0);
-  $('t4').classList.toggle('ping', S.rems.length > 0);
+  $('t4').classList.toggle('ping', S.rems.length > 0 || (S.hlQueue || 0) > 0);
   const bf = $('buf');
   if (S.buf && !dead) { bf.textContent = BUFN[S.buf.k] + ' ×' + S.buf.m + ' · ' + S.buf.n; bf.classList.add('show'); }
   else bf.classList.remove('show');
@@ -2081,6 +2250,29 @@ function draw(dt, t){
     if (Math.random() < 0.7 * dt * 60 * (0.4 + hpF)) {
       P.push({ k: 'ember', x: hx + rint(-4, 4), y: hy - s * 1.5, vx: rint(-12, 12), vy: rint(-55, -20), life: rint(0.7, 1.5), max: 1.5, r: rint(0.8, 1.6) });
     }
+
+    /* 유품 장식 — 지닌 것의 등급 색으로 불꽃 둘레를 도는 작은 빛. 순수 장식이고 능력치엔 영향 없다.
+       크기·밝기는 최고기록층 구간(HL_FX_TIER)에 따라 달라진다 — 등급은 뽑기 운이지만,
+       실제로 화려해 보이려면 그만큼 내려가 있어야 한다 */
+    const hlOn = Object.keys(HL_SLOTS).filter(k => S.hl[k]);
+    if (hlOn.length) {
+      const fxT = HL_FX_TIER(S.best), fxM = HL_FX_MUL[fxT];
+      ctx.globalCompositeOperation = 'lighter';
+      hlOn.forEach((k, i) => {
+        const tier = S.hl[k].tier, rgb = hexRgb(hlTier(tier).c).join(',');
+        const rad = s * 1.6 + i * 5, a = t * (0.7 + i * 0.2) + i * (Math.PI * 2 / 3);
+        const mx = hx + Math.cos(a) * rad, my = hy - s * 0.5 + Math.sin(a) * rad * 0.55;
+        const orbR = 6 * fxM;
+        const og = ctx.createRadialGradient(mx, my, 0, mx, my, orbR);
+        og.addColorStop(0, 'rgba(' + rgb + ',' + Math.min(1, 0.9 * fxM) + ')'); og.addColorStop(1, 'rgba(' + rgb + ',0)');
+        ctx.fillStyle = og; ctx.beginPath(); ctx.arc(mx, my, orbR, 0, Math.PI * 2); ctx.fill();
+        /* 고층(300층 이후)에서만, 영롱/전설 등급에 한해 반짝이는 불티가 추가로 튄다 */
+        if (fxT === 2 && (tier === 'epic' || tier === 'legend') && Math.random() < 0.5 * dt * 60) {
+          P.push({ k: 'hlspark', x: mx, y: my, vx: rint(-20, 20), vy: rint(-40, -10), life: rint(0.4, 0.9), max: 0.9, r: rint(0.8, 1.6), c: rgb });
+        }
+      });
+      ctx.globalCompositeOperation = 'source-over';
+    }
   } else if (Math.random() < 0.25) {
     P.push({ k: 'ash', x: hx, y: gy - candleH, vx: rint(-6, 6), vy: rint(-30, -14), life: 2, max: 2, r: 1.6 });
   }
@@ -2127,12 +2319,12 @@ function draw(dt, t){
   /* 파티클 */
   for (let i = P.length - 1; i >= 0; i--) {
     const p = P[i];
-    if (p.k === 'ember' || p.k === 'ash') {
+    if (p.k === 'ember' || p.k === 'ash' || p.k === 'hlspark') {
       p.life -= dt; if (p.life <= 0) { P.splice(i, 1); continue; }
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.k === 'ash') { p.vx *= 0.98; p.vy += 25 * dt; }
       const a = Math.max(0, p.life / p.max);
-      ctx.fillStyle = p.k === 'ember' ? 'rgba(255,190,100,' + a + ')' : 'rgba(150,140,125,' + a * 0.8 + ')';
+      ctx.fillStyle = p.k === 'ember' ? 'rgba(255,190,100,' + a + ')' : p.k === 'hlspark' ? 'rgba(' + p.c + ',' + a + ')' : 'rgba(150,140,125,' + a * 0.8 + ')';
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     } else if (p.k === 'dust') {
       p.life -= dt; if (p.life <= 0 || p.y < -8 || p.y > H + 8) { P.splice(i, 1); continue; }
@@ -3293,8 +3485,10 @@ async function checkAway(){
   const ashRate = ashGain(S.best) * ASH_AWAY_FRAC / 3600;
   const ga = Math.max(0, Math.round(ashRate * capped * eff));
   if (ga > 0) { S.ash += ga; S.total += ga; }
+  const hq = Math.max(0, Math.floor(HL_AWAY_RATE(S.best) * (capped / 3600) * eff));
+  if (hq > 0) addHlQueue(hq);
   const dur = t => { const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60); return h ? h + '시간' + (m ? ' ' + m + '분' : '') : Math.max(1, m) + '분'; };
-  const msg = dur(el) + ' 만에 돌아왔다 — 영혼 ' + fmt(g) + '개' + (ga > 0 ? ' · 재 ' + fmt(ga) + '개' : '') + (el > capped + 1 ? ' (최대 ' + capH + '시간까지 쌓인다)' : '');
+  const msg = dur(el) + ' 만에 돌아왔다 — 영혼 ' + fmt(g) + '개' + (ga > 0 ? ' · 재 ' + fmt(ga) + '개' : '') + (hq > 0 ? ' · 유품 +' + fmt(hq) + '개' : '') + (el > capped + 1 ? ' (최대 ' + capH + '시간까지 쌓인다)' : '');
   say(msg, 'gold');
   showAway(msg);
   ui(); save();
@@ -3308,13 +3502,14 @@ function showAway(t){
   awayHideT = setTimeout(() => el.classList.remove('show'), 4500);
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { S.lastSeen = Date.now(); save(); }   // 화면을 벗어나는 순간을 정확히 찍어 둔다
-  else { checkAway(); last = performance.now(); ui(); if (AC && AC.state !== 'running') AC.resume(); }
+  if (document.hidden) { if (isLeader) { S.lastSeen = Date.now(); save(); } return; }   // 화면을 벗어나는 순간을 정확히 찍어 둔다 (대표 탭일 때만)
+  if (!isLeader) { claimOrWait(); return; }   // 팔로워였다면 그새 다른 탭이 닫혔는지 다시 확인
+  checkAway(); last = performance.now(); ui(); if (AC && AC.state !== 'running') AC.resume();
 });
-window.addEventListener('pagehide', () => { if (!document.hidden) S.lastSeen = Date.now(); save(); touchProfile(); });
-window.addEventListener('beforeunload', () => { if (!document.hidden) S.lastSeen = Date.now(); save(); touchProfile(); });
-setInterval(() => { if (!document.hidden) S.lastSeen = Date.now(); save(); }, 5000);   // 보고 있는 동안엔 계속 '방금'으로 갱신 — 새로고침해도 이미 번 시간을 또 자리비움으로 안 쳐준다
-setInterval(() => { if (!document.hidden) touchProfile(); }, 20000);   // 로그인한 유저의 진행도를 20초마다 서버에 반영
+window.addEventListener('pagehide', () => { if (!isLeader) return; if (!document.hidden) S.lastSeen = Date.now(); save(); touchProfile(); });
+window.addEventListener('beforeunload', () => { if (!isLeader) return; if (!document.hidden) S.lastSeen = Date.now(); save(); touchProfile(); });
+setInterval(() => { if (!isLeader) return; if (!document.hidden) S.lastSeen = Date.now(); save(); }, 5000);   // 보고 있는 동안엔 계속 '방금'으로 갱신 — 새로고침해도 이미 번 시간을 또 자리비움으로 안 쳐준다
+setInterval(() => { if (!isLeader) return; if (!document.hidden) touchProfile(); }, 20000);   // 로그인한 유저의 진행도를 20초마다 서버에 반영
 setInterval(ui, 100);
 
 /* ---------- 새 버전 배포 감지 ----------
@@ -3377,12 +3572,70 @@ try {
   }
 } catch (e) {}
 
+/* ---------- 여러 탭 동시 실행 방지 ----------
+   같은 브라우저에서 이 게임을 두 탭(또는 창) 이상 열면 각 탭이 저장된 상태를 따로 불러와
+   독립적으로 진행한다. 그러면 (1) 방치 보상이 탭마다 각자 계산되어 두 배로 들어오거나,
+   (2) 나중에 저장하는 탭이 다른 탭의 진행을 통째로 덮어써 버리는 문제가 생긴다.
+   localStorage에 '지금 주도권을 쥔 탭'을 심박(heartbeat)으로 남겨서, 이미 살아있는 심박이
+   있으면 이 탭은 차단막을 띄우고 게임 루프(프레임/저장/방치보상)를 멈춘 채 기다린다. */
+const TAB_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const LOCK_KEY = KEY + ':lock';
+const LOCK_TTL = 12000, LOCK_HEARTBEAT = 4000, LOCK_POLL = 3000;
+let isLeader = false, began = false, lockHeartbeatT = null, pendingClaim = false;
+function readLock(){ try { return JSON.parse(localStorage.getItem(LOCK_KEY)); } catch (e) { return null; } }
+function writeLock(){ try { localStorage.setItem(LOCK_KEY, JSON.stringify({ id: TAB_ID, ts: Date.now() })); } catch (e) {} }
+function lockStale(l){ return !l || !l.id || !isFinite(l.ts) || Date.now() - l.ts > LOCK_TTL; }
+function beginPlay(){        // 대표 탭이 될 때(최초 1회, 또는 나중에 다시 주도권을 잡았을 때) 실제 게임을 진행시킨다
+  if (!began) {
+    began = true;
+    if (fresh) {
+      newRun();
+      say('어둠 속에서 눈을 뜬다. 손에는 작은 불꽃뿐.');
+      say('화면을 누르면 불꽃이 날아간다. 가운데 버튼은 불꽃을 태워 일격을 가한다.');
+      buildPanel(); ui();
+      return;
+    }
+  }
+  checkAway().then(() => say('다시 어둠 속. 불꽃은 아직 타고 있다.'));
+}
+function becomeLeader(){
+  isLeader = true;
+  writeLock();
+  clearInterval(lockHeartbeatT);
+  lockHeartbeatT = setInterval(writeLock, LOCK_HEARTBEAT);
+  $('tablock').classList.remove('show');
+  beginPlay();
+}
+function becomeFollower(){
+  if (isLeader) { isLeader = false; clearInterval(lockHeartbeatT); }
+  $('tablock').classList.add('show');
+}
+function claimOrWait(){
+  if (isLeader || pendingClaim) return;
+  const l = readLock();
+  if (!lockStale(l)) { becomeFollower(); return; }
+  // 락이 비어 보여도 곧바로 대표로 확정하지 않는다 — 여러 탭이 정말 동시에 뜬 경우
+  // 다들 똑같이 '비어있다'고 읽어버릴 수 있어서, 일단 내 이름으로 표시만 해두고 잠깐 기다렸다가
+  // 그 사이 아무도 안 덮어썼을 때만 확정한다(동시에 여럿이 써도 마지막에 쓴 것만 남는다).
+  pendingClaim = true;
+  writeLock();
+  setTimeout(() => {
+    pendingClaim = false;
+    const check = readLock();
+    if (check && check.id === TAB_ID) becomeLeader(); else becomeFollower();
+  }, 200);
+}
+window.addEventListener('storage', e => {   // 다른 탭이 심박을 새로 남기는 순간이 바로 이 이벤트로 들어온다(내가 쓴 건 안 옴)
+  if (e.key !== LOCK_KEY) return;
+  const l = readLock();
+  if (isLeader && l && l.id !== TAB_ID && !lockStale(l)) becomeFollower();
+});
+setInterval(() => { if (!isLeader) claimOrWait(); }, LOCK_POLL);   // 대기 중엔 다른 탭이 닫혔는지 주기적으로 재확인
+$('tlRetry').onclick = claimOrWait;
+$('tlForce').onclick = () => becomeLeader();   // 굳이 무릅쓰고 이어하겠다는 명시적 선택 — 진행이 겹칠 수 있다고 이미 안내했다
+
 /* ---------- 시작 ---------- */
-if (fresh) {
-  newRun();
-  say('어둠 속에서 눈을 뜬다. 손에는 작은 불꽃뿐.');
-  say('화면을 누르면 불꽃이 날아간다. 가운데 버튼은 불꽃을 태워 일격을 가한다.');
-} else {
+if (!fresh) {
   if (!Array.isArray(S.relics)) S.relics = [];
   if (!Array.isArray(S.offers)) S.offers = [];
   if (!Array.isArray(S.metRelics)) S.metRelics = [];
@@ -3396,12 +3649,17 @@ if (fresh) {
   if (!Array.isArray(S.rems)) S.rems = [];
   S.rems = S.rems.filter(o => o && isFinite(o.f)).slice(0, REM_CAP);
   if (!isFinite(S.pity)) S.pity = 0;
+  if (!S.hl || typeof S.hl !== 'object' || Array.isArray(S.hl)) S.hl = { hand: null, neck: null, chest: null };
+  Object.keys(HL_SLOTS).forEach(s => { const it = S.hl[s]; if (it && (!HL_SLOTS[it.slot] || !isFinite(it.val))) S.hl[s] = null; if (!S.hl.hasOwnProperty(s)) S.hl[s] = null; });
+  if (!isFinite(S.hlQueue) || S.hlQueue < 0) S.hlQueue = 0;
+  else if (S.hlQueue > HL_QUEUE_CAP) S.hlQueue = HL_QUEUE_CAP;
+  if (!S.hlSeen || typeof S.hlSeen !== 'object') S.hlSeen = {};
+  HL_TIERS.forEach(t => { if (!isFinite(S.hlSeen[t.k])) S.hlSeen[t.k] = 0; });
   if (!Array.isArray(S.encs)) S.encs = [];
   S.encs = S.encs.filter(e => e && ENC[e.id] && isFinite(e.f));
   if (S.buf && !(BUFN[S.buf.k] && S.buf.n > 0 && isFinite(S.buf.m))) S.buf = null;
   S.hp = Math.max(1, Math.min(S.hp, maxHP()));
   if (S.hp <= 1) S.hp = maxHP();
-  checkAway().then(() => say('다시 어둠 속. 불꽃은 아직 타고 있다.'));
 }
 $('snd').textContent = VLB[S.vol];
 resize();
@@ -3412,6 +3670,7 @@ buildPanel(); ui();
 
 let last = performance.now(), acc = 0;
 function frame(now){
+  if (!isLeader) { last = now; requestAnimationFrame(frame); return; }   // 팔로워 탭은 시뮬레이션을 완전히 멈춘다 — 화면도 차단막에 가려져 있다
   let raw = (now - last) / 1000; last = now;
   if (raw > 3) checkAway();   // 프레임 간격이 크게 벌어졌다면(탭 전환 등) 부재 보상을 여기서도 확인
   let dt = Math.min(raw, 0.25);
@@ -3421,6 +3680,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+claimOrWait();   // 대표 탭이면 곧바로 시작(beginPlay), 아니면 차단막을 띄우고 기다린다
 })();
 </script>
 </body>

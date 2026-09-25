@@ -1716,12 +1716,14 @@ function plan(d, l, cur, cap){
   if (!isFinite(l)) l = 0;
   let n = 0, sum = 0;
   while (n < cap && (d.max == null || l + n < d.max)) {
+    if (d.val && d.val(l + n + 1) === d.val(l + n)) break;   // 다음 레벨을 사도 실제 값이 안 오르면(예: 치명타 60% 캡) 여기서 멈춘다
     const c = Math.ceil(d.base * Math.pow(d.g, l + n));
     if (sum + c > cur) break;
     sum += c; n++;
   }
   if (n === 0) {
     if (d.max != null && l >= d.max) return { n: 0, cost: 0, maxed: true };
+    if (d.val && d.val(l + 1) === d.val(l)) return { n: 0, cost: 0, maxed: true };
     return { n: 0, cost: Math.ceil(d.base * Math.pow(d.g, l)) };
   }
   return { n, cost: sum };

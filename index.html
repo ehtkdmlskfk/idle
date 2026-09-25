@@ -196,6 +196,9 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .seg{display:inline-flex;gap:2px;padding:3px;border-radius:999px;background:#0b0907;border:1px solid var(--line);box-shadow:inset 0 1px 3px #000}
 .chip{min-height:30px;padding:5px 14px;border:0;border-radius:999px;background:none;color:var(--dim);font-size:13px;font-weight:700}
 .chip.on{background:linear-gradient(#f0b25e,#c9711f);color:#2a1300}
+.chip{position:relative}
+.chip.ping::after{content:"";position:absolute;top:1px;right:3px;width:8px;height:8px;border-radius:50%;
+  background:var(--blood);border:2px solid #15110d;box-shadow:0 0 6px rgba(196,64,47,.8)}
 .note{margin:10px 0 8px;padding:10px 12px;border-radius:12px;background:var(--well);border:1px solid var(--line);font-size:12.5px;color:var(--dim);line-height:1.6}
 .note b{color:var(--ember);font-weight:700}
 .sec{padding:14px 2px 6px;font-size:12px;font-weight:700;color:var(--dim)}
@@ -348,6 +351,8 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .cin input:disabled{opacity:.55}
 .cm .cn.click{cursor:pointer}
 .cm .cn.click:active{opacity:.7}
+.rkNm.click,.gmNm.click{cursor:pointer}
+.rkNm.click:active,.gmNm.click:active{opacity:.7}
 #pinfo{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,5,4,.65)}
 #pinfo.show{display:flex}
 .pinfoRows{margin-top:2px}
@@ -1501,7 +1506,11 @@ function kill(){
   if (E.boss && !RM) shake = 12;
   sfx('kill');
   S.kills++;
-  if (Math.random() < HL_KILL_CHANCE) { addHlQueue(1); if (tab === 4 && succSub === 'hl') buildPanel(); }
+  if (Math.random() < HL_KILL_CHANCE) {
+    addHlQueue(1);
+    if (tab === 4 && succSub === 'hl') buildPanel();
+    else say('쓰러진 자리에 유품이 남았다 — [계승 → 유품]에서 확인', '');
+  }
   if (S.kills >= need(S.floor)) {
     const from = S.floor;
     S.kills = 0; S.floor++; zoneCheck();
@@ -1920,7 +1929,8 @@ function buildPanel(){
     const seg = document.createElement('div'); seg.className = 'seg';
     [['pil', '도감'], ['hl', '유품'], ['ach', '업적']].forEach(([v, t]) => {
       const b = document.createElement('button');
-      b.className = 'chip' + (succSub === v ? ' on' : ''); b.textContent = t;
+      const has = v === 'hl' ? (S.hlQueue || 0) > 0 : v === 'pil' ? S.rems.length > 0 : false;
+      b.className = 'chip' + (succSub === v ? ' on' : '') + (has ? ' ping' : ''); b.textContent = t;
       b.onclick = () => { succSub = v; buildPanel(); };
       seg.appendChild(b);
     });
@@ -2433,7 +2443,10 @@ $('snd').onclick = () => {
 };
 const TABS = ['t0', 't1', 't2', 't3', 't4'];
 TABS.forEach((id, i) => {
-  $(id).onclick = () => { tab = i; TABS.forEach((x, j) => $(x).classList.toggle('on', j === i)); buildPanel(); };
+  $(id).onclick = () => {
+    if (i === 4 && tab !== 4 && (S.hlQueue || 0) > 0 && !S.rems.length) succSub = 'hl';   // 유품이 쌓여 있고 유해는 없으면, 탭을 누르는 순간 바로 유품 화면부터 보여준다
+    tab = i; TABS.forEach((x, j) => $(x).classList.toggle('on', j === i)); buildPanel();
+  };
 });
 
 /* ---------- 카카오 로그인 (뼈대) ----------
@@ -2787,7 +2800,8 @@ function renderLeaderboard(rows, mode){
     el.className = 'rk' + (i < 3 ? ' top' : '') + (myId && String(row.kakao_id) === myId ? ' me' : '');
     const no = document.createElement('span'); no.className = 'rkNo'; no.textContent = i + 1;
     const wrap = document.createElement('span'); wrap.className = 'rkNmWrap';
-    const nm = document.createElement('span'); nm.className = 'rkNm'; nm.textContent = row.nickname || '???';
+    const nm = document.createElement('span'); nm.className = 'rkNm click'; nm.textContent = row.nickname || '???';
+    if (row.nickname) nm.addEventListener('click', () => showPlayerInfo(row.nickname));
     wrap.appendChild(nm);
     const v = document.createElement('span'); v.className = 'rkV';
     if (mode === 'eff') {
@@ -3037,7 +3051,8 @@ async function fetchGuildMembers(){
     const myId = kakaoUser ? String(kakaoUser.id) : null;
     guildMembersCache.forEach(m => {
       const el = document.createElement('div'); el.className = 'gMember' + (myId && String(m.kakao_id) === myId ? ' me' : '');
-      const nmw = document.createElement('span'); nmw.className = 'gmNm'; nmw.textContent = m.nickname || '???';
+      const nmw = document.createElement('span'); nmw.className = 'gmNm click'; nmw.textContent = m.nickname || '???';
+      if (m.nickname) nmw.addEventListener('click', () => showPlayerInfo(m.nickname));
       const role = document.createElement('span'); role.className = 'gmRole'; role.textContent = m.role === 'leader' ? '길드장' : '';
       const don = document.createElement('span'); don.className = 'gmDon'; don.textContent = '재 ' + fmt(m.donated || 0);
       const best = document.createElement('span'); best.className = 'gmBest'; best.textContent = fmt((m.profiles && m.profiles.best) || 0) + '층';

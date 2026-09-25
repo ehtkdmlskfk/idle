@@ -881,6 +881,15 @@ const POST_DRAIN_STEP = 0.01;
 const postK = f => Math.pow(POST_RATE, f - POST_FLOOR);
 const foeDmgBase = f => f <= POST_FLOOR ? 2 * Math.pow(1.14, f - 1) : 2 * Math.pow(1.14, POST_FLOOR - 1) * postK(f);
 const soulBase   = f => f <= POST_FLOOR ? 2 * Math.pow(1.19, f - 1) : 2 * Math.pow(1.19, POST_FLOOR - 1) * postK(f);
+/* 시작층("기억") 스킵 보상 — 1층부터 시작층 전까지 실제로 올랐다면 벌었을 영혼을 계산해서
+   일부만(CATCH_UP_EFF) 미리 쥐여준다. 100% 다 주면 사실상 스킵 = 공짜 성장이라 밸런스가 깨지고,
+   0%면(지금까지의 동작) 그 구간의 성장 공백을 그대로 떠안은 채 최고기록층 벽에 바로 부딪힌다. */
+const CATCH_UP_EFF = 0.6;
+const catchUpSouls = startFloor => {
+  let s = 0;
+  for (let f = 1; f < startFloor; f++) s += soulBase(f) * need(f);
+  return Math.floor(s * CATCH_UP_EFF);
+};
 const bossHpM   = f => f <= POST_FLOOR ? PRE_BOSS.hp   : POST_BOSS.hp;
 const bossDmgM  = f => f <= POST_FLOOR ? PRE_BOSS.dmg  : POST_BOSS.dmg;
 const bossSoulM = f => f <= POST_FLOOR ? PRE_BOSS.soul : POST_BOSS.soul;
@@ -1426,8 +1435,10 @@ function tickBuf(){
 
 function newRun(){
   S.lv = { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0 };
-  S.souls = ALT.leg.val(S.meta.leg);
   S.floor = ALT.desc.val(S.meta.desc);
+  const cu = catchUpSouls(S.floor);
+  S.souls = ALT.leg.val(S.meta.leg) + cu;
+  if (cu > 0) say(S.floor + '층에서 다시 시작 — 건너뛴 구간만큼 영혼 +' + fmt(cu), 'gold');
   zoneCheck();
   S.kills = 0;
   S.relics = []; S.offers = []; S.rr = 0;

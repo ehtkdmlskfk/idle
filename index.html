@@ -709,7 +709,7 @@ const PIL_MAX = 10, REM_MIN = 3, REM_CAP = 12, PITY = 15;
 const GN = ['', '이름 없는 자', '기억되는 자', '불씨를 남긴 자', '재의 성인'];
 const GC = ['', '#9a8f7c', '#6fb3a8', '#e9a24f', '#ffe3a6'];
 const pc = v => (Math.round(v * 1000) / 10) + '%';
-const pc2 = v => (Math.round(v * 10000) / 100) + '%';   // 유품처럼 층마다 미세하게 오르는 수치는 소수점 1자리로는 안 보일 때가 많아서 2자리용을 따로 둠
+const pc2 = v => (Math.round(v * 10000) / 100).toFixed(2) + '%';   // 유품처럼 층마다 미세하게 오르는 수치는 소수점 1자리로는 안 보일 때가 많아서 2자리용을 따로 둠. toFixed(2)를 써야 값이 딱 떨어질 때도 ".00"이 안 잘려나간다
 const KIND = {
   hp:   { n: '최대 불꽃',       f: v => '+' + pc(v) },
   aps:  { n: '공격 속도',       f: v => '+' + pc(v) },

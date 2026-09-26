@@ -762,6 +762,13 @@ const UP = {
 const critChance = () => Math.min(1, UP.crit.val(S.lv.crit));
 const critOverflow = () => Math.max(0, UP.crit.val(S.lv.crit) - 1);
 const critMult = () => 2 + 0.5 * relLvl('gambit') + critOverflow();
+/* 재(ash) 성장 마일스톤 — 비용은 base×g^레벨로 지수적으로 뛰는데 효과는 레벨당 고정폭으로만
+   늘어나서 후반부에 "사도 티가 안 나는" 문제가 있었음. 25레벨마다 +5%씩 무제한으로 누적되는
+   배율을 얹어서 체감 성장을 완만한 지수 곡선으로 바꾼다. 저장된 레벨 숫자는 그대로 두고
+   val()이 매 프레임 그 레벨로 다시 계산하는 구조라, 파일을 갱신하는 순간 기존 유저도 이미
+   쌓아 온 레벨만큼 즉시 배율을 받는다(추가 지급·마이그레이션 불필요, 손해 보는 사람 없음).
+   "기억"(desc, 다음 불꽃의 시작 층)은 진행 속도를 오히려 늦추길 원했던 방향과 충돌해서 제외. */
+const altMilestoneMul = l => 1 + Math.floor(l / 25) * 0.05;
 const ALT = {
   auto:  { name: '자동 성장', sub: '가장 싼 성장을 알아서 산다', base: 12, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
   autoEnc: { name: '자동 선택', sub: '사건을 성향대로 알아서 고른다', base: 10, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
@@ -772,11 +779,11 @@ const ALT = {
   away:  { name: '긴 잠', sub: '자리를 비워도 쌓이는 시간', base: 6, g: 1.7, max: 8, val: l => 4 + l, show: v => v + '시간' },
   awayEff: { name: '식지 않는 온기', sub: '자리를 비운 동안의 효율', base: 8, g: 1.7, max: 8, val: l => 0.65 + 0.05 * l, show: v => Math.round(v * 100) + '%' },
   ember: { name: '온기', sub: '불꽃이 사그라드는 속도',  base: 3, g: 1.8, val: l => Math.pow(0.94, l), show: v => '×' + v.toFixed(2) },
-  hand:  { name: '재의 손', sub: '공격력',               base: 6, g: 1.9, val: l => 1 + 0.2 * l,       show: v => '×' + v.toFixed(2) },
-  eye:   { name: '재의 눈', sub: '영혼 획득',            base: 4, g: 1.8, val: l => 1 + 0.25 * l,      show: v => '×' + v.toFixed(2) },
-  leg:   { name: '유산', sub: '다음 불꽃의 시작 영혼',    base: 2, g: 1.8, val: l => 25 * l,            show: v => fmt(v) },
+  hand:  { name: '재의 손', sub: '공격력',               base: 6, g: 1.9, val: l => (1 + 0.2 * l) * altMilestoneMul(l),       show: v => '×' + v.toFixed(2) },
+  eye:   { name: '재의 눈', sub: '영혼 획득',            base: 4, g: 1.8, val: l => (1 + 0.25 * l) * altMilestoneMul(l),      show: v => '×' + v.toFixed(2) },
+  leg:   { name: '유산', sub: '다음 불꽃의 시작 영혼',    base: 2, g: 1.8, val: l => 25 * l * altMilestoneMul(l),            show: v => fmt(v) },
   desc:  { name: '기억', sub: '다음 불꽃의 시작 층',      base: 5, g: 1.7, val: l => 1 + 2 * l,         show: v => v + '층' },
-  spark: { name: '재의 불씨', sub: '치명타 확률',         base: 8, g: 1.85, val: l => 0.01 * l,         show: v => '+' + (v * 100).toFixed(0) + '%p' }
+  spark: { name: '재의 불씨', sub: '치명타 확률',         base: 8, g: 1.85, val: l => (0.01 * l) * altMilestoneMul(l),         show: v => '+' + (v * 100).toFixed(0) + '%p' }
 };
 const RELICS = {
   wick:   { n: '굳은 심지',   d: '최대 불꽃 +30%', g: 2 },
@@ -835,6 +842,16 @@ function addHlQueue(n){
   }
 }
 const hlTier = k => HL_TIERS.find(t => t.k === k) || HL_TIERS[0];
+/* 유품 등급 확률 — 최고기록층(S.best)이 깊어질수록 귀한 등급 쪽으로 서서히 기운다.
+   f=0일 때는 기존 고정 확률(평범 69.7 · 희귀 29.7 · 영롱 0.5 · 전설 0.1)과 완전히 같아서
+   기존 세이브의 초반 체감은 그대로 유지된다. */
+const hlTierWeights = f => {
+  const legend = 0.1 + Math.min(2.9, f * 0.012);   // → 3.0%로 수렴 (약 242층)
+  const epic   = 0.5 + Math.min(7.5, f * 0.035);   // → 8.0%로 수렴 (약 200층)
+  const rare   = 29.7 + Math.min(20.3, f * 0.09);  // → 50.0%로 수렴 (약 225층)
+  const common = Math.max(20, 100 - legend - epic - rare);
+  return [common, rare, epic, legend];
+};
 /* 초 장식 강도 — 예전엔 50/300층 기준으로 계단식(0/1/2단계)이라 경계에서 확 튀는 느낌이 있었음.
    지수함수로 부드럽게 이어지도록 변경: 낮은 층에서 ×0.55로 시작해 깊이 내려갈수록 ×1.6에 점근한다. */
 const HL_FX_MUL = f => 0.55 + 1.05 * (1 - Math.exp(-f / 150));
@@ -842,13 +859,14 @@ const HL_SCALE_COEF = 0.75, HL_SCALE_DIV = 30;   // 로그 곡선 기울기 — 
 const hlPowerScale = f => f <= 45 ? (0.25 + f / 60) : (1 + HL_SCALE_COEF * Math.log10(1 + (f - 45) / HL_SCALE_DIV));   // 45층까지는 기존과 동일(45층에서 1.0). 그 이후로는 로그 곡선으로 계속 자란다(하드캡 없음, 수천 층까지도 조금씩 계속 좋아짐)
 const HL_AWAY_RATE = f => Math.max(0.3, Math.min(4, 0.3 + f / 40));   // 시간당 유품 — 최고기록층 기준으로 완만히 늘고 상한이 있다
 const hlVal = (slot, tierKey, f) => HL_BASE[slot] * hlTier(tierKey).mul * hlPowerScale(f);
-function rollHlTier(){
-  let r = Math.random() * 100;
-  for (const t of HL_TIERS) { if (r < t.w) return t.k; r -= t.w; }
+function rollHlTier(f){
+  const w = hlTierWeights(f);
+  let r = Math.random() * (w[0] + w[1] + w[2] + w[3]);
+  for (let i = 0; i < HL_TIERS.length; i++) { if (r < w[i]) return HL_TIERS[i].k; r -= w[i]; }
   return 'common';
 }
 function hlItem(){
-  const ks = Object.keys(HL_SLOTS), slot = ks[Math.floor(Math.random() * ks.length)], tier = rollHlTier();
+  const ks = Object.keys(HL_SLOTS), slot = ks[Math.floor(Math.random() * ks.length)], tier = rollHlTier(S.best);
   return { slot, tier, val: hlVal(slot, tier, S.best) };
 }
 function hlTryEquip(it){        // 슬롯이 비었거나, 지금 지닌 것보다 수치가 좋을 때만 장착
@@ -1396,6 +1414,11 @@ const eSouls = (n, f) => { const g = n * soulU(f); S.souls += g; return g; };
 const eLose = (n, f) => { const g = Math.min(S.souls, n * soulU(f)); S.souls -= g; return g; };
 const eHeal = p => { S.hp = Math.min(maxHP(), S.hp + maxHP() * p); };
 const eHurt = p => { const mx = maxHP(); S.hp = Math.min(S.hp, Math.max(mx * 0.1, S.hp - mx * p)); };   // 사건으로는 죽지 않는다
+/* 보유 영혼 비율 도박 — 환생 없이 영혼이 무한 누적되는 구조라, 층수 기준 고정 배수 판돈은
+   플레이가 길어질수록 총 보유량 대비 0에 수렴해 "패널티가 없는" 도박이 돼버린다.
+   대신 지금 보유한 영혼의 %로 걸어서, 진행도와 무관하게 항상 체감이 유지되게 한다. */
+const eSoulsPct = p => { const g = S.souls * p; S.souls += g; return g; };
+const eLosePct = p => { const g = S.souls * p; S.souls -= g; return g; };
 const eBuff = (k, m, n) => { S.buf = { k, m, n }; };
 const G_ = t => ({ t, c: 'gold' }), R_ = t => ({ t, c: 'red' });
 const ENC = {
@@ -1431,8 +1454,8 @@ const ENC = {
     c: [
       { t: '불씨를 산다', d: f => '영혼 −' + su(5, f) + ' · 불꽃 +35%',
         fx: f => { const g = eLose(5, f); eHeal(0.35); return G_('거래 성사. 영혼 −' + fmt(g) + ', 불꽃이 살아난다.'); } },
-      { t: '흥정한다', d: f => '50% 영혼 +' + su(22, f) + ' / 50% 영혼 −' + su(10, f),
-        fx: f => Math.random() < 0.5 ? G_('상인이 혀를 찬다. 영혼 +' + fmt(eSouls(22, f))) : R_('상인이 먼저 웃는다. 영혼 −' + fmt(eLose(10, f))) }
+      { t: '흥정한다', d: () => '50% 보유 영혼 +15% / 50% 보유 영혼 −13%',
+        fx: () => Math.random() < 0.5 ? G_('상인이 혀를 찬다. 영혼 +' + fmt(eSoulsPct(0.15))) : R_('상인이 먼저 웃는다. 영혼 −' + fmt(eLosePct(0.13))) }
     ]
   },
   shadow: {
@@ -2159,6 +2182,12 @@ function buildPanel(){
       });
       panel.appendChild(slotsWrap);
       updateHlSlots();
+      const hw = hlTierWeights(S.best);
+      const probLine = document.createElement('div'); probLine.className = 'ds';
+      probLine.textContent = '지금(최고 ' + S.best + '층) 등급 확률 — ' +
+        HL_TIERS.map((t, i) => t.n + ' ' + hw[i].toFixed(hw[i] < 1 ? 2 : 1) + '%').join(' · ') +
+        ' · 깊이 내려갈수록 귀한 등급 확률이 계속 오른다';
+      panel.appendChild(probLine);
       const q = S.hlQueue || 0;
       if (q > 0) {
         panel.appendChild(note('<b>쓰러진 순례자가 남긴 유품 ' + q + '개</b> — 자동으로 까면 순서대로 열리고, 지금 지닌 것보다 나은 것만 저절로 장착된다.'));
@@ -2168,7 +2197,7 @@ function buildPanel(){
         btn.onclick = () => { btn.disabled = true; btn.classList.remove('can'); hlOpenAll(); };
         panel.appendChild(btn);
       } else {
-        panel.appendChild(note('몬스터를 처치하거나 자리를 비운 동안 이따금 순례자의 <b>유품</b>이 남는다. 손 · 목 · 품 세 자리에 지니며, 운이 좋으면 낮은 층에서도 귀한 등급이 나오지만 실제 세기는 최고기록층에 맞춰 자란다.'));
+        panel.appendChild(note('몬스터를 처치하거나 자리를 비운 동안 이따금 순례자의 <b>유품</b>이 남는다. 손 · 목 · 품 세 자리에 지니며, 운이 좋으면 낮은 층에서도 귀한 등급이 나오지만 실제 세기와 귀한 등급이 나올 확률 모두 최고기록층에 맞춰 자란다.'));
       }
       const reel = document.createElement('div'); reel.className = 'hlreel'; reel.id = 'hlreel';
       panel.appendChild(reel);

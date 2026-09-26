@@ -667,10 +667,10 @@ const def = () => ({
   floor: 1, kills: 0, hp: 40, sps: 0, lastSeen: Date.now(),
   lv: { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0 },
   meta: { ember: 0, leg: 0, desc: 0, hand: 0, eye: 0, auto: 0, autoEnc: 0, autoOpen: 0, autoRelic: 0, slot: 0, spark: 0, away: 0, awayEff: 0, eng: 0 },
-  relics: [], offers: [], rr: 0, mute: false, vol: 1, evt: null,
+  relics: [], relicDup: {}, offers: [], rr: 0, mute: false, vol: 1, evt: null,
   encs: [], buf: null, stance: 0, autoOn: true, autoRelicOn: true, autoEncOn: true, autoOpenOn: true,
   pil: {}, eq: [], rems: [], pity: 0, nick: '',
-  eng: [], metRelics: [],
+  eng: [], metRelics: [], metSyn: [],
   hl: { hand: null, neck: null, chest: null }, hlQueue: 0, hlSeen: { common: 0, rare: 0, epic: 0, legend: 0 },
   att: { total: 0, lastDate: '' }
 });
@@ -698,7 +698,11 @@ const ashM = () => 1 + 0.1 * S.total;
 const rel = id => S.relics.indexOf(id) >= 0;
 const isEng = id => S.eng.indexOf(id) >= 0;
 const ENG_FRAC = 0.4;               // 각인만 된(직접 줍지 않은) 유물은 원래 효과의 40%만 적용
-const relLvl = id => rel(id) ? 1 : (isEng(id) ? ENG_FRAC : 0);
+/* 벼림 — 18종 유물을 이번 판에서 이미 다 가진 뒤, 유물 이벤트에서 같은 유물을 또 고르면
+   쌓이는 보너스. 로그 곡선이라 초반 몇 번은 체감이 크고 갈수록 완만해진다(유품 강화와 같은 패턴).
+   S.relics=[]로 매 판 리셋되는 값과 함께 newRun()에서 리셋되는, 판 안에서만 쌓이는 값이다. */
+const forgeBonus = id => 0.15 * Math.log2(1 + (S.relicDup[id] || 0));
+const relLvl = id => rel(id) ? (1 + forgeBonus(id)) : (isEng(id) ? ENG_FRAC : 0);
 const engSlots = () => ALT.eng.val(S.meta.eng);
 const engToggleCost = () => 8;
 const bufM = k => (S.buf && S.buf.k === k ? S.buf.m : 1);   // 사건으로 받은 임시 기운
@@ -1008,7 +1012,7 @@ const ACHV = [
   { n: '첫 유물',      d: '유물을 처음 줍는다',           done: () => S.metRelics.length >= 1 },
   { n: '유물 수집가',   d: '서로 다른 유물 10종을 만난다', done: () => S.metRelics.length >= 10 },
   { n: '유물 도감 완성', d: '모든 유물을 만난다',          done: () => S.metRelics.length >= Object.keys(RELICS).length },
-  { n: '첫 조합',      d: '유물 조합을 하나 완성한다',    done: () => Object.keys(SYN).some(k => syn(k)) },
+  { n: '첫 조합',      d: '유물 조합을 하나 완성한다',    done: () => S.metSyn.length >= 1 },
   { n: '영구 각인',     d: '유물을 하나 영구히 새긴다',    done: () => S.eng.length >= 1 },
   { n: '거듭된 불꽃',   d: '불꽃이 10번 꺼진다',           done: () => S.runs >= 10 },
   { n: '첫 계승',      d: '순례자의 능력을 이어받는다',   done: () => S.eq.length >= 1 },
@@ -1032,6 +1036,23 @@ const apsV  = () => UP.spd.val(S.lv.spd) * (1 - 0.1 * relLvl('anchor')) * (1 + 0
 const soulM = () => UP.greed.val(S.lv.greed) * (syn('crown') ? 1.3 : 1) * bufM('greed') * (1 + pv('soul')) * (1 + guildBuff()) * (1 + hlBonus('soul'));
 const drain = () => maxHP() * 0.010 * drainK(S.floor) * ALT.ember.val(S.meta.ember) * (1 - 0.3 * relLvl('cloak')) * (1 + 0.3 * relLvl('pact')) * (1 - 0.2 * relLvl('frost')) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm'));
 const killHeal = () => 0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0) + pv('heal');
+/* 각인이 "체감이 안 된다"는 피드백 대응 — 텍스트를 따로 파싱하는 대신, S.eng을 잠깐
+   비운 상태와 비교해서 실제 전투 공식으로 지금 이 순간의 진짜 보너스를 측정한다.
+   (currently rel()로 직접 보유 중인 유물은 관여 없음 — 순수하게 "각인만 된" 몫만 잡힌다) */
+function engBonus(){
+  if (!S.eng.length) return null;
+  const saved = S.eng;
+  S.eng = [];
+  const b = { atk: atkV(), hp: maxHP(), aps: apsV(), soul: soulM(), crit: critChance(), calm: drain() };
+  S.eng = saved;
+  const a = { atk: atkV(), hp: maxHP(), aps: apsV(), soul: soulM(), crit: critChance(), calm: drain() };
+  const pct = (x, y) => y ? Math.round((x / y - 1) * 1000) / 10 : 0;
+  return {
+    atk: pct(a.atk, b.atk), hp: pct(a.hp, b.hp), aps: pct(a.aps, b.aps), soul: pct(a.soul, b.soul),
+    crit: Math.round((a.crit - b.crit) * 1000) / 10,
+    calm: pct(b.calm, a.calm)   // 소모는 낮을수록 좋으니 방향을 뒤집어 '절감률'로 보여준다
+  };
+}
 const need  = f => (f % 10 === 0 ? 1 : 4);
 /* 초반(1~) 며칠은 '쭉쭉 올라가는' 손맛을 위해 더 낮은 증가율로, 30층부터는 원래 강도로, 60층부터는 이미 완화된 강도로 3단 전환 */
 const HP_EARLY_FLOOR = 30, HP_EARLY_RATE = 1.15;
@@ -1615,7 +1636,7 @@ function newRun(){
   if (cu > 0) say(S.floor + '층에서 다시 시작 — 건너뛴 구간만큼 영혼 +' + fmt(cu), 'gold');
   zoneCheck();
   S.kills = 0;
-  S.relics = []; S.offers = []; S.rr = 0;
+  S.relics = []; S.relicDup = {}; S.offers = []; S.rr = 0;
   S.encs = []; S.buf = null; encT = 0;
   S.hp = maxHP();
   E = null; spawnT = 0.5; heroT = 0; foeT = 0; burnT = 0;
@@ -1768,11 +1789,41 @@ function drawRelics(ids, w, n){
   }
   return picks;
 }
+function pickWeightedByFn(ids, wf){
+  let total = 0; for (const id of ids) total += wf(id);
+  let r = Math.random() * total;
+  for (const id of ids) { const wt = wf(id); if (r < wt) return id; r -= wt; }
+  return ids[ids.length - 1];
+}
+function drawByFn(ids, wf, n){
+  let remain = ids.slice(); const picks = [];
+  while (remain.length && picks.length < n) {
+    const id = pickWeightedByFn(remain, wf);
+    picks.push(id);
+    remain = remain.filter(x => x !== id);
+  }
+  return picks;
+}
+/* 18종 유물을 이번 판에서 이미 다 지닌 뒤엔 "새 유물"이 나올 수가 없으니, 대신 이미 가진
+   유물 중 하나를 더 골라 "벼릴" 수 있게 한다 — 덜 벼린 유물일수록 더 자주 나오게 해서
+   한 유물에만 몰리지 않고 고루 강해진다. */
+function offerForge(silent){
+  const pending = S.offers.flat();
+  const w = id => 1 / (1 + (S.relicDup[id] || 0));
+  const pool = Object.keys(RELICS).filter(id => pending.indexOf(id) < 0);
+  if (!Object.keys(RELICS).length) return false;
+  const picks = drawByFn(pool, w, 3);
+  if (picks.length < 3) picks.push(...drawByFn(Object.keys(RELICS).filter(id => picks.indexOf(id) < 0), w, 3 - picks.length));
+  S.offers.push(picks);
+  if (!silent) { say('유물이 다시 손에 닿는다 — 이미 지닌 것을 더 벼릴 수 있다.', 'gold'); sfx('relic'); }
+  if (tab === 1) buildPanel();
+  return true;
+}
 function offerRelic(silent){
   const pending = S.offers.flat();
   const pool = Object.keys(RELICS).filter(id => !rel(id) && pending.indexOf(id) < 0);
   const fallback = Object.keys(RELICS).filter(id => !rel(id));
-  if (!fallback.length) return false;
+  if (!fallback.length) return offerForge(silent);
   const picks = drawRelics(pool, relicWeights(S.floor), 3);
   if (picks.length < 3) picks.push(...drawRelics(fallback.filter(id => picks.indexOf(id) < 0), relicWeights(S.floor), 3 - picks.length));
   S.offers.push(picks);
@@ -1785,13 +1836,22 @@ function reroll(){
   const o = S.offers[0]; if (!o) return;
   const c = rerollCost();
   if (S.ash < c) { say('재가 모자란다.', 'red'); return; }
-  const w = relicWeights(S.floor);
   const otherPending = S.offers.slice(1).flat();
-  const all = Object.keys(RELICS).filter(id => !rel(id) && otherPending.indexOf(id) < 0);
-  if (!all.length) { say('지금은 다시 뽑을 만한 유물이 남아있지 않다.', 'red'); return; }   // 뽑을 후보가 아예 없으면 재만 날리고 목록이 텅 비는 걸 막는다
-  const fresh = all.filter(id => o.indexOf(id) < 0), back = all.filter(id => o.indexOf(id) >= 0);
-  const picks = drawRelics(fresh, w, 3);
-  if (picks.length < 3) picks.push(...drawRelics(back, w, 3 - picks.length));
+  const notOwned = Object.keys(RELICS).filter(id => !rel(id) && otherPending.indexOf(id) < 0);
+  let picks;
+  if (notOwned.length) {
+    const w = relicWeights(S.floor);
+    const fresh = notOwned.filter(id => o.indexOf(id) < 0), back = notOwned.filter(id => o.indexOf(id) >= 0);
+    picks = drawRelics(fresh, w, 3);
+    if (picks.length < 3) picks.push(...drawRelics(back, w, 3 - picks.length));
+  } else {   // 18종 다 가진 뒤의 재굴림 — 벼림 후보 안에서 다시 뽑는다
+    const fw = id => 1 / (1 + (S.relicDup[id] || 0));
+    const pool = Object.keys(RELICS).filter(id => otherPending.indexOf(id) < 0);
+    const fresh = pool.filter(id => o.indexOf(id) < 0), back = pool.filter(id => o.indexOf(id) >= 0);
+    picks = drawByFn(fresh, fw, 3);
+    if (picks.length < 3) picks.push(...drawByFn((back.length ? back : Object.keys(RELICS)).filter(id => picks.indexOf(id) < 0), fw, 3 - picks.length));
+  }
+  if (!picks.length) { say('지금은 다시 뽑을 만한 유물이 남아있지 않다.', 'red'); return; }   // 뽑을 후보가 아예 없으면 재만 날리고 목록이 텅 비는 걸 막는다
   S.offers[0] = picks;
   S.ash -= c; S.rr = (S.rr || 0) + 1;
   relicT = 0;
@@ -1817,13 +1877,17 @@ function pickRelic(id){
   if (!id || !RELICS[id]) { S.offers.shift(); return; }   // 방어: 잘못된 id로 불려도 크래시 없이 무시
   relicT = 0;
   const before = maxHP(), had = Object.keys(SYN).filter(k => syn(k));
+  let forged = false;
   if (!rel(id)) S.relics.push(id);
+  else { S.relicDup[id] = (S.relicDup[id] || 0) + 1; forged = true; }
   if (S.metRelics.indexOf(id) < 0) S.metRelics.push(id);
   S.hp += Math.max(0, maxHP() - before);
   S.offers.shift();
-  say('유물 — ' + RELICS[id].n + ': ' + RELICS[id].d, 'gold');
+  if (forged) say('벼림 — ' + RELICS[id].n + '이(가) 더 강해진다 (누적 ' + S.relicDup[id] + '회)', 'gold');
+  else say('유물 — ' + RELICS[id].n + ': ' + RELICS[id].d, 'gold');
   sfx('relic');
   Object.keys(SYN).filter(k => syn(k) && had.indexOf(k) < 0).forEach(k => {
+    if (S.metSyn.indexOf(k) < 0) S.metSyn.push(k);   // 조합 업적용 영구 기록 — 나중에 유물을 잃어도 이 기록은 안 지워진다
     say('✦ 조합 — ' + SYN[k].n + ': ' + SYN[k].d, 'gold');
     sfx('syn'); flare = 1;
   });
@@ -1989,9 +2053,16 @@ function relicRow(id, pickable){
   b.innerHTML = '<div class="ic">' + ICON.relic + '</div><div class="mid"><div class="nm"><span class="n"></span><span class="lv"></span></div><div class="ds"></div></div>' +
     (pickable ? '<div class="buy"><span class="c">고른다</span></div>' : '');
   b.querySelector('.n').textContent = r.n;
-  b.querySelector('.lv').textContent = GN[r.g];
+  b.querySelector('.lv').textContent = GN[r.g] + ((!pickable && S.relicDup[id]) ? ' · 벼림 ' + S.relicDup[id] + '회 (+' + Math.round(forgeBonus(id) * 100) + '%)' : '');
   b.querySelector('.ds').textContent = r.d;
   if (pickable) {
+    if (rel(id)) {
+      const mid0 = b.querySelector('.mid');
+      const h0 = document.createElement('div'); h0.className = 'ds';
+      h0.style.cssText = 'margin-top:2px;font-size:11.5px;color:#ffcf5c';
+      h0.textContent = '이미 지님 — 고르면 더 벼려진다' + (S.relicDup[id] ? ' (현재 +' + Math.round(forgeBonus(id) * 100) + '%)' : '');
+      mid0.appendChild(h0);
+    }
     b.onclick = () => pickRelic(id);
     const mid = b.querySelector('.mid');
     Object.keys(SYN).forEach(k => {
@@ -2093,7 +2164,19 @@ function buildPanel(){
   panel.innerHTML = '';
   Object.keys(rows).forEach(k => delete rows[k]);
   if (tab === 0) {
-    const m = document.createElement('div'); m.className = 'modes';
+    const m = document.createElement('div'); m.className = 'modes'; m.style.cssText = 'justify-content:space-between;align-items:center';
+    if (S.meta.auto) {
+      const autoWrap = document.createElement('div'); autoWrap.style.cssText = 'display:flex;align-items:center;gap:6px';
+      const lb = document.createElement('span'); lb.className = 'ds'; lb.textContent = '자동 성장';
+      const segA = document.createElement('div'); segA.className = 'seg';
+      [[1, '켜짐'], [0, '꺼짐']].forEach(([v, tx]) => {
+        const b = document.createElement('button'); b.className = 'chip' + ((S.autoOn ? 1 : 0) === v ? ' on' : ''); b.textContent = tx;
+        b.onclick = () => { S.autoOn = !!v; save(); buildPanel(); };
+        segA.appendChild(b);
+      });
+      autoWrap.appendChild(lb); autoWrap.appendChild(segA);
+      m.appendChild(autoWrap);
+    }
     const seg = document.createElement('div'); seg.className = 'seg';
     [[1, '×1'], [10, '×10'], [0, '최대']].forEach(([v, t]) => {
       const b = document.createElement('button');
@@ -2104,18 +2187,6 @@ function buildPanel(){
     m.appendChild(seg);
     panel.appendChild(m);
     Object.keys(UP).forEach(k => panel.appendChild(makeRow(true, k)));
-    if (S.meta.auto) {
-      const m2 = document.createElement('div'); m2.className = 'modes'; m2.style.cssText = 'justify-content:space-between;align-items:center;margin-top:6px';
-      const lb = document.createElement('span'); lb.className = 'ds'; lb.textContent = '자동 성장';
-      const seg2 = document.createElement('div'); seg2.className = 'seg';
-      [[1, '켜짐'], [0, '꺼짐']].forEach(([v, tx]) => {
-        const b = document.createElement('button'); b.className = 'chip' + ((S.autoOn ? 1 : 0) === v ? ' on' : ''); b.textContent = tx;
-        b.onclick = () => { S.autoOn = !!v; save(); buildPanel(); };
-        seg2.appendChild(b);
-      });
-      m2.appendChild(lb); m2.appendChild(seg2);
-      panel.appendChild(m2);
-    }
   } else if (tab === 1) {
     const o = S.offers[0];
     if (o) {
@@ -2157,6 +2228,20 @@ function buildPanel(){
     const engH = document.createElement('div'); engH.className = 'sec';
     engH.textContent = '영구 각인 ' + S.eng.length + ' / ' + engSlots();
     panel.appendChild(engH);
+    const eb = engBonus();
+    if (eb) {
+      const parts = [];
+      if (eb.atk) parts.push('공격력 +' + eb.atk + '%');
+      if (eb.hp) parts.push('최대 불꽃 +' + eb.hp + '%');
+      if (eb.aps) parts.push('공격 속도 +' + eb.aps + '%');
+      if (eb.soul) parts.push('영혼 획득 +' + eb.soul + '%');
+      if (eb.crit) parts.push('치명타 확률 +' + eb.crit + '%p');
+      if (eb.calm) parts.push('불꽃 소모 −' + eb.calm + '%');
+      if (parts.length) {
+        const en = note('<b style="color:#8fbf9a">지금 각인으로 받는 중 — ' + parts.join(' · ') + '</b>');
+        panel.appendChild(en);
+      }
+    }
     if (S.metRelics.length) {
       panel.appendChild(note('만난 적 있는 유물은 재 ' + engToggleCost() + '로 영구히 새길 수 있다 — 죽어도 사라지지 않지만 효과는 ' + Math.round(ENG_FRAC * 100) + '%로 줄어든다. 이번 생에 직접 주우면 100% 효과로 돌아온다.'));
       S.metRelics.slice().sort((a, b) => isEng(b) - isEng(a) || RELICS[b].g - RELICS[a].g).forEach(id => panel.appendChild(engRow(id)));
@@ -4060,9 +4145,13 @@ $('tlForce').onclick = () => becomeLeader();   // 굳이 무릅쓰고 이어하�
 /* ---------- 시작 ---------- */
 if (!fresh) {
   if (!Array.isArray(S.relics)) S.relics = [];
+  if (!S.relicDup || typeof S.relicDup !== 'object' || Array.isArray(S.relicDup)) S.relicDup = {};
+  Object.keys(S.relicDup).forEach(k => { if (!RELICS[k] || !(S.relicDup[k] > 0)) delete S.relicDup[k]; });
   if (!Array.isArray(S.offers)) S.offers = [];
   if (!Array.isArray(S.metRelics)) S.metRelics = [];
   S.metRelics = S.metRelics.filter((id, i, a) => RELICS[id] && a.indexOf(id) === i);
+  if (!Array.isArray(S.metSyn)) S.metSyn = [];
+  S.metSyn = S.metSyn.filter((k, i, a) => SYN[k] && a.indexOf(k) === i);   // 조합 업적은 한 번 완성하면 영구 기록 — 사망으로 유물이 사라져도 안 없어짐
   if (!Array.isArray(S.eng)) S.eng = [];
   S.eng = S.eng.filter((id, i, a) => RELICS[id] && S.metRelics.indexOf(id) >= 0 && a.indexOf(id) === i).slice(0, ALT.eng.val(S.meta.eng));
   if (!S.pil || typeof S.pil !== 'object' || Array.isArray(S.pil)) S.pil = {};

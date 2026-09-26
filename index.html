@@ -3547,38 +3547,46 @@ function updateOnlineUI(){
   if (badge) badge.classList.toggle('show', onlineCount > 0);
 }
 function connectPresence(){
-  if (!sbClient || presenceChannel || !kakaoUser) return;   // 로그인한 사람만 접속자 목록에 잡히게 한다 —
-  // 익명 상태로는 애초에 이 채널에 연결(subscribe)하지 않으므로, 남의 Supabase anon key를
-  // 그대로 갖다 써서 무제한으로 채널을 여는 것 자체는 여전히 막지 못하지만(그건 서버 쪽
-  // Realtime Authorization 설정으로만 막을 수 있다), 최소한 우리 페이지를 통해 들어오는
-  // 정상 트래픽 중 로그인 안 한 사람들은 이 카운트에 더 이상 안 잡힌다.
-  const myKey = 'k:' + kakaoUser.id;
-  presenceChannel = sbClient.channel(CHAT_ROOM + '-presence', { config: { presence: { key: myKey } } });
-  presenceChannel
-    .on('presence', { event: 'sync' }, () => {
-      try { onlineCount = Object.keys(presenceChannel.presenceState()).length; } catch (e) { onlineCount = 0; }
-      updateOnlineUI();
-      if ($('onlinePop') && $('onlinePop').classList.contains('show')) { renderOnlinePop(); positionOnlinePop(); }
-    })
-    .subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        try { await presenceChannel.track({ at: Date.now(), nick: presenceNick() }); } catch (e) {}
-      }
-    });
+  if (!sbClient || presenceChannel || !kakaoUser) return;
+  // kakaoUser는 그냥 이 페이지의 JS 변수라서, 브라우저 개발자도구 콘솔에서 누구든
+  // 값을 직접 만들어 넣고 이 함수를 호출할 수 있다 — 지난번 "로그인한 사람만 연결"
+  // 패치가 사실상 못 막았던 지점이 바로 이거다. 그래서 여기서 그 값을 그대로
+  // 믿지 않고, 연결 직전에 진짜 카카오 액세스 토큰으로 서버(profile-sync)에
+  // 신원을 다시 확인시킨다. 서버는 그 토큰을 카카오 쪽에 직접 조회해서 검증하므로,
+  // 콘솔로 kakaoUser나 토큰 값을 아무리 흉내내도(진짜 카카오 로그인을 거치지
+  // 않은 이상) 여기서 막힌다.
+  (async () => {
+    const r = await callProfileSync('get');
+    if (presenceChannel) return;   // 그 사이 이미 다른 경로로 연결됐으면 중복 연결하지 않는다
+    if (!r || r.error || !r.profile || !r.profile.nickname) return;   // 진짜 로그인 세션이 아니면 여기서 막힘
+    presenceVerifiedNick = r.profile.nickname;
+    const myKey = 'k:' + (r.profile.kakao_id || kakaoUser.id);
+    presenceChannel = sbClient.channel(CHAT_ROOM + '-presence', { config: { presence: { key: myKey } } });
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        try { onlineCount = Object.keys(presenceChannel.presenceState()).length; } catch (e) { onlineCount = 0; }
+        updateOnlineUI();
+        if ($('onlinePop') && $('onlinePop').classList.contains('show')) { renderOnlinePop(); positionOnlinePop(); }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          try { await presenceChannel.track({ at: Date.now(), nick: presenceNick() }); } catch (e) {}
+        }
+      });
+  })();
 }
-/* 접속자 목록(presence)에 올릴 닉네임 — CHAT.me()와 달리 로그인 안 한 사람에게
-   S.nick(로컬 저장값, 콘솔/개발자도구로 임의 조작 가능)을 그대로 보여주지 않는다.
-   로그인해서 서버가 확인한 kakaoUser.nick이 있을 때만 그 이름을 쓰고,
-   그 외엔 전부 똑같은 고정 문구로 뭉뚱그려서, 로그인 없이 원하는 이름으로
-   접속자 목록을 채우는 걸 막는다. (실제로는 connectPresence 자체가 로그인한
-   사람만 연결하므로 이 분기는 거의 안 타지만, 안전망으로 남겨둔다.) */
+/* 접속자 목록(presence)에 올릴 닉네임 — kakaoUser.nick(클라이언트 변수, 콘솔로 조작 가능)이
+   아니라, connectPresence가 서버에서 직접 확인받은 값(presenceVerifiedNick)만 쓴다.
+   아직 확인 전이거나 실패했으면 고정 문구로 뭉뚱그린다. */
+let presenceVerifiedNick = null;
 function presenceNick(){
-  return (kakaoUser && kakaoUser.nick) ? kakaoUser.nick : '이름 모를 순례자';
+  return presenceVerifiedNick || '이름 모를 순례자';
 }
 function disconnectPresence(){   // 로그아웃 시 접속자 목록에서 즉시 빠진다
   if (!presenceChannel) return;
   try { sbClient && sbClient.removeChannel(presenceChannel); } catch (e) {}
   presenceChannel = null;
+  presenceVerifiedNick = null;
   onlineCount = 0;
   updateOnlineUI();
 }
@@ -3608,6 +3616,7 @@ function renderOnlinePop(){
 }
 async function retrackPresence(){
   if (!presenceChannel) return;
+  if (kakaoUser && kakaoUser.nick) presenceVerifiedNick = kakaoUser.nick;   // 닉네임 변경 등, 이미 서버 검증을 마친 값만 반영
   try { await presenceChannel.track({ at: Date.now(), nick: presenceNick() }); } catch (e) {}
 }
 function positionOnlinePop(){

@@ -1721,12 +1721,14 @@ function kill(){
   E = null; spawnT = 0.35;
 }
 function die(){
-  dead = true; deadT = 4.5; deadAge = 0; S.hp = 0; E = null;
-  const g = ashGain(S.floor);
+  const deathFloor = S.floor;   // 리셋 전에 표시용으로 미리 떼어둔다
+  const g = ashGain(deathFloor);
   S.ash += g; S.total += g; S.runs++;
   touchProfile();
-  $('o2').textContent = S.floor + '층까지 내려갔다 — 재 +' + fmt(g);
-  $('o4').textContent = addRemain(S.floor);
+
+  dead = true; deadT = 4.5; deadAge = 0; S.hp = 0; E = null;
+  $('o2').textContent = deathFloor + '층까지 내려갔다 — 재 +' + fmt(g);
+  $('o4').textContent = addRemain(deathFloor);
   $('o3').textContent = '';
   $('o5').textContent = (S.runs >= 3 && S.runs % 4 === 3) ? (cloudNudgeText() || '') : '';   // 죽을 때 4번에 한 번, 흐린 한 줄
   $('over').classList.add('show');
@@ -1735,12 +1737,18 @@ function die(){
   }
   say(pick(DEATH), 'red');
   sfx('die');
+
+  // 사망 즉시(화면이 죽음 오버레이로 가려진 상태에서) 다음 판 리셋까지 여기서 끝낸다.
+  // 예전엔 이 리셋을 revive()에서, 즉 죽음 화면이 자연히 넘어가거나 탭할 때만 했었는데,
+  // 그 사이에 저장된 세이브는 "재는 이미 받았지만 층수는 죽기 전 그대로"인 상태라
+  // 그 틈에 새로고침하면 페널티 없이 같은 층을 무한 반복 파밍할 수 있는 구멍이 있었다.
+  newRun();
   buildPanel(); save();
 }
 function revive(){
   dead = false;
   $('over').classList.remove('show');
-  newRun();
+  // 실제 리셋(newRun)은 die()에서 이미 끝났으므로 여기서는 화면만 정리한다.
   buildPanel(); ui();
 }
 
@@ -1780,6 +1788,7 @@ function reroll(){
   const w = relicWeights(S.floor);
   const otherPending = S.offers.slice(1).flat();
   const all = Object.keys(RELICS).filter(id => !rel(id) && otherPending.indexOf(id) < 0);
+  if (!all.length) { say('지금은 다시 뽑을 만한 유물이 남아있지 않다.', 'red'); return; }   // 뽑을 후보가 아예 없으면 재만 날리고 목록이 텅 비는 걸 막는다
   const fresh = all.filter(id => o.indexOf(id) < 0), back = all.filter(id => o.indexOf(id) >= 0);
   const picks = drawRelics(fresh, w, 3);
   if (picks.length < 3) picks.push(...drawRelics(back, w, 3 - picks.length));
@@ -1791,7 +1800,8 @@ function reroll(){
   buildPanel(); ui(); save();
 }
 function autoPickRelic(){
-  const o = S.offers[0]; if (!o) return;
+  const o = S.offers[0];
+  if (!o || !o.length) { S.offers.shift(); relicT = 0; return; }   // 방어: 빈 offer가 들어와도(예상 못한 경로로) 크래시 대신 그냥 치우고 넘어간다
   relicT = 0;
   const completesSyn = id => Object.keys(SYN).some(k => {
     const need = SYN[k].need;
@@ -1804,6 +1814,7 @@ function autoPickRelic(){
 }
 function pickRelic(id){
   if (!S.offers.length) return;
+  if (!id || !RELICS[id]) { S.offers.shift(); return; }   // 방어: 잘못된 id로 불려도 크래시 없이 무시
   relicT = 0;
   const before = maxHP(), had = Object.keys(SYN).filter(k => syn(k));
   if (!rel(id)) S.relics.push(id);
@@ -4087,8 +4098,15 @@ function frame(now){
   if (raw > 3) checkAway();   // 프레임 간격이 크게 벌어졌다면(탭 전환 등) 부재 보상을 여기서도 확인
   let dt = Math.min(raw, 0.25);
   acc += dt;
-  while (acc >= 0.05) { update(0.05); acc -= 0.05; }
-  draw(dt, now / 1000);
+  try {
+    while (acc >= 0.05) { update(0.05); acc -= 0.05; }
+    draw(dt, now / 1000);
+  } catch (e) {
+    // 여기서 예외가 나면 원래는 requestAnimationFrame이 다시 안 불려서 게임 전체가 영구히 멈췄다.
+    // 예상 못한 버그가 또 있어도 화면이 완전히 죽는 대신 이번 프레임만 건너뛰고 계속 돌아가게 한다.
+    console.error('frame update/draw error (skipped this frame):', e);
+    acc = 0;
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

@@ -252,6 +252,8 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .hlslot .hn{font-size:10.5px;color:var(--dim);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hlslot .hv{font-family:var(--disp);font-size:14px;line-height:1.25;color:var(--hot)}
 .hlslot .hv.empty{color:#5a4a39;font-family:var(--ui);font-size:11.5px}
+.hlslot .hv.up{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
+.hlslot .hv .hvup{margin-left:3px;font-family:var(--ui);font-size:10.5px;font-weight:700;color:var(--ember)}
 .hlreel{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0;min-height:34px}
 .hlchip{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#1a1410;
   border:2px solid var(--gc,#9a8f7c);background:radial-gradient(circle at 35% 30%,#fff,var(--gc,#9a8f7c) 70%);
@@ -707,6 +709,7 @@ const PIL_MAX = 10, REM_MIN = 3, REM_CAP = 12, PITY = 15;
 const GN = ['', '이름 없는 자', '기억되는 자', '불씨를 남긴 자', '재의 성인'];
 const GC = ['', '#9a8f7c', '#6fb3a8', '#e9a24f', '#ffe3a6'];
 const pc = v => (Math.round(v * 1000) / 10) + '%';
+const pc2 = v => (Math.round(v * 10000) / 100) + '%';   // 유품처럼 층마다 미세하게 오르는 수치는 소수점 1자리로는 안 보일 때가 많아서 2자리용을 따로 둠
 const KIND = {
   hp:   { n: '최대 불꽃',       f: v => '+' + pc(v) },
   aps:  { n: '공격 속도',       f: v => '+' + pc(v) },
@@ -1976,14 +1979,24 @@ function note(html){
 }
 /* ---------- 유품 UI ---------- */
 let hlSlotEls = {}, hlOpening = false;
-function renderHlSlot(slot){
+function renderHlSlot(slot, deltaVal){
   const wrap = hlSlotEls[slot]; if (!wrap) return;
   const it = S.hl[slot], hv = wrap.querySelector('.hv');
   if (it) {
     const t = hlTier(it.tier);
     wrap.querySelector('.ic').style.setProperty('--tc', t.c);
     hv.className = 'hv'; hv.style.color = t.c;
-    hv.textContent = t.n + ' · ' + KIND[HL_SLOTS[slot].k].f(it.val);
+    // 등급명 + 수치. 소수점 2자리(pc2)를 쓰는 이유: 후반 층에서는 한 단계 좋아져도
+    // 1자리(pc)로는 반올림에 묻혀 화면이 안 바뀐 것처럼 보이는 경우가 있어서.
+    hv.textContent = t.n + ' · +' + pc2(it.val);
+    if (deltaVal > 0) {   // 방금 더 좋은 걸로 교체됐을 때만: 살짝 튀는 애니메이션 + "이전보다 얼마나 좋아졌는지"를 잠깐 덧붙여 보여준다
+      hv.classList.add('up');
+      const up = document.createElement('span');
+      up.className = 'hvup';
+      up.textContent = '+' + pc2(deltaVal) + ' 상승';
+      hv.appendChild(up);
+      setTimeout(() => { hv.classList.remove('up'); if (up.parentNode) up.remove(); }, 1600);
+    }
   } else {
     wrap.querySelector('.ic').style.setProperty('--tc', '#5a4a39');
     hv.className = 'hv empty'; hv.style.color = '';
@@ -2001,6 +2014,7 @@ function hlOpenAll(){
     if (!S.hlQueue) { hlOpening = false; save(); buildPanel(); return; }
     const it = hlItem(), ti = HL_TIERS.findIndex(t => t.k === it.tier);
     S.hlSeen[it.tier] = (S.hlSeen[it.tier] || 0) + 1;
+    const prev = S.hl[it.slot];   // 교체되기 전 값 — 얼마나 좋아졌는지 보여주려고 미리 챙겨둠
     const got = hlTryEquip(it);
     S.hlQueue--;   // 한 개 깔 때마다 즉시 큐에서 제거 — 중간에 앱이 꺼져도 남은 개수가 그대로 보존된다(예전엔 시작할 때 통째로 0으로 비우고 끝나야만 저장해서, 애니메이션 도중 끊기면 나머지가 전부 사라졌다)
     if (reel) {
@@ -2012,7 +2026,7 @@ function hlOpenAll(){
       reel.appendChild(c);
     }
     sfx(ti >= 3 ? 'hlLegend' : ti >= 2 ? 'hlEpic' : ti >= 1 ? 'hlRare' : 'hlCommon');
-    if (got) updateHlSlots();
+    if (got) renderHlSlot(it.slot, it.val - (prev ? prev.val : 0));
     if (S.hlQueue % 5 === 0) save();   // 몇 개마다 한 번씩 중간 저장
     setTimeout(step, gap);
   };
@@ -3783,7 +3797,13 @@ try {
    (2) 나중에 저장하는 탭이 다른 탭의 진행을 통째로 덮어써 버리는 문제가 생긴다.
    localStorage에 '지금 주도권을 쥔 탭'을 심박(heartbeat)으로 남겨서, 이미 살아있는 심박이
    있으면 이 탭은 차단막을 띄우고 게임 루프(프레임/저장/방치보상)를 멈춘 채 기다린다. */
-const TAB_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const TAB_ID = (() => {   // sessionStorage에 저장 — 같은 탭에서 새로고침해도 그대로 유지되고, 탭을 진짜로 닫으면 사라진다(그래야 "방금까지의 나"와 "다른 탭"을 구분할 수 있다)
+  try {
+    let id = sessionStorage.getItem('tabId');
+    if (!id) { id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); sessionStorage.setItem('tabId', id); }
+    return id;
+  } catch (e) { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+})();
 const LOCK_KEY = KEY + ':lock';
 const LOCK_TTL = 12000, LOCK_HEARTBEAT = 4000, LOCK_POLL = 3000;
 let isLeader = false, began = false, lockHeartbeatT = null, pendingClaim = false;
@@ -3818,6 +3838,7 @@ function becomeFollower(){
 function claimOrWait(){
   if (isLeader || pendingClaim) return;
   const l = readLock();
+  if (l && l.id === TAB_ID) { becomeLeader(); return; }   // 방금까지 나 자신이 쥐고 있던 락(=새로고침) — stale 여부와 상관없이 바로 이어받는다
   if (!lockStale(l)) { becomeFollower(); return; }
   // 락이 비어 보여도 곧바로 대표로 확정하지 않는다 — 여러 탭이 정말 동시에 뜬 경우
   // 다들 똑같이 '비어있다'고 읽어버릴 수 있어서, 일단 내 이름으로 표시만 해두고 잠깐 기다렸다가

@@ -2963,8 +2963,11 @@ async function callProfileSync(action, extra){
     return await res.json();
   } catch (e) { return { error: 'network' }; }
 }
+let lastTouchAt = 0;
 async function touchProfile(){
   if (!kakaoUser || !kakaoUser.nick) return;
+  if (Date.now() - lastTouchAt < 3000) return;   // 뱃지 연타 등으로 짧은 간격에 중복 호출되는 것만 막는다 — 20초 주기 하트비트엔 영향 없음
+  lastTouchAt = Date.now();
   const r = await callProfileSync('touch', { stats: myStats() });
   if (r && !r.error) {
     attendCache = { total: r.attend_total || 0, claimed: !!r.attend_claimed_today, known: true };
@@ -3814,6 +3817,7 @@ function toggleOnlinePop(){
     renderOnlinePop();
     pop.classList.add('show');
     positionOnlinePop();
+    touchProfile();   // 열자마자 한 번 더 확인 — 마지막 20초 하트비트 이후 바뀐 접속자를 곧바로 반영(응답 오면 touchProfile 안에서 다시 렌더링됨)
   } else {
     pop.classList.remove('show');
   }

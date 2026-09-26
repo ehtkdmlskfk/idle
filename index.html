@@ -667,7 +667,7 @@ const def = () => ({
   lv: { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0 },
   meta: { ember: 0, leg: 0, desc: 0, hand: 0, eye: 0, auto: 0, autoEnc: 0, autoOpen: 0, autoRelic: 0, slot: 0, spark: 0, away: 0, awayEff: 0, eng: 0 },
   relics: [], offers: [], rr: 0, mute: false, vol: 1, evt: null,
-  encs: [], buf: null, stance: 0, autoOn: true,
+  encs: [], buf: null, stance: 0, autoOn: true, autoRelicOn: true, autoEncOn: true, autoOpenOn: true,
   pil: {}, eq: [], rems: [], pity: 0, nick: '',
   eng: [], metRelics: [],
   hl: { hand: null, neck: null, chest: null }, hlQueue: 0, hlSeen: { common: 0, rare: 0, epic: 0, legend: 0 },
@@ -755,9 +755,13 @@ const UP = {
   hp:    { name: '심지', sub: '최대 불꽃',   base: 10, g: 1.30, val: l => (40 + 15 * l) * ashM() * (1 + 0.3 * relLvl('wick')), show: v => fmt(v) },
   spd:   { name: '맥박', sub: '공격 속도',   base: 25, g: 1.42, val: l => (0.8 + 0.08 * l) * (1 + 0.3 * relLvl('fast')), show: v => v.toFixed(2) + '/초' },
   greed: { name: '탐식', sub: '영혼 획득',   base: 15, g: 1.36, val: l => (1 + 0.15 * l) * (1 + 0.05 * S.total) * ALT.eye.val(S.meta.eye) * (1 + 0.5 * relLvl('cup')), show: v => '×' + v.toFixed(2) },
-  crit:  { name: '불티', sub: '치명타 확률', base: 20, g: 1.33, val: l => Math.min(1, 0.015 * l + ALT.spark.val(S.meta.spark) + 0.15 * relLvl('spark') + pv('crit')), show: v => (v * 100).toFixed(0) + '%' }
+  crit:  { name: '불티', sub: '치명타 확률', base: 20, g: 1.33,
+    val: l => 0.015 * l + ALT.spark.val(S.meta.spark) + 0.15 * relLvl('spark') + pv('crit'),
+    show: v => Math.min(100, v * 100).toFixed(0) + '%' + (v > 1 ? (' (초과 ' + ((v - 1) * 100).toFixed(0) + '%p → 치명타 피해)') : '') }
 };
-const critMult = () => 2 + 0.5 * relLvl('gambit');
+const critChance = () => Math.min(1, UP.crit.val(S.lv.crit));
+const critOverflow = () => Math.max(0, UP.crit.val(S.lv.crit) - 1);
+const critMult = () => 2 + 0.5 * relLvl('gambit') + critOverflow();
 const ALT = {
   auto:  { name: '자동 성장', sub: '가장 싼 성장을 알아서 산다', base: 12, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
   autoEnc: { name: '자동 선택', sub: '사건을 성향대로 알아서 고른다', base: 10, g: 1, max: 1, val: l => l, show: v => (v ? '켜짐' : '꺼짐') },
@@ -1508,7 +1512,7 @@ function openOne(f){
 const remShort = r => PIL[r.id].n + (r.over ? ' (넘침 · 재 +' + r.over + ')' : r.isNew ? ' (처음 만남)' : ' Lv' + r.lv);
 function addRemain(f){          // 죽을 때 호출 — 사망 화면에 보여 줄 문장을 돌려준다
   if (f < REM_MIN) return '';
-  if (S.meta.autoOpen) {
+  if (S.meta.autoOpen && S.autoOpenOn) {
     const r = openOne(f);
     say('유해 — ' + remShort(r), r.g >= 3 ? 'gold' : '');
     return '유해 — ' + remShort(r);
@@ -1618,7 +1622,7 @@ function hit(dmg, kind, noEcho){
   if (!E) return;
   if (E.boss) dmg *= 1 + pv('boss');
   let crit = false;
-  if (Math.random() < UP.crit.val(S.lv.crit)) { dmg *= critMult(); crit = true; sfx('crit'); }
+  if (Math.random() < critChance()) { dmg *= critMult(); crit = true; sfx('crit'); }
   if (rel('mirror') ? Math.random() < (syn('gambler') ? 0.25 : 0.15) : Math.random() < 0.15 * relLvl('mirror')) { dmg *= 3; crit = true; }
   E.hp -= dmg; E.flash = 1;
   bolt(kind !== 'auto');
@@ -1733,9 +1737,13 @@ function drawRelics(ids, w, n){
   return picks;
 }
 function offerRelic(silent){
-  const pool = Object.keys(RELICS).filter(id => !rel(id));
-  if (!pool.length) return false;
-  S.offers.push(drawRelics(pool, relicWeights(S.floor), 3));
+  const pending = S.offers.flat();
+  const pool = Object.keys(RELICS).filter(id => !rel(id) && pending.indexOf(id) < 0);
+  const fallback = Object.keys(RELICS).filter(id => !rel(id));
+  if (!fallback.length) return false;
+  const picks = drawRelics(pool, relicWeights(S.floor), 3);
+  if (picks.length < 3) picks.push(...drawRelics(fallback.filter(id => picks.indexOf(id) < 0), relicWeights(S.floor), 3 - picks.length));
+  S.offers.push(picks);
   if (!silent) { say('유물이 손에 닿는다. 하나를 고를 수 있다.', 'gold'); sfx('relic'); }
   if (tab === 1) buildPanel();
   return true;
@@ -1746,7 +1754,8 @@ function reroll(){
   const c = rerollCost();
   if (S.ash < c) { say('재가 모자란다.', 'red'); return; }
   const w = relicWeights(S.floor);
-  const all = Object.keys(RELICS).filter(id => !rel(id));
+  const otherPending = S.offers.slice(1).flat();
+  const all = Object.keys(RELICS).filter(id => !rel(id) && otherPending.indexOf(id) < 0);
   const fresh = all.filter(id => o.indexOf(id) < 0), back = all.filter(id => o.indexOf(id) >= 0);
   const picks = drawRelics(fresh, w, 3);
   if (picks.length < 3) picks.push(...drawRelics(back, w, 3 - picks.length));
@@ -1773,7 +1782,7 @@ function pickRelic(id){
   if (!S.offers.length) return;
   relicT = 0;
   const before = maxHP(), had = Object.keys(SYN).filter(k => syn(k));
-  S.relics.push(id);
+  if (!rel(id)) S.relics.push(id);
   if (S.metRelics.indexOf(id) < 0) S.metRelics.push(id);
   S.hp += Math.max(0, maxHP() - before);
   S.offers.shift();
@@ -1830,9 +1839,9 @@ function update(dt){
   S.ash += at; S.total += at;
   if (burnT > 0) burnT = Math.max(0, burnT - dt);
   if (S.meta.auto && S.autoOn) { autoT += dt; if (autoT >= 0.5) { autoT = 0; autoBuy(); } }
-  if (S.meta.autoEnc && S.encs.length) { encT += dt; if (encT >= ENC_AUTO) resolveEnc(0, S.stance ? 1 : 0); }
+  if (S.meta.autoEnc && S.autoEncOn && S.encs.length) { encT += dt; if (encT >= ENC_AUTO) resolveEnc(0, S.stance ? 1 : 0); }
   else encT = 0;
-  if (S.meta.autoRelic && S.offers.length) { relicT += dt; if (relicT >= RELIC_AUTO) autoPickRelic(); }
+  if (S.meta.autoRelic && S.autoRelicOn && S.offers.length) { relicT += dt; if (relicT >= RELIC_AUTO) autoPickRelic(); }
   else relicT = 0;
   if (!E) {
     spawnT -= dt;
@@ -1862,7 +1871,7 @@ function plan(d, l, cur, cap){
   if (!isFinite(l)) l = 0;
   let n = 0, sum = 0;
   while (n < cap && (d.max == null || l + n < d.max)) {
-    if (d.val && d.val(l + n + 1) === d.val(l + n)) break;   // 다음 레벨을 사도 실제 값이 안 오르면(예: 치명타 60% 캡) 여기서 멈춘다
+    if (d.val && d.val(l + n + 1) === d.val(l + n)) break;   // 다음 레벨을 사도 실제 값이 안 오르면(자체 캡이 있는 성장) 여기서 멈춘다
     const c = Math.ceil(d.base * Math.pow(d.g, l + n));
     if (sum + c > cur) break;
     sum += c; n++;
@@ -2032,6 +2041,18 @@ function hlOpenAll(){
   };
   step();
 }
+function onOffRow(label, key){
+  const m = document.createElement('div'); m.className = 'modes'; m.style.cssText = 'justify-content:space-between;align-items:center;margin-top:6px';
+  const lb = document.createElement('span'); lb.className = 'ds'; lb.textContent = label;
+  const seg = document.createElement('div'); seg.className = 'seg';
+  [[1, '켜짐'], [0, '꺼짐']].forEach(([v, tx]) => {
+    const b = document.createElement('button'); b.className = 'chip' + ((S[key] ? 1 : 0) === v ? ' on' : ''); b.textContent = tx;
+    b.onclick = () => { S[key] = !!v; save(); buildPanel(); };
+    seg.appendChild(b);
+  });
+  m.appendChild(lb); m.appendChild(seg);
+  return m;
+}
 function buildPanel(){
   const panel = $('panel');
   panel.innerHTML = '';
@@ -2076,6 +2097,7 @@ function buildPanel(){
       panel.appendChild(note('7층을 내려갈 때마다 유물 하나를 고를 수 있다. 유물은 이번 불꽃이 꺼지면 사라진다.<br>귀한 등급일수록 드물게 나타나며, 깊이 내려갈수록 귀한 유물을 만나기 쉬워진다.<br>특정 유물 둘을 함께 지니면 <b>조합</b>이 발동한다.' +
         (S.meta.autoRelic ? '' : '<br>제단에서 <b>자동 유물</b>을 열면 조합을 완성하거나 더 귀한 쪽을 알아서 골라 준다.')));
     }
+    if (S.meta.autoRelic) panel.appendChild(onOffRow('자동 유물', 'autoRelicOn'));
     if (S.relics.length) {
       const h = document.createElement('div'); h.className = 'sec'; h.textContent = '지닌 유물 ' + S.relics.length;
       panel.appendChild(h);
@@ -2173,6 +2195,7 @@ function buildPanel(){
       panel.appendChild(note('죽으면 쓰러진 순례자의 <b>유해</b>가 남는다(' + REM_MIN + '층부터). 열면 <b>먼저 온 이</b>가 나타나고, 그의 불씨를 이어받아 능력을 얻는다. 같은 이를 또 만나면 불씨가 진해진다. 깊이 내려가 죽을수록 귀한 이를 만난다.' +
         (S.meta.autoOpen ? '' : '<br>제단에서 <b>자동 개봉</b>을 열면 유해를 얻는 즉시 알아서 연다.')));
     }
+    if (S.meta.autoOpen) panel.appendChild(onOffRow('자동 개봉', 'autoOpenOn'));
     const ids = Object.keys(PIL).sort((a, b) => (S.eq.indexOf(b) >= 0) - (S.eq.indexOf(a) >= 0) || (!!S.pil[b] - !!S.pil[a]) || PIL[b].g - PIL[a].g);
     const have = ids.filter(id => S.pil[id]).length;
     const h = document.createElement('div'); h.className = 'sec';
@@ -2241,6 +2264,7 @@ function buildPanel(){
       });
       m.appendChild(lb); m.appendChild(seg);
       panel.appendChild(m);
+      panel.appendChild(onOffRow('자동 선택', 'autoEncOn'));
     }
   } else {
     const n = document.createElement('div'); n.className = 'note'; n.id = 'altnote';
@@ -3907,8 +3931,8 @@ if (!fresh) {
   if (!Array.isArray(S.encs)) S.encs = [];
   S.encs = S.encs.filter(e => e && ENC[e.id] && isFinite(e.f));
   if (S.buf && !(BUFN[S.buf.k] && S.buf.n > 0 && isFinite(S.buf.m))) S.buf = null;
-  S.hp = Math.max(1, Math.min(S.hp, maxHP()));
-  if (S.hp <= 1) S.hp = maxHP();
+  if (!isFinite(S.hp) || S.hp <= 0) S.hp = maxHP();   // 저장이 깨졌을 때만 보정 — 살아있던 낮은 불꽃까지 되살리지 않는다
+  else S.hp = Math.min(S.hp, maxHP());
 }
 $('snd').textContent = VLB[S.vol];
 resize();

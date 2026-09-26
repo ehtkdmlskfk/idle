@@ -526,7 +526,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div class="chd">
       <div class="chtt">
         <span class="ctt">채팅</span>
-        <span class="conline" id="conline"><i class="coDot"></i><b id="conlineNum">-</b>명이 함께 타고 있다<span class="conlineNote">(로그인 유저만)</span></span>
+        <span class="conline" id="conline" style="display:none"><i class="coDot"></i><b id="conlineNum">-</b>명이 함께 타고 있다<span class="conlineNote">(로그인 유저만)</span></span>
       </div>
       <button class="cacc" id="cacc"></button>
       <div class="accMenu" id="accMenu">
@@ -3534,8 +3534,17 @@ function connectChat(){
   updateCloudHint();
 }
 /* ---------- 접속자 수 (Supabase Realtime Presence) ----------
-   로그인 여부와 상관없이 지금 이 페이지를 열어둔 사람 수를 센다.
-   로그인한 사람은 kakao_id로 묶어서 같은 계정 다중 탭은 1명으로만 잡힌다. */
+   전면 OFF: SUPABASE_URL/ANON_KEY는 이 페이지 소스에 원래 공개돼 있는 값이라(그렇게
+   쓰라고 만들어진 키), 누구든 우리 함수(connectPresence 등)를 거치지 않고 자기
+   스크립트에서 Supabase 라이브러리로 이 채널에 직접 붙을 수 있다. 즉 이 파일 안에
+   검증을 아무리 쌓아도 "우리 페이지를 통해 들어오는 사람"만 걸러질 뿐, 페이지를
+   거치지 않고 직접 붙는 사람은 원천적으로 못 막는다 — 특정 개인을 골라 차단할
+   방법도 없다(로그인 없이 익명 anon key로 붙는 이상 우리 쪽에서 식별할 신원 자체가
+   없음). 제대로 막으려면 Supabase 쪽에서 Realtime Authorization(비공개 채널 + RLS,
+   카카오 로그인을 Supabase가 알아듣는 JWT로 바꿔주는 작업까지 포함)을 새로 설정해야
+   하는데, 그 전까지는 기능 자체를 꺼서 위조/도배와 연결 폭주 위험을 둘 다 없앤다.
+   다시 켜려면 PRESENCE_ENABLED만 true로 바꾸면 된다(단, 위 위험은 그대로 남아있다). */
+const PRESENCE_ENABLED = false;
 let presenceChannel = null;
 let onlineCount = 0;
 function updateOnlineUI(){
@@ -3547,6 +3556,7 @@ function updateOnlineUI(){
   if (badge) badge.classList.toggle('show', onlineCount > 0);
 }
 function connectPresence(){
+  if (!PRESENCE_ENABLED) return;   // 접속자 수/목록 기능 자체를 잠시 꺼둠 (아래 설명 참고)
   if (!sbClient || presenceChannel || !kakaoUser) return;
   // kakaoUser는 그냥 이 페이지의 JS 변수라서, 브라우저 개발자도구 콘솔에서 누구든
   // 값을 직접 만들어 넣고 이 함수를 호출할 수 있다 — 지난번 "로그인한 사람만 연결"

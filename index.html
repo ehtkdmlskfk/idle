@@ -1040,7 +1040,15 @@ const atkV  = () => UP.atk.val(S.lv.atk) * (1 + relLvl('last') * (S.hp < maxHP()
 const apsV  = () => UP.spd.val(S.lv.spd) * (1 - 0.1 * relLvl('anchor')) * (1 + 0.25 * relLvl('spite') * (S.hp < maxHP() * 0.4 ? 1 : 0)) * (syn('frenzy') ? 1.2 : 1) * (1 + pv('aps'));
 const soulM = () => UP.greed.val(S.lv.greed) * (syn('crown') ? 1.3 : 1) * bufM('greed') * (1 + pv('soul')) * (1 + guildBuff()) * (1 + hlBonus('soul'));
 const drain = () => maxHP() * 0.010 * drainK(S.floor) * ALT.ember.val(S.meta.ember) * (1 - 0.3 * relLvl('cloak')) * (1 + 0.3 * relLvl('pact')) * (1 - 0.2 * relLvl('frost')) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm'));
-const killHeal = () => 0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0) + pv('heal');
+/* "온기"(ember, 소모 속도 감소)가 체감 안 된다는 피드백 원인 — 처치 회복(killHeal)이 층 깊이와
+   무관하게 항상 고정 8%(+유물 보너스)라서, drain()이 층마다 커지는데도 회복이 거의 항상 소모를
+   압도해 온기를 안 올려도 체력이 안 빠지는 것처럼 느껴졌다. 회복 "비율"만 층이 깊어질수록
+   완만하게(1/(1+0.003f)) 줄여서 — 얕은 층에서는 지금과 거의 차이가 없고, 깊이 내려갈수록
+   순수 회복 여유가 서서히 줄어 온기로 소모를 낮추는 선택이 실제 생존에 영향을 주게 만든다.
+   유품 보너스(pv('heal'))는 장비 투자로 얻는 별개의 값이라 이 감쇠에서 제외 — 안 그러면 유품이
+   강해질수록 이 패치의 효과가 도로 묻힌다. */
+const killHealFloorMul = f => 1 / (1 + 0.003 * Math.max(0, f - 1));
+const killHeal = () => (0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0)) * killHealFloorMul(S.floor) + pv('heal');
 /* 각인이 "체감이 안 된다"는 피드백 대응 — 텍스트를 따로 파싱하는 대신, S.eng을 잠깐
    비운 상태와 비교해서 실제 전투 공식으로 지금 이 순간의 진짜 보너스를 측정한다.
    (currently rel()로 직접 보유 중인 유물은 관여 없음 — 순수하게 "각인만 된" 몫만 잡힌다) */
@@ -2964,12 +2972,17 @@ async function callProfileSync(action, extra){
   } catch (e) { return { error: 'network' }; }
 }
 let lastTouchAt = 0;
+let touchRetries = 0;   // 새로고침 직후 접속자 배지가 뜰 때도 안 뜰 때도 있던 원인 —
+// 로그인 복원 뒤 단 한 번만 쏘던 touch 요청이 네트워크 순간 오류/콜드스타트로 실패하면
+// 다음 20초 하트비트(그마저 이 탭이 leader이고 화면을 보고 있을 때만 돔)까지 접속자 수가
+// 그대로 0으로 남아 배지가 안 뜬 것처럼 보였다. 실패했을 때만 짧게 최대 2번 재시도한다.
 async function touchProfile(){
   if (!kakaoUser || !kakaoUser.nick) return;
   if (Date.now() - lastTouchAt < 3000) return;   // 뱃지 연타 등으로 짧은 간격에 중복 호출되는 것만 막는다 — 20초 주기 하트비트엔 영향 없음
   lastTouchAt = Date.now();
   const r = await callProfileSync('touch', { stats: myStats() });
   if (r && !r.error) {
+    touchRetries = 0;
     attendCache = { total: r.attend_total || 0, claimed: !!r.attend_claimed_today, known: true };
     $('attendbtn').classList.toggle('ping', canAttendPing());
     // 접속자 수 — Presence 채널(anon key만 있으면 누구나 붙을 수 있어 위조당했던 경로) 대신,
@@ -2982,6 +2995,11 @@ async function touchProfile(){
       onlineNamesFromServer = r.online_names;
       if ($('onlinePop') && $('onlinePop').classList.contains('show')) renderOnlinePop();
     }
+  } else if (touchRetries < 2) {
+    touchRetries++;
+    setTimeout(() => { lastTouchAt = 0; touchProfile(); }, 2000 * touchRetries);
+  } else {
+    touchRetries = 0;
   }
 }
 /* ---------- 클라우드 저장/불러오기 ----------

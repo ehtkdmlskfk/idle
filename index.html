@@ -2984,6 +2984,7 @@ let sbClient = null;
    멤버인지(guild_members에 있는지) 확인한 뒤 insert하도록 서버 쪽 추가 검증이 필요하다. */
 let activeRoom = CHAT_ROOM;
 let chatDbChannel = null;
+let chatHistoryLoaded = false;   // 채팅창을 처음 열 때 한 번만 이력을 불러오기 위한 플래그
 async function loadChatHistory(){
   try {
     const { data, error } = await sbClient
@@ -3526,10 +3527,12 @@ function connectChat(){
     return;
   }
   sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  loadChatHistory();
+  // 채팅 이력 로드 + postgres_changes 구독(connectChatDb)은 더 이상 여기서 하지 않는다.
+  // 예전엔 로그인 여부·채팅창 개폐와 무관하게 페이지를 열기만 해도 Realtime 채널이 붙어서
+  // 손님/멀티탭/새로고침 수만큼 Realtime 동시 연결이 그대로 늘어났다.
+  // 이제는 chatOpen()에서 채팅창을 실제로 열 때만 연결한다.
   connectPresence();  // 로그인한 사람만 실제로 연결되고(내부에서 kakaoUser 체크),
   // 목록(이름) 팝업은 별도로 꺼뒀으니 숫자만 노출된다.
-  connectChatDb();
   fetchMyGuild();
   updateCloudHint();
 }
@@ -3736,8 +3739,22 @@ function chatOpen(){
   $('chatbtn').classList.remove('ping');
   $('chat').classList.add('show');
   const l = $('cl'); l.scrollTop = l.scrollHeight;
+  // Realtime 연결은 채팅창을 실제로 열 때만 — 손님·닫힌 상태에서까지 계속 붙어있지 않게 한다.
+  if (sbClient) {
+    if (!chatHistoryLoaded) { loadChatHistory(); chatHistoryLoaded = true; }
+    if (!chatDbChannel) connectChatDb();
+  }
 }
-function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('ci').blur(); }
+function chatClose(){
+  CHAT.open = false; $('chat').classList.remove('show'); $('ci').blur();
+  // 채팅창을 닫으면 Realtime 구독도 바로 끊는다(연 동안만 Realtime 자원을 쓰게).
+  if (chatDbChannel) {
+    try { sbClient.removeChannel(chatDbChannel); } catch (e) {}
+    chatDbChannel = null;
+    CHAT.transport = null;
+    CHAT.setStatus('offline');
+  }
+}
 (() => {
   const ci = $('ci'), cs = $('cs');
   $('chatbtn').addEventListener('pointerdown', e => e.stopPropagation());

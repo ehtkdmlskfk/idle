@@ -3025,12 +3025,26 @@ async function showPlayerInfo(nickname){
   try {
     const { data, error } = await sbClient
       .from(PROFILE_TABLE)
-      .select('nickname,best,total,runs')
+      .select('nickname,kakao_id,best,total,runs')
       .eq('nickname', nickname)
       .maybeSingle();
     if (error || !data) { $('pinfoMsg').textContent = '정보를 찾을 수 없다.'; return; }
     $('pinfoMsg').textContent = '';
+    // 소속 길드 — profiles엔 길드 정보가 없어서 kakao_id로 guild_members를 한 번 더 조회한다.
+    // (실패해도 나머지 정보는 그대로 보여줘야 하므로 이 조회만 별도로 try/catch한다)
+    let guildName = '없음';
+    if (data.kakao_id) {
+      try {
+        const { data: gm } = await sbClient
+          .from(GUILD_MEMBERS_TABLE)
+          .select('guilds(name)')
+          .eq('kakao_id', String(data.kakao_id))
+          .maybeSingle();
+        if (gm && gm.guilds && gm.guilds.name) guildName = gm.guilds.name;
+      } catch (e) { guildName = '?'; }
+    }
     const rows = [
+      ['소속 길드', guildName],
       ['최고 도달층', fmt(data.best || 0) + '층'],
       ['누적 재', fmt(data.total || 0)],
       ['도전 횟수', fmt(data.runs || 0) + '회'],

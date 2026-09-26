@@ -291,7 +291,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   padding:0 12px 0 10px;border-radius:999px;border:1px solid #3a2f22;background:rgba(10,9,8,.55);
   font-family:var(--disp);font-size:14px;color:var(--ember);opacity:0;transform:translateX(6px);
   transition:opacity .35s,transform .35s;pointer-events:none}
-.onlineBadge.show{opacity:1;transform:translateX(0)}
+.onlineBadge.show{opacity:1;transform:translateX(0);pointer-events:auto;cursor:pointer}
 .onlinePop{position:fixed;z-index:42;width:min(230px,72vw);max-height:min(260px,48vh);display:none;
   flex-direction:column;overflow:hidden;border-radius:14px;border:1px solid #3a2f22;background:linear-gradient(#15110d,#0c0a08);
   box-shadow:0 8px 24px rgba(0,0,0,.5)}
@@ -325,6 +325,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .ctt{font-family:var(--disp);font-size:22px;line-height:1;color:var(--hot)}
 .conline{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dim);white-space:nowrap}
 .conline b{font-weight:700;color:var(--ember)}
+.conline .conlineNote{font-size:9.5px;color:#6b6152;font-weight:400}
 .coDot{width:6px;height:9px;flex:none;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;
   background:radial-gradient(circle at 50% 32%,var(--hot),var(--ember) 55%,#7a3a10 100%);
   box-shadow:0 0 5px var(--ember);animation:obFlicker 1.7s ease-in-out infinite}
@@ -489,7 +490,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div id="boss">보스</div>
     <div id="evt"></div>
     <div id="buf"></div>
-    <div id="onlineBadge" class="onlineBadge" role="button" aria-label="접속자 목록 보기"><i class="obFlame"></i><span id="obNum">-</span></div>
+    <div id="onlineBadge" class="onlineBadge" role="button" aria-label="접속자 목록 보기 (로그인 유저만)" title="로그인한 유저만 집계됨"><i class="obFlame"></i><span id="obNum">-</span></div>
     <div id="onlinePop" class="onlinePop">
       <div class="onlinePopTt"><span>지금 접속 중</span><button id="onlinePopX" aria-label="닫기">×</button></div>
       <div id="onlinePopList" class="onlinePopList"></div>
@@ -525,7 +526,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div class="chd">
       <div class="chtt">
         <span class="ctt">채팅</span>
-        <span class="conline" id="conline"><i class="coDot"></i><b id="conlineNum">-</b>명이 함께 타고 있다</span>
+        <span class="conline" id="conline"><i class="coDot"></i><b id="conlineNum">-</b>명이 함께 타고 있다<span class="conlineNote">(로그인 유저만)</span></span>
       </div>
       <button class="cacc" id="cacc"></button>
       <div class="accMenu" id="accMenu">
@@ -3724,7 +3725,7 @@ function chatClose(){ CHAT.open = false; $('chat').classList.remove('show'); $('
   $('chatbtn').onclick = chatOpen;
   $('cx').onclick = chatClose;
   $('onlineBadge').addEventListener('pointerdown', e => e.stopPropagation());
-  // $('onlineBadge').onclick = toggleOnlinePop;  // 목록 팝업은 잠시 꺼둠 — 숫자만 보여준다
+  $('onlineBadge').onclick = toggleOnlinePop;
   $('onlinePopX').onclick = () => $('onlinePop').classList.remove('show');
   $('socialbtn').addEventListener('pointerdown', e => e.stopPropagation());
   $('socialbtn').onclick = socialOpen;

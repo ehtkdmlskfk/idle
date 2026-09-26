@@ -2862,6 +2862,16 @@ async function touchProfile(){
   if (r && !r.error) {
     attendCache = { total: r.attend_total || 0, claimed: !!r.attend_claimed_today, known: true };
     $('attendbtn').classList.toggle('ping', canAttendPing());
+    // 접속자 수 — Presence 채널(anon key만 있으면 누구나 붙을 수 있어 위조당했던 경로) 대신,
+    // 이미 20초마다 도는 이 서버 검증 heartbeat 응답에 얹어서 받는다. 'touch'는 진짜 카카오
+    // 액세스 토큰이 있어야만 성공하므로, 로그인 안 한 사람이 숫자를 부풀릴 방법이 없다.
+    if (typeof r.online_count === 'number') { onlineCount = r.online_count; updateOnlineUI(); }
+    // 접속자 "목록"(닉네임)도 같은 heartbeat 응답에 얹어서 온다 — 역시 카카오 토큰
+    // 검증을 통과한 사람만 집계되므로, presence처럼 위조당할 여지가 없다.
+    if (Array.isArray(r.online_names)) {
+      onlineNamesFromServer = r.online_names;
+      if ($('onlinePop') && $('onlinePop').classList.contains('show')) renderOnlinePop();
+    }
   }
 }
 /* ---------- 클라우드 저장/불러오기 ----------
@@ -3555,8 +3565,8 @@ function connectChat(){
   // 예전엔 로그인 여부·채팅창 개폐와 무관하게 페이지를 열기만 해도 Realtime 채널이 붙어서
   // 손님/멀티탭/새로고침 수만큼 Realtime 동시 연결이 그대로 늘어났다.
   // 이제는 chatOpen()에서 채팅창을 실제로 열 때만 연결한다.
-  connectPresence();  // 로그인한 사람만 실제로 연결되고(내부에서 kakaoUser 체크),
-  // 목록(이름) 팝업은 별도로 꺼뒀으니 숫자만 노출된다.
+  connectPresence();  // PRESENCE_ENABLED=false라 지금은 아무 일도 안 함 — 접속자 수/목록은
+  // touchProfile()의 서버 heartbeat 응답(online_count/online_names)만으로 채워진다.
   fetchMyGuild();
   updateCloudHint();
 }
@@ -3574,6 +3584,7 @@ function connectChat(){
 const PRESENCE_ENABLED = false;
 let presenceChannel = null;
 let onlineCount = 0;
+let onlineNamesFromServer = [];   // touch heartbeat 응답으로 받는 실제 접속자 닉네임 목록(서버 검증 완료)
 function updateOnlineUI(){
   const shown = onlineCount > 0 ? String(onlineCount) : '-';
   const n1 = $('obNum'), n2 = $('conlineNum');
@@ -3619,31 +3630,28 @@ let presenceVerifiedNick = null;
 function presenceNick(){
   return presenceVerifiedNick || '이름 모를 순례자';
 }
-function disconnectPresence(){   // 로그아웃 시 접속자 목록에서 즉시 빠진다
-  if (!presenceChannel) return;
-  try { sbClient && sbClient.removeChannel(presenceChannel); } catch (e) {}
-  presenceChannel = null;
-  presenceVerifiedNick = null;
+function disconnectPresence(){   // 로그아웃 시 접속자 목록/숫자에서 즉시 빠진다
+  if (presenceChannel) {
+    try { sbClient && sbClient.removeChannel(presenceChannel); } catch (e) {}
+    presenceChannel = null;
+    presenceVerifiedNick = null;
+  }
+  // presenceChannel이 애초에 없어도(지금은 항상 이 상태) 배지는 반드시 리셋한다 —
+  // 안 그러면 touch로 받아온 마지막 접속자 수가 로그아웃 후에도 화면에 남는다.
   onlineCount = 0;
+  onlineNamesFromServer = [];
   updateOnlineUI();
 }
 function onlineNicks(){
-  if (!presenceChannel) return [];
-  let state;
-  try { state = presenceChannel.presenceState(); } catch (e) { return []; }
-  const names = [];
-  Object.keys(state).forEach(k => {
-    const entries = state[k] || [];
-    const nick = (entries[0] && entries[0].nick) ? String(entries[0].nick) : '이름 모를 순례자';
-    names.push(nick);
-  });
-  return names.sort((a, b) => a.localeCompare(b, 'ko'));
+  // touch heartbeat 응답(서버가 카카오 토큰 검증 후 집계)에 실린 닉네임 목록을 그대로 쓴다.
+  // presence는 꺼져 있으므로(PRESENCE_ENABLED = false) 여기서 다루지 않는다.
+  return onlineNamesFromServer.slice().sort((a, b) => a.localeCompare(b, 'ko'));
 }
 function renderOnlinePop(){
   const list = $('onlinePopList'); if (!list) return;
   const names = onlineNicks();
   list.innerHTML = '';
-  if (!names.length) { list.innerHTML = '<div class="opMsg">아무도 없다.</div>'; return; }
+  if (!names.length) { list.innerHTML = '<div class="opMsg">지금은 접속 중인 사람이 없어.</div>'; return; }
   names.forEach(n => {
     const row = document.createElement('div'); row.className = 'opRow';
     row.innerHTML = '<i class="opDot"></i><span></span>';

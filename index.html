@@ -3725,8 +3725,23 @@ document.addEventListener('visibilitychange', () => {
   if (!isLeader) { claimOrWait(); return; }   // 팔로워였다면 그새 다른 탭이 닫혔는지 다시 확인
   checkAway(); last = performance.now(); ui(); if (AC && AC.state !== 'running') AC.resume();
 });
-window.addEventListener('pagehide', () => { if (!isLeader) return; if (!document.hidden) S.lastSeen = Date.now(); save(); touchProfile(); });
-window.addEventListener('beforeunload', () => { if (!isLeader) return; if (!document.hidden) S.lastSeen = Date.now(); save(); touchProfile(); });
+window.addEventListener('pagehide', () => {
+  if (!isLeader) return;
+  if (!document.hidden) S.lastSeen = Date.now();
+  save(); touchProfile();
+  releaseLock();   // 진짜로 닫히거나 새로고침되는 순간 락을 바로 놓아준다 — 다음 탭이 12초씩 기다릴 필요가 없다
+});
+window.addEventListener('beforeunload', () => {
+  if (!isLeader) return;
+  if (!document.hidden) S.lastSeen = Date.now();
+  save(); touchProfile();
+  releaseLock();
+});
+window.addEventListener('pageshow', e => {
+  if (!e.persisted) return;   // bfcache에서 복원된 경우에만: 꺼졌다 켜진 게 아니라 그 사이 락 상태가 바뀌었을 수 있으니 다시 확인한다
+  if (isLeader) { isLeader = false; clearInterval(lockHeartbeatT); }
+  claimOrWait();
+});
 setInterval(() => { if (!isLeader) return; if (!document.hidden) S.lastSeen = Date.now(); save(); }, 5000);   // 보고 있는 동안엔 계속 '방금'으로 갱신 — 새로고침해도 이미 번 시간을 또 자리비움으로 안 쳐준다
 setInterval(() => { if (!isLeader) return; if (!document.hidden) touchProfile(); }, 20000);   // 로그인한 유저의 진행도를 20초마다 서버에 반영
 setInterval(ui, 100);
@@ -3797,18 +3812,13 @@ try {
    (2) 나중에 저장하는 탭이 다른 탭의 진행을 통째로 덮어써 버리는 문제가 생긴다.
    localStorage에 '지금 주도권을 쥔 탭'을 심박(heartbeat)으로 남겨서, 이미 살아있는 심박이
    있으면 이 탭은 차단막을 띄우고 게임 루프(프레임/저장/방치보상)를 멈춘 채 기다린다. */
-const TAB_ID = (() => {   // sessionStorage에 저장 — 같은 탭에서 새로고침해도 그대로 유지되고, 탭을 진짜로 닫으면 사라진다(그래야 "방금까지의 나"와 "다른 탭"을 구분할 수 있다)
-  try {
-    let id = sessionStorage.getItem('tabId');
-    if (!id) { id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); sessionStorage.setItem('tabId', id); }
-    return id;
-  } catch (e) { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-})();
+const TAB_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const LOCK_KEY = KEY + ':lock';
 const LOCK_TTL = 12000, LOCK_HEARTBEAT = 4000, LOCK_POLL = 3000;
 let isLeader = false, began = false, lockHeartbeatT = null, pendingClaim = false;
 function readLock(){ try { return JSON.parse(localStorage.getItem(LOCK_KEY)); } catch (e) { return null; } }
 function writeLock(){ try { localStorage.setItem(LOCK_KEY, JSON.stringify({ id: TAB_ID, ts: Date.now() })); } catch (e) {} }
+function releaseLock(){ try { const l = readLock(); if (l && l.id === TAB_ID) localStorage.removeItem(LOCK_KEY); } catch (e) {} }   // 락이 이미 다른 탭 것으로 바뀌어 있으면(드물지만) 건드리지 않는다
 function lockStale(l){ return !l || !l.id || !isFinite(l.ts) || Date.now() - l.ts > LOCK_TTL; }
 function beginPlay(){        // 대표 탭이 될 때(최초 1회, 또는 나중에 다시 주도권을 잡았을 때) 실제 게임을 진행시킨다
   if (!began) {
@@ -3838,7 +3848,6 @@ function becomeFollower(){
 function claimOrWait(){
   if (isLeader || pendingClaim) return;
   const l = readLock();
-  if (l && l.id === TAB_ID) { becomeLeader(); return; }   // 방금까지 나 자신이 쥐고 있던 락(=새로고침) — stale 여부와 상관없이 바로 이어받는다
   if (!lockStale(l)) { becomeFollower(); return; }
   // 락이 비어 보여도 곧바로 대표로 확정하지 않는다 — 여러 탭이 정말 동시에 뜬 경우
   // 다들 똑같이 '비어있다'고 읽어버릴 수 있어서, 일단 내 이름으로 표시만 해두고 잠깐 기다렸다가

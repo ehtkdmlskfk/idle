@@ -665,7 +665,7 @@ function fmt(n){
 const def = () => ({
   souls: 0, ash: 0, total: 0, best: 1, runs: 0,
   floor: 1, kills: 0, hp: 40, sps: 0, lastSeen: Date.now(),
-  lv: { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0 },
+  lv: { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0, def: 0 },
   meta: { ember: 0, leg: 0, desc: 0, hand: 0, eye: 0, auto: 0, autoEnc: 0, autoOpen: 0, autoRelic: 0, slot: 0, spark: 0, away: 0, awayEff: 0, eng: 0 },
   relics: [], relicDup: {}, offers: [], rr: 0, mute: false, vol: 1, evt: null,
   encs: [], buf: null, stance: 0, autoOn: true, autoRelicOn: true, autoEncOn: true, autoOpenOn: true,
@@ -762,7 +762,12 @@ const UP = {
   greed: { name: '탐식', sub: '영혼 획득',   base: 15, g: 1.36, val: l => (1 + 0.15 * l) * (1 + 0.05 * S.total) * ALT.eye.val(S.meta.eye) * (1 + 0.5 * relLvl('cup')), show: v => '×' + v.toFixed(2) },
   crit:  { name: '불티', sub: '치명타 확률', base: 20, g: 1.33,
     val: l => 0.015 * l + ALT.spark.val(S.meta.spark) + 0.15 * relLvl('spark') + pv('crit'),
-    show: v => Math.min(100, v * 100).toFixed(0) + '%' + (v > 1 ? (' (초과 ' + ((v - 1) * 100).toFixed(0) + '%p → 치명타 피해)') : '') }
+    show: v => Math.min(100, v * 100).toFixed(0) + '%' + (v > 1 ? (' (초과 ' + ((v - 1) * 100).toFixed(0) + '%p → 치명타 피해)') : '') },
+  /* 그을린 비늘 — 받는 피해를 나누는 방어력. 몹 피해는 층마다 지수적으로 자라는데(foeDmgBase)
+     심지(체력)는 그 속도를 못 따라가서 깊은 층에서 한 방에 죽는 문제가 있었다. 심지를 더 올리는
+     대신 받는 피해 자체를 (1 + 0.05×레벨)로 나누는 축을 새로 둬서 — 레벨이 오를수록 완만하게
+     계속 줄어들고(하드캡 없음), 심지·유물과 겹치지 않게 곱연산으로 따로 뗐다. */
+  def:   { name: '그을린 비늘', sub: '받는 피해 배수', base: 12, g: 1.35, val: l => 1 / (1 + 0.05 * l), show: v => Math.round((1 - v) * 100) + '%' }
 };
 const critChance = () => Math.min(1, UP.crit.val(S.lv.crit));
 const critOverflow = () => Math.max(0, UP.crit.val(S.lv.crit) - 1);
@@ -786,7 +791,7 @@ const ALT = {
   ember: { name: '온기', sub: '불꽃이 사그라드는 속도',  base: 3, g: 1.8, val: l => Math.pow(0.94, l), show: v => '×' + v.toFixed(2) },
   hand:  { name: '재의 손', sub: '공격력',               base: 6, g: 1.9, val: l => (1 + 0.2 * l) * altMilestoneMul(l),       show: v => '×' + v.toFixed(2) },
   eye:   { name: '재의 눈', sub: '영혼 획득',            base: 4, g: 1.8, val: l => (1 + 0.25 * l) * altMilestoneMul(l),      show: v => '×' + v.toFixed(2) },
-  leg:   { name: '유산', sub: '다음 불꽃의 시작 영혼',    base: 2, g: 1.8, val: l => 25 * l * altMilestoneMul(l),            show: v => fmt(v) },
+  leg:   { name: '유산', sub: '계승 효율 보너스',        base: 2, g: 1.8, val: l => (CATCH_UP_MAX - CATCH_UP_EFF) * (1 - Math.pow(0.95, l)), show: v => '+' + Math.round(v * 100) + '%p (합 ' + Math.round((CATCH_UP_EFF + v) * 100) + '%)' },
   desc:  { name: '기억', sub: '다음 불꽃의 시작 층',      base: 5, g: 1.7, val: l => 1 + 2 * l,         show: v => v + '층' },
   spark: { name: '재의 불씨', sub: '치명타 확률',         base: 8, g: 1.85, val: l => (0.01 * l) * altMilestoneMul(l),         show: v => '+' + (v * 100).toFixed(0) + '%p' }
 };
@@ -1072,13 +1077,18 @@ const postK = f => Math.pow(POST_RATE, f - POST_FLOOR);
 const foeDmgBase = f => f <= POST_FLOOR ? 2 * Math.pow(1.14, f - 1) : 2 * Math.pow(1.14, POST_FLOOR - 1) * postK(f);
 const soulBase   = f => f <= POST_FLOOR ? 2 * Math.pow(1.19, f - 1) : 2 * Math.pow(1.19, POST_FLOOR - 1) * postK(f);
 /* 시작층("기억") 스킵 보상 — 1층부터 시작층 전까지 실제로 올랐다면 벌었을 영혼을 계산해서
-   일부만(CATCH_UP_EFF) 미리 쥐여준다. 100% 다 주면 사실상 스킵 = 공짜 성장이라 밸런스가 깨지고,
-   0%면(지금까지의 동작) 그 구간의 성장 공백을 그대로 떠안은 채 최고기록층 벽에 바로 부딪힌다. */
-const CATCH_UP_EFF = 0.6;
+   일부만(CATCH_UP_EFF, 유산으로 최대 CATCH_UP_MAX까지) 미리 쥐여준다. 100% 다 주면 사실상
+   스킵 = 공짜 성장이라 밸런스가 깨지고, 0%면(예전 동작) 그 구간의 성장 공백을 그대로 떠안은
+   채 최고기록층 벽에 바로 부딪힌다.
+   "유산"은 예전엔 여기 더해지는 flat 보너스(25×레벨)였는데, 비용은 지수(g=1.8)로 뛰는데
+   보상은 거의 선형이라 시작층이 조금만 깊어져도(=이 계산의 s가 지수적으로 커지므로) 체감이
+   사라지는 문제가 있었다. 대신 "유산"이 이 캐치업 효율 자체를 올리게 바꿔서 — 시작층이 얼마나
+   깊든 항상 그 시점 경제의 일정 비율로 작동하게 만든다. */
+const CATCH_UP_EFF = 0.6, CATCH_UP_MAX = 0.95;
 const catchUpSouls = startFloor => {
   let s = 0;
   for (let f = 1; f < startFloor; f++) s += soulBase(f) * need(f);
-  return Math.floor(s * CATCH_UP_EFF);
+  return Math.floor(s * (CATCH_UP_EFF + ALT.leg.val(S.meta.leg)));
 };
 const bossHpM   = f => f <= POST_FLOOR ? PRE_BOSS.hp   : POST_BOSS.hp;
 const bossDmgM  = f => f <= POST_FLOOR ? PRE_BOSS.dmg  : POST_BOSS.dmg;
@@ -1629,10 +1639,10 @@ function tickBuf(){
 }
 
 function newRun(){
-  S.lv = { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0 };
+  S.lv = { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0, def: 0 };
   S.floor = ALT.desc.val(S.meta.desc);
   const cu = catchUpSouls(S.floor);
-  S.souls = ALT.leg.val(S.meta.leg) + cu;
+  S.souls = cu;
   if (cu > 0) say(S.floor + '층에서 다시 시작 — 건너뛴 구간만큼 영혼 +' + fmt(cu), 'gold');
   zoneCheck();
   S.kills = 0;
@@ -1684,7 +1694,7 @@ function hit(dmg, kind, noEcho){
 }
 function foeHit(){
   if (!E) return;
-  const d = E.dmg;
+  const d = E.dmg * UP.def.val(S.lv.def);
   S.hp -= d; E.lunge = 1; heroFlash = 1; shake = Math.max(shake, RM ? 0 : 7);
   F.push({ x: G.hx, y: G.hy - 24, t: '-' + fmt(d), c: '#d0503f', life: 1, d: 0, vy: -30, s: 14 });
   sfx('hurt');
@@ -2032,6 +2042,7 @@ const ICON = {
   desc:  svg('<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>'),
   crit:  svg('<path d="M13 2 3 14h7l-1 8 11-14h-7z"/>'),
   spark: svg('<path d="M13 2 3 14h7l-1 8 11-14h-7z"/>'),
+  def:   svg('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>'),
   relic: svg('<path d="M12 3l7 7-7 11-7-11z"/><path d="M5 10h14"/>'),
   eng:   svg('<path d="M12 3l7 7-7 11-7-11z"/><path d="M9 9.5h6M9 12.5h4"/>'),
   autoOpen: svg('<path d="M4 10h16l-1.5 9h-13z"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'),
@@ -2044,7 +2055,7 @@ const ICON = {
   safe:  svg('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>'),
   bold:  svg('<path d="M12 3c.8 3.6 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.2 2-4 .2 1.6 1 2.4 2 2.4-.6-3 .2-5.6 1-8.4z"/><path d="M12 14v3"/>')
 };
-const TC = { atk: '#d0603f', hp: '#e9a24f', spd: '#f0d27a', greed: '#a98be0', crit: '#ffe066', auto: '#6fb3a8', away: '#7fa3d6', awayEff: '#8fbf9a', ember: '#e08a4a', hand: '#c9b99a', eye: '#7fb2d6', leg: '#c9b99a', desc: '#9a8f7c', spark: '#ffcf5c', relic: '#e9a24f', eng: '#d8b46a', autoEnc: '#9ec7a0', autoRelic: '#e9a24f', autoOpen: '#8fbf9a', slot: '#e9a24f', safe: '#8fbf9a', bold: '#d0603f' };
+const TC = { atk: '#d0603f', hp: '#e9a24f', spd: '#f0d27a', greed: '#a98be0', crit: '#ffe066', def: '#8fa8c4', auto: '#6fb3a8', away: '#7fa3d6', awayEff: '#8fbf9a', ember: '#e08a4a', hand: '#c9b99a', eye: '#7fb2d6', leg: '#c9b99a', desc: '#9a8f7c', spark: '#ffcf5c', relic: '#e9a24f', eng: '#d8b46a', autoEnc: '#9ec7a0', autoRelic: '#e9a24f', autoOpen: '#8fbf9a', slot: '#e9a24f', safe: '#8fbf9a', bold: '#d0603f' };
 function relicRow(id, pickable){
   const r = RELICS[id];
   const b = document.createElement(pickable ? 'button' : 'div');
@@ -2971,11 +2982,16 @@ async function touchProfile(){
   }
 }
 /* ---------- 클라우드 저장/불러오기 ----------
-   수동으로만 동작한다(자동 동기화 없음) — 기기 A에서 잠깐 플레이하고 닫으면
-   기기 B의 진행도를 조용히 덮어써버리는 사고를 막기 위해 저장/불러오기 둘 다
-   사람이 직접 눌러야만 서버와 주고받는다.
-   연타·매크로로 서버에 요청이 몰리는 걸 막기 위해 60초 쿨타임을 둔다 — 성공이든
-   실패든 시도 자체를 기준으로 쿨타임이 걸리고, 요청이 진행 중일 땐 추가 클릭도 무시한다. */
+   불러오기는 여전히 수동이다 — 이건 "내 진행도를 포기하고 클라우드 기록으로 덮어쓰기"라
+   되돌릴 수 없는 선택이라 사람이 직접 확인하고 눌러야 한다(위 confirm 참고).
+   저장은 예전엔 수동뿐이었는데(기기 A에서 잠깐 켰다 끄면 기기 B의 진행도를 조용히
+   덮어쓸까 걱정했었다), 실제로는 그 반대 사고가 훨씬 흔했다: 다른 컴퓨터에서
+   로그인해놓고 저장 버튼 누르는 걸 깜빡한 채 끄면 그날 진행이 그냥 증발해버렸다
+   (채팅에서 실제로 나온 문제). "이 기기가 마지막으로 플레이한 기기"가 곧 최신 기록이라는
+   전제가 거의 항상 맞기 때문에, 이제 저장도 자동으로 같이 돈다 — 로컬 저장과 같은
+   타이밍(주기적으로 + 탭을 벗어나거나 닫는 순간)에 조용히 클라우드까지 밀어 넣는다.
+   서버 부하·쿨타임은 그대로 60초를 지키고, 실패해도 조용히 넘어간다(다음 타이밍에 재시도됨).
+   수동 버튼은 그대로 남겨서 "지금 당장 확실히 저장됐는지 확인하고 싶을 때" 쓸 수 있다. */
 const CLOUD_SAVE_COOLDOWN_MS = 60 * 1000;
 let cloudSaveBusy = false;
 async function cloudSaveManual(){
@@ -2989,6 +3005,21 @@ async function cloudSaveManual(){
   const r = await callProfileSync('save_cloud', { save: S });
   if (r && r.ok) { markCloudSaved(); updateCloudHint(); }
   CHAT.notice(r && r.ok ? '클라우드에 저장했다.' : '저장하지 못했다. 잠시 후 다시 시도해줘.');
+  cloudSaveBusy = false;
+}
+// 자동 클라우드 저장 — 수동 버튼과 같은 엔드포인트·쿨타임을 쓰되, 채팅에 알리지 않고 조용히 시도한다.
+// 로그인 안 했거나 닉네임 미설정이면 그냥 넘어가고, 이미 저장 요청이 진행 중이거나 쿨타임 안이어도 조용히 스킵한다
+// (다음 자동 저장 타이밍에 다시 시도되므로 굳이 알릴 필요가 없다).
+async function cloudSaveAuto(){
+  if (!kakaoUser || !kakaoUser.nick) return;
+  if (cloudSaveBusy) return;
+  if (Date.now() - cloudSaveAttemptAt() < CLOUD_SAVE_COOLDOWN_MS) return;
+  cloudSaveBusy = true;
+  markCloudSaveAttempt();
+  try {
+    const r = await callProfileSync('save_cloud', { save: S });
+    if (r && r.ok) { markCloudSaved(); updateCloudHint(); }
+  } catch (e) {}
   cloudSaveBusy = false;
 }
 async function cloudLoadManual(){
@@ -3052,6 +3083,7 @@ async function submitNickname(){
   hintAccMenuOnce();
   connectPresence();
   retrackPresence();
+  cloudSaveAuto();   // 닉네임을 막 정한 기기 = 지금 이 진행도가 사실상 최신본이니 2분 기다리지 않고 바로 한 번 밀어둔다
   $('nmSave').disabled = false;
 }
 (() => {
@@ -3993,13 +4025,13 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => {
   if (!isLeader) return;
   if (!document.hidden) S.lastSeen = Date.now();
-  save(); touchProfile();
+  save(); touchProfile(); cloudSaveAuto();   // 로그인해놨다면 닫는 순간 클라우드에도 최신 기록을 밀어둔다
   releaseLock();   // 진짜로 닫히거나 새로고침되는 순간 락을 바로 놓아준다 — 다음 탭이 12초씩 기다릴 필요가 없다
 });
 window.addEventListener('beforeunload', () => {
   if (!isLeader) return;
   if (!document.hidden) S.lastSeen = Date.now();
-  save(); touchProfile();
+  save(); touchProfile(); cloudSaveAuto();
   releaseLock();
 });
 window.addEventListener('pageshow', e => {
@@ -4009,6 +4041,7 @@ window.addEventListener('pageshow', e => {
 });
 setInterval(() => { if (!isLeader) return; if (!document.hidden) S.lastSeen = Date.now(); save(); }, 5000);   // 보고 있는 동안엔 계속 '방금'으로 갱신 — 새로고침해도 이미 번 시간을 또 자리비움으로 안 쳐준다
 setInterval(() => { if (!isLeader) return; if (!document.hidden) touchProfile(); }, 20000);   // 로그인한 유저의 진행도를 20초마다 서버에 반영
+setInterval(() => { if (!isLeader) return; if (!document.hidden) cloudSaveAuto(); }, 120000);   // 켜놓고 플레이하는 동안에도 2분마다 자동으로 클라우드에 밀어둔다 — 비정상 종료(배터리 방전 등)까지 대비
 setInterval(ui, 100);
 
 /* ---------- 새 버전 배포 감지 ----------
@@ -4144,6 +4177,8 @@ $('tlForce').onclick = () => becomeLeader();   // 굳이 무릅쓰고 이어하�
 
 /* ---------- 시작 ---------- */
 if (!fresh) {
+  if (!S.lv || typeof S.lv !== 'object') S.lv = { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0, def: 0 };
+  if (typeof S.lv.def !== 'number' || !isFinite(S.lv.def)) S.lv.def = 0;   // 그을린 비늘 추가 전 세이브 호환
   if (!Array.isArray(S.relics)) S.relics = [];
   if (!S.relicDup || typeof S.relicDup !== 'object' || Array.isArray(S.relicDup)) S.relicDup = {};
   Object.keys(S.relicDup).forEach(k => { if (!RELICS[k] || !(S.relicDup[k] > 0)) delete S.relicDup[k]; });

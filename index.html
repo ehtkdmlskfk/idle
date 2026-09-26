@@ -3262,7 +3262,8 @@ async function fetchGuildBrowse(q){
   try {
     let query = sbClient.from(GUILD_TABLE).select('id,name,notice,member_count,donated').order('member_count', { ascending: false }).limit(GUILD_LIST_N);
     if (q) query = query.ilike('name', '%' + q.replace(/[%_]/g, c => '\\' + c) + '%');
-    else query = query.lt('member_count', GUILD_MAX_MEMBERS);   // 인원순 정렬이라 만석 길드가 맨 위를 다 차지한다 — 기본 목록엔 가입 가능한 곳만
+    // 예전엔 기본 목록에서 꽉 찬 길드(member_count>=GUILD_MAX_MEMBERS)를 걸러냈었다 —
+    // 지금은 다 보여주고, 꽉 찬 길드는 아래에서 "정원 마감" 버튼으로 표시만 한다.
     const { data, error } = await query;
     if (error) throw error;
     list.innerHTML = '';

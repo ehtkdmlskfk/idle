@@ -2985,6 +2985,30 @@ let sbClient = null;
 let activeRoom = CHAT_ROOM;
 let chatDbChannel = null;
 let chatHistoryLoaded = false;   // 채팅창을 처음 열 때 한 번만 이력을 불러오기 위한 플래그
+const CHAT_RECONNECT_MIN_GAP_MS = 3000;
+const CHAT_CONNECT_AT_LS_KEY = 'emberChatConnectAt';   // 새로고침해도 안 풀리게 localStorage에 마지막 연결 시각을 둔다
+function chatConnectWaitMs(){
+  try {
+    const last = Number(localStorage.getItem(CHAT_CONNECT_AT_LS_KEY)) || 0;
+    const wait = CHAT_RECONNECT_MIN_GAP_MS - (Date.now() - last);
+    return wait > 0 ? wait : 0;
+  } catch (e) { return 0; }
+}
+function markChatConnectAttempt(){ try { localStorage.setItem(CHAT_CONNECT_AT_LS_KEY, String(Date.now())); } catch (e) {} }
+/* 채팅 Realtime 연결은 대표(leader) 탭에서만, 그리고 너무 잦은 재연결(새로고침 반복 등)은
+   최소 간격을 두고 미룬다. chatOpen()과 becomeLeader()에서 이 함수를 통해서만 연결을 시도한다. */
+function requestChatConnect(){
+  if (!sbClient || !CHAT.open || !isLeader || chatDbChannel) return;
+  const wait = chatConnectWaitMs();
+  if (wait > 0) {
+    CHAT.setStatus('connecting');
+    setTimeout(() => requestChatConnect(), wait);
+    return;
+  }
+  markChatConnectAttempt();
+  if (!chatHistoryLoaded) { loadChatHistory(); chatHistoryLoaded = true; }
+  connectChatDb();
+}
 async function loadChatHistory(){
   try {
     const { data, error } = await sbClient
@@ -3739,11 +3763,7 @@ function chatOpen(){
   $('chatbtn').classList.remove('ping');
   $('chat').classList.add('show');
   const l = $('cl'); l.scrollTop = l.scrollHeight;
-  // Realtime 연결은 채팅창을 실제로 열 때만 — 손님·닫힌 상태에서까지 계속 붙어있지 않게 한다.
-  if (sbClient) {
-    if (!chatHistoryLoaded) { loadChatHistory(); chatHistoryLoaded = true; }
-    if (!chatDbChannel) connectChatDb();
-  }
+  requestChatConnect();   // 대표 탭이고, 최근에 연결을 시도한 지 얼마 안 됐으면 잠깐 미룬다
 }
 function chatClose(){
   CHAT.open = false; $('chat').classList.remove('show'); $('ci').blur();
@@ -3980,10 +4000,18 @@ function becomeLeader(){
   lockHeartbeatT = setInterval(writeLock, LOCK_HEARTBEAT);
   $('tablock').classList.remove('show');
   beginPlay();
+  requestChatConnect();   // 채팅창이 열려 있던 채로 대표권을 (다시) 잡은 경우 그제야 연결한다
 }
 function becomeFollower(){
   if (isLeader) { isLeader = false; clearInterval(lockHeartbeatT); }
   $('tablock').classList.add('show');
+  // 팔로워 탭은 Realtime을 붙잡고 있을 필요가 없다 — 대표권을 잃는 순간 바로 끊는다.
+  if (chatDbChannel) {
+    try { sbClient.removeChannel(chatDbChannel); } catch (e) {}
+    chatDbChannel = null;
+    CHAT.transport = null;
+    if (CHAT.open) CHAT.setStatus('offline');
+  }
 }
 function claimOrWait(){
   if (isLeader || pendingClaim) return;

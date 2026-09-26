@@ -491,6 +491,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div id="evt"></div>
     <div id="buf"></div>
     <div id="onlineBadge" class="onlineBadge" role="button" aria-label="접속자 목록 보기 (로그인 유저만)" title="로그인한 유저만 집계됨"><i class="obFlame"></i><span id="obNum">-</span></div>
+    <div id="dbgOnline" style="display:none;position:fixed;left:6px;bottom:6px;z-index:99999;max-width:90vw;background:rgba(0,0,0,.82);color:#9f9;font:11px/1.4 monospace;padding:8px 10px;border-radius:6px;white-space:pre-wrap;pointer-events:none;"></div>
     <div id="onlinePop" class="onlinePop">
       <div class="onlinePopTt"><span>지금 접속 중</span><button id="onlinePopX" aria-label="닫기">×</button></div>
       <div id="onlinePopList" class="onlinePopList"></div>
@@ -2971,18 +2972,32 @@ async function callProfileSync(action, extra){
     return await res.json();
   } catch (e) { return { error: 'network' }; }
 }
+/* F12(개발자도구)를 쓸 수 없는 환경(모바일 등)에서도 접속자 배지 문제를 눈으로 확인할 수 있게,
+   URL에 ?debug=online 을 붙이면 화면 좌하단에 touchProfile()의 실제 상태를 계속 찍어준다.
+   평소엔 dbgOnline 엘리먼트가 display:none이라 아무 영향 없다. */
+const DEBUG_ONLINE = /[?&]debug=online\b/.test(location.search);
+function dbgLog(msg){
+  if (!DEBUG_ONLINE) return;
+  const el = $('dbgOnline');
+  if (!el) return;
+  el.style.display = 'block';
+  const t = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+  el.textContent = '[' + t + '] ' + msg + '\n' + el.textContent.split('\n').slice(0, 12).join('\n');
+}
 let lastTouchAt = 0;
 let touchRetries = 0;   // 새로고침 직후 접속자 배지가 뜰 때도 안 뜰 때도 있던 원인 —
 // 로그인 복원 뒤 단 한 번만 쏘던 touch 요청이 네트워크 순간 오류/콜드스타트로 실패하면
 // 다음 20초 하트비트(그마저 이 탭이 leader이고 화면을 보고 있을 때만 돔)까지 접속자 수가
 // 그대로 0으로 남아 배지가 안 뜬 것처럼 보였다. 실패했을 때만 짧게 최대 2번 재시도한다.
 async function touchProfile(){
-  if (!kakaoUser || !kakaoUser.nick) return;
-  if (Date.now() - lastTouchAt < 3000) return;   // 뱃지 연타 등으로 짧은 간격에 중복 호출되는 것만 막는다 — 20초 주기 하트비트엔 영향 없음
+  if (!kakaoUser || !kakaoUser.nick) { dbgLog('touchProfile 스킵 — 로그인 안 됨 (kakaoUser=' + JSON.stringify(kakaoUser) + ')'); return; }
+  if (Date.now() - lastTouchAt < 3000) { dbgLog('touchProfile 스킵 — 3초 이내 중복 호출'); return; }
   lastTouchAt = Date.now();
+  dbgLog('touch 요청 전송 중… (nick=' + kakaoUser.nick + ')');
   const r = await callProfileSync('touch', { stats: myStats() });
   if (r && !r.error) {
     touchRetries = 0;
+    dbgLog('touch 성공 — online_count=' + r.online_count + ', online_names=' + JSON.stringify(r.online_names));
     attendCache = { total: r.attend_total || 0, claimed: !!r.attend_claimed_today, known: true };
     $('attendbtn').classList.toggle('ping', canAttendPing());
     // 접속자 수 — Presence 채널(anon key만 있으면 누구나 붙을 수 있어 위조당했던 경로) 대신,
@@ -2997,8 +3012,10 @@ async function touchProfile(){
     }
   } else if (touchRetries < 2) {
     touchRetries++;
+    dbgLog('touch 실패 — ' + JSON.stringify(r) + ' → ' + (2000 * touchRetries) + 'ms 뒤 재시도(' + touchRetries + '/2)');
     setTimeout(() => { lastTouchAt = 0; touchProfile(); }, 2000 * touchRetries);
   } else {
+    dbgLog('touch 최종 실패 — ' + JSON.stringify(r) + ' (재시도 소진)');
     touchRetries = 0;
   }
 }

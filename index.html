@@ -492,7 +492,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
     <div id="boss">보스</div>
     <div id="evt"></div>
     <div id="buf"></div>
-    <div id="onlineBadge" class="onlineBadge" role="button" aria-label="접속자 목록 보기 (로그인 유저만)" title="로그인한 유저만 집계됨"><i class="obFlame"></i><span id="obNum">-</span></div>
+    <div id="onlineBadge" class="onlineBadge" role="button" aria-label="접속자 수 (로그인하면 볼 수 있다)" title="지금도 누군가 접속해 있다 — 로그인하면 숫자로 볼 수 있다"><i class="obFlame"></i><span id="obNum">-</span></div>
     <div id="dbgOnline" style="display:none;position:fixed;left:6px;bottom:6px;z-index:99999;max-width:90vw;background:rgba(0,0,0,.82);color:#9f9;font:11px/1.4 monospace;padding:8px 10px;border-radius:6px;white-space:pre-wrap;pointer-events:none;"></div>
     <div id="onlinePop" class="onlinePop">
       <div class="onlinePopTt"><span>지금 접속 중</span><button id="onlinePopX" aria-label="닫기">×</button></div>
@@ -3763,12 +3763,12 @@ function updateOnlineUI(){
     // "고장난 건지 로그인해야 되는 기능인지" 구분이 안 됐다. 흐릿한 안내로 바꿔서
     // 로그인하면 볼 수 있는 기능이라는 걸 알려준다. (실제 집계 로직은 그대로 로그인
     // 전용 — 여기서 보여주는 건 안내일 뿐, 값 자체를 미리 알려주진 않는다.)
-    if (n1) n1.textContent = '로그인';
+    if (n1) n1.textContent = '?명';
     if (n2) n2.textContent = '-';
     if (badge) {
       badge.classList.add('show', 'locked');
-      badge.title = '로그인하면 접속자 수를 볼 수 있다';
-      badge.setAttribute('aria-label', '로그인하면 접속자 수를 볼 수 있다');
+      badge.title = '지금도 누군가 접속해 있다 — 로그인하면 숫자로 볼 수 있다';
+      badge.setAttribute('aria-label', '접속자 수 (로그인하면 볼 수 있다)');
     }
     return;
   }

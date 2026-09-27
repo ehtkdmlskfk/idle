@@ -675,7 +675,7 @@ const def = () => ({
   pil: {}, eq: [], rems: [], pity: 0, nick: '',
   eng: [], metRelics: [], metSyn: [],
   hl: { hand: null, neck: null, chest: null }, hlQueue: 0, hlSeen: { common: 0, rare: 0, epic: 0, legend: 0 },
-  att: { total: 0, lastDate: '' }
+  att: { total: 0, lastDate: '' }, achEver: {}
 });
 function load(){
   try {
@@ -764,7 +764,7 @@ const UP = {
   spd:   { name: '맥박', sub: '공격 속도',   base: 25, g: 1.42, val: l => (0.8 + 0.08 * l) * (1 + 0.3 * relLvl('fast')), show: v => v.toFixed(2) + '/초' },
   greed: { name: '탐식', sub: '영혼 획득',   base: 15, g: 1.36, val: l => (1 + 0.15 * l) * (1 + 0.05 * S.total) * ALT.eye.val(S.meta.eye) * (1 + 0.5 * relLvl('cup')), show: v => '×' + v.toFixed(2) },
   crit:  { name: '불티', sub: '치명타 확률', base: 20, g: 1.33,
-    val: l => 0.015 * l + ALT.spark.val(S.meta.spark) + 0.15 * relLvl('spark') + pv('crit'),
+    val: l => 0.015 * l + ALT.spark.val(S.meta.spark) + 0.15 * relLvl('spark') + pv('crit') + achBonus('crit'),
     show: v => Math.min(100, v * 100).toFixed(0) + '%' + (v > 1 ? (' (초과 ' + ((v - 1) * 100).toFixed(0) + '%p → 치명타 피해)') : '') },
   /* 그을린 비늘 — 받는 피해를 나누는 방어력. 몹 피해는 층마다 지수적으로 자라는데(foeDmgBase)
      심지(체력)는 그 속도를 못 따라가서 깊은 층에서 한 방에 죽는 문제가 있었다. 심지를 더 올리는
@@ -1009,40 +1009,58 @@ async function buildAttendModal(){
 /* ---------- 업적 ----------
    따로 저장하지 않고, 현재 상태(S)와 길드 가입 여부로 그때그때 판정한다. */
 const ACHV = [
-  { n: '지하 10층',    d: '최심 10층에 도달한다',        done: () => S.best >= 10 },
-  { n: '지하 30층',    d: '최심 30층에 도달한다',        done: () => S.best >= 30 },
-  { n: '지하 50층',    d: '최심 50층에 도달한다',        done: () => S.best >= 50 },
-  { n: '끝없는 계단',   d: '최심 100층에 도달한다',       done: () => S.best >= 100 },
-  { n: '잊힌 성소',     d: '최심 150층에 도달한다',       done: () => S.best >= 150 },
-  { n: '거꾸로 선 성당', d: '최심 200층에 도달한다',       done: () => S.best >= 200 },
-  { n: '별 없는 하늘',   d: '최심 250층에 도달한다',       done: () => S.best >= 250 },
-  { n: '세어지지 않는 계단', d: '최심 300층에 도달한다',   done: () => S.best >= 300 },
-  { n: '첫 유물',      d: '유물을 처음 줍는다',           done: () => S.metRelics.length >= 1 },
-  { n: '유물 수집가',   d: '서로 다른 유물 10종을 만난다', done: () => S.metRelics.length >= 10 },
-  { n: '유물 도감 완성', d: '모든 유물을 만난다',          done: () => S.metRelics.length >= Object.keys(RELICS).length },
-  { n: '첫 조합',      d: '유물 조합을 하나 완성한다',    done: () => S.metSyn.length >= 1 },
-  { n: '영구 각인',     d: '유물을 하나 영구히 새긴다',    done: () => S.eng.length >= 1 },
-  { n: '거듭된 불꽃',   d: '불꽃이 10번 꺼진다',           done: () => S.runs >= 10 },
-  { n: '첫 계승',      d: '순례자의 능력을 이어받는다',   done: () => S.eq.length >= 1 },
-  { n: '순례자 도감 완성', d: '모든 순례자를 만난다',       done: () => Object.keys(PIL).every(id => S.pil[id]) },
-  { n: '동료들과 함께',  d: '길드에 가입한다',             done: () => !!myGuild }
+  { k: 'f10',  n: '지하 10층',    d: '최심 10층에 도달한다',        done: () => S.best >= 10,  e: [['hp', .01]] },
+  { k: 'f30',  n: '지하 30층',    d: '최심 30층에 도달한다',        done: () => S.best >= 30,  e: [['atk', .015]] },
+  { k: 'f50',  n: '지하 50층',    d: '최심 50층에 도달한다',        done: () => S.best >= 50,  e: [['aps', .015]] },
+  { k: 'f100', n: '끝없는 계단',   d: '최심 100층에 도달한다',       done: () => S.best >= 100, e: [['hp', .025]] },
+  { k: 'f150', n: '잊힌 성소',     d: '최심 150층에 도달한다',       done: () => S.best >= 150, e: [['atk', .025]] },
+  { k: 'f200', n: '거꾸로 선 성당', d: '최심 200층에 도달한다',       done: () => S.best >= 200, e: [['crit', .01]] },
+  { k: 'f250', n: '별 없는 하늘',   d: '최심 250층에 도달한다',       done: () => S.best >= 250, e: [['boss', .04]] },
+  { k: 'f300', n: '세어지지 않는 계단', d: '최심 300층에 도달한다',   done: () => S.best >= 300, e: [['hp', .04], ['atk', .04]] },
+  { k: 'relic1',   n: '첫 유물',      d: '유물을 처음 줍는다',           done: () => S.metRelics.length >= 1,  e: [['soul', .01]] },
+  { k: 'relic10',  n: '유물 수집가',   d: '서로 다른 유물 10종을 만난다', done: () => S.metRelics.length >= 10, e: [['crit', .01]] },
+  { k: 'relicAll', n: '유물 도감 완성', d: '모든 유물을 만난다',          done: () => S.metRelics.length >= Object.keys(RELICS).length, e: [['soul', .04]] },
+  { k: 'syn1', n: '첫 조합',      d: '유물 조합을 하나 완성한다',    done: () => S.metSyn.length >= 1, e: [['atk', .02]] },
+  { k: 'eng1', n: '영구 각인',     d: '유물을 하나 영구히 새긴다',    done: () => S.eng.length >= 1, e: [['calm', .02]] },
+  { k: 'runs10', n: '거듭된 불꽃',   d: '불꽃이 10번 꺼진다',           done: () => S.runs >= 10, e: [['ash', .03]] },
+  { k: 'eq1', n: '첫 계승',      d: '순례자의 능력을 이어받는다',   done: () => S.eq.length >= 1, e: [['rest', .015]] },
+  { k: 'pilAll', n: '순례자 도감 완성', d: '모든 순례자를 만난다',       done: () => Object.keys(PIL).every(id => S.pil[id]), e: [['heal', .015]] },
+  { k: 'guild', n: '동료들과 함께',  d: '길드에 가입한다',             done: () => !!myGuild, e: [['cd', .02]] }
 ];
+/* 업적 판정 — S.best/S.metRelics/S.metSyn/S.runs/S.pil은 절대 줄지 않아 done()을 그대로 써도
+   되지만, eq(계승 해제 가능)·eng(각인 해제 가능)·guild(탈퇴·로그아웃 가능)는 "지금 이 순간"의
+   상태라 조건이 나중에 깨질 수 있다. 여기에 영구 보너스를 걸면서 그 셋도 다시 안 풀리게,
+   한 번이라도 done()이 true였으면 S.achEver에 영구 기록해 그 이후로는 항상 달성으로 친다. */
+function achDone(a){
+  if (S.achEver[a.k]) return true;
+  if (a.done()) { S.achEver[a.k] = true; return true; }
+  return false;
+}
+/* 업적 보너스 — pv()와 동일한 패턴. 슬롯 제한 없이 달성한 업적 전부가 영구히 누적된다.
+   그래서 유물/순례자보다 개당 수치를 훨씬 작게 잡아, 전부 달성해도 스탯당 합계가 대략 5~10%
+   선에 머물도록 했다 — "죽어도 남는 든든한 기본기" 정도의 역할. */
+const achBonus = k => {
+  let t = 0;
+  for (const a of ACHV) if (a.e && achDone(a)) for (const [kk, v] of a.e) if (kk === k) t += v;
+  return t;
+};
 function achRow(a){
-  const done = a.done();
+  const done = achDone(a);
   const b = document.createElement('div'); b.className = 'card pick' + (done ? ' can' : '');
   b.style.setProperty('--tc', TC.safe);
   if (!done) b.style.opacity = '.5';
   b.innerHTML = '<div class="ic">' + ICON.safe + '</div><div class="mid"><div class="nm"><span class="n"></span></div><div class="ds"></div></div><div class="buy"><span class="c"></span></div>';
   b.querySelector('.n').textContent = a.n;
-  b.querySelector('.ds').textContent = done ? a.d : '???';
+  const bonusTxt = a.e ? a.e.map(([kk, v]) => KIND[kk].n + ' ' + KIND[kk].f(v)).join(' · ') : '';
+  b.querySelector('.ds').textContent = done ? (a.d + (bonusTxt ? ' — ' + bonusTxt : '')) : '???';
   b.querySelector('.c').textContent = done ? '달성' : '미달성';
   return b;
 }
-const maxHP = () => UP.hp.val(S.lv.hp) * (1 + 0.15 * relLvl('anchor')) * (syn('ironwick') ? 1.25 : 1) * (1 + pv('hp')) * (1 + hlBonus('hp'));
-const atkV  = () => UP.atk.val(S.lv.atk) * (1 + relLvl('last') * (S.hp < maxHP() * 0.2 ? 1 : 0)) * (1 - 0.1 * relLvl('frost')) * (syn('madness') ? 1.25 : 1) * bufM('atk') * (1 + pv('atk')) * (1 + hlBonus('atk'));
-const apsV  = () => UP.spd.val(S.lv.spd) * (1 - 0.1 * relLvl('anchor')) * (1 + 0.25 * relLvl('spite') * (S.hp < maxHP() * 0.4 ? 1 : 0)) * (syn('frenzy') ? 1.2 : 1) * (1 + pv('aps'));
-const soulM = () => UP.greed.val(S.lv.greed) * (syn('crown') ? 1.3 : 1) * bufM('greed') * (1 + pv('soul')) * (1 + guildBuff()) * (1 + hlBonus('soul'));
-const drain = () => maxHP() * 0.010 * drainK(S.floor) * ALT.ember.val(S.meta.ember) * (1 - 0.3 * relLvl('cloak')) * (1 + 0.3 * relLvl('pact')) * (1 - 0.2 * relLvl('frost')) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm'));
+const maxHP = () => UP.hp.val(S.lv.hp) * (1 + 0.15 * relLvl('anchor')) * (syn('ironwick') ? 1.25 : 1) * (1 + pv('hp') + achBonus('hp')) * (1 + hlBonus('hp'));
+const atkV  = () => UP.atk.val(S.lv.atk) * (1 + relLvl('last') * (S.hp < maxHP() * 0.2 ? 1 : 0)) * (1 - 0.1 * relLvl('frost')) * (syn('madness') ? 1.25 : 1) * bufM('atk') * (1 + pv('atk') + achBonus('atk')) * (1 + hlBonus('atk'));
+const apsV  = () => UP.spd.val(S.lv.spd) * (1 - 0.1 * relLvl('anchor')) * (1 + 0.25 * relLvl('spite') * (S.hp < maxHP() * 0.4 ? 1 : 0)) * (syn('frenzy') ? 1.2 : 1) * (1 + pv('aps') + achBonus('aps'));
+const soulM = () => UP.greed.val(S.lv.greed) * (syn('crown') ? 1.3 : 1) * bufM('greed') * (1 + pv('soul') + achBonus('soul')) * (1 + guildBuff()) * (1 + hlBonus('soul'));
+const drain = () => maxHP() * 0.010 * drainK(S.floor) * ALT.ember.val(S.meta.ember) * (1 - 0.3 * relLvl('cloak')) * (1 + 0.3 * relLvl('pact')) * (1 - 0.2 * relLvl('frost')) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm') - achBonus('calm'));
 /* "온기"(ember, 소모 속도 감소)가 체감 안 된다는 피드백 원인 — 처치 회복(killHeal)이 층 깊이와
    무관하게 항상 고정 8%(+유물 보너스)라서, drain()이 층마다 커지는데도 회복이 거의 항상 소모를
    압도해 온기를 안 올려도 체력이 안 빠지는 것처럼 느껴졌다. 회복 "비율"만 층이 깊어질수록
@@ -1051,7 +1069,7 @@ const drain = () => maxHP() * 0.010 * drainK(S.floor) * ALT.ember.val(S.meta.emb
    유품 보너스(pv('heal'))는 장비 투자로 얻는 별개의 값이라 이 감쇠에서 제외 — 안 그러면 유품이
    강해질수록 이 패치의 효과가 도로 묻힌다. */
 const killHealFloorMul = f => 1 / (1 + 0.003 * Math.max(0, f - 1));
-const killHeal = () => (0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0)) * killHealFloorMul(S.floor) + pv('heal');
+const killHeal = () => (0.08 + 0.08 * relLvl('hunger') + (syn('glut') ? 0.05 : 0)) * killHealFloorMul(S.floor) + pv('heal') + achBonus('heal');
 /* 각인이 "체감이 안 된다"는 피드백 대응 — 텍스트를 따로 파싱하는 대신, S.eng을 잠깐
    비운 상태와 비교해서 실제 전투 공식으로 지금 이 순간의 진짜 보너스를 측정한다.
    (currently rel()로 직접 보유 중인 유물은 관여 없음 — 순수하게 "각인만 된" 몫만 잡힌다) */
@@ -1114,7 +1132,7 @@ const monHpPre = f => {
   return atSoftStart * Math.pow(HP_SOFT_RATE, f - HP_SOFT_FLOOR);
 };
 /* 같은 구간부터 재(영구 재화) 수급에 완만한 가속 보너스를 얹어 메타 강화 속도를 보완 */
-const ashGain = f => Math.max(1, Math.floor(Math.pow(f, 1.7) / 3 * (1 + 0.015 * Math.max(0, f - HP_SOFT_FLOOR)) * (1 + pv('ash')) * (1 + guildBuff())));
+const ashGain = f => Math.max(1, Math.floor(Math.pow(f, 1.7) / 3 * (1 + 0.015 * Math.max(0, f - HP_SOFT_FLOOR)) * (1 + pv('ash') + achBonus('ash')) * (1 + guildBuff())));
 /* ---------- 길드 레벨/기부 ----------
    기부는 재(영구 재화, S.ash)로만 받는다 — 영혼은 불꽃이 꺼지면 초기화되는 런 내 재화라
    "길드에 영구히 쌓인다"는 개념과 안 맞고, 죽기 전에만 기부해야 하는 이상한 제약이 생긴다.
@@ -1290,6 +1308,102 @@ function unlockAudio(){
 ['touchend', 'pointerup', 'click', 'keydown'].forEach(ev =>
   document.addEventListener(ev, unlockAudio, { passive: true }));
 
+/* ---------- 배경음 (은은한 앰비언트) ----------
+   낮고 묵직한 드론(A1+E2 5도 울림)과, 다크소울 화톳불 감성의 구슬픈 단음 선율(A 마이너
+   펜타토닉)을 시간에 따라 번갈아 튼다. 층 깊이·진행 상황과는 무관하게 항상 같은 세기로
+   흐른다(요청사항) — 오직 시간 경과로만 두 분위기가 천천히 교차된다.
+   기존 SFX와 같은 AudioContext/MG를 거쳐 나가 컴프레서(리미터) 혜택은 같이 받되, 이 레이어만의
+   게인(master)을 따로 둬서 음소거 시 확실하게 끊기게 한다. BOOST(모바일 5배)는 짧고 강한 타격음을
+   폰 스피커에서 들리게 하려는 보정이라 지속음엔 그대로 걸면 너무 커지므로, 여기서는 미리 나눠
+   상쇄해 기종에 상관없이 비슷하게 은은한 크기로 들리게 했다. */
+let BG = null;
+const BG_PHASE_MIN = 60, BG_PHASE_MAX = 100;               // 드론⇄멜로디 각 국면이 유지되는 시간(초), 매번 랜덤
+const BG_CROSS = 6;                                        // 국면이 바뀔 때 부드럽게 넘어가는 교차 시간(초)
+const BG_SCALE = [110, 220, 261.63, 293.66, 329.63, 392];  // A2·A3·C4·D4·E4·G4 — 드론(A1+E2)과 어울리는 A 마이너 펜타토닉
+const bgVolFor = () => S.vol <= 0 ? 0 : (S.vol === 1 ? 0.032 : 0.055) / BOOST;
+function bgBuild(){
+  const a = audio(); if (!a) return null;
+  const master = a.createGain(); master.gain.value = 0; master.connect(MG);
+  const droneMix = a.createGain(); droneMix.gain.value = 0; droneMix.connect(master);
+  const melMix = a.createGain(); melMix.gain.value = 0; melMix.connect(master);
+  const filt = a.createBiquadFilter(); filt.type = 'lowpass'; filt.Q.value = 0.3; filt.frequency.value = 480;
+  filt.connect(droneMix);
+  const oscs = [[55, 'sine', 1], [55.4, 'sine', 0.8], [82.41, 'triangle', 0.35]].map(([f, ty, g]) => {
+    const o = a.createOscillator(), gg = a.createGain();
+    o.type = ty; o.frequency.value = f; gg.gain.value = g;
+    o.connect(gg); gg.connect(filt); o.start();
+    return o;
+  });
+  const lfo = a.createOscillator(), lfoGain = a.createGain();
+  lfo.type = 'sine'; lfo.frequency.value = 0.035;   // 약 29초 주기 — 필터가 아주 천천히 숨쉬듯 열렸다 닫힌다
+  lfoGain.gain.value = 220; lfo.connect(lfoGain); lfoGain.connect(filt.frequency); lfo.start();
+  return { a, master, droneMix, melMix, oscs: oscs.concat([lfo]), phase: 'drone', phaseUntil: 0, nextNote: 0, timer: null, lastVol: -1 };
+}
+function bgNote(){
+  if (!BG) return;
+  const a = BG.a, f = BG_SCALE[Math.floor(Math.random() * BG_SCALE.length)];
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = 'sine'; o.frequency.value = f;
+  const t = a.currentTime, atk = 1.4, hold = 0.6, dec = 4.5 + Math.random() * 2.5;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(1, t + atk);
+  g.gain.setValueAtTime(1, t + atk + hold);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + atk + hold + dec);
+  o.connect(g); g.connect(BG.melMix);
+  o.start(t); o.stop(t + atk + hold + dec + 0.2);
+}
+function bgTick(){
+  if (!BG) return;
+  audio();   // MG(컴프레서 앞단) 게인을 최신 소리 설정으로 갱신해 둔다
+  const now = BG.a.currentTime, vol = bgVolFor();
+  if (BG.lastVol !== vol) {
+    BG.master.gain.cancelScheduledValues(now);
+    BG.master.gain.linearRampToValueAtTime(vol, now + 1.2);
+    BG.lastVol = vol;
+  }
+  if (now >= BG.phaseUntil) {
+    BG.phase = BG.phase === 'drone' ? 'melody' : 'drone';
+    BG.phaseUntil = now + BG_PHASE_MIN + Math.random() * (BG_PHASE_MAX - BG_PHASE_MIN);
+    const droneTarget = BG.phase === 'drone' ? 1 : 0.4;   // 멜로디 국면에도 드론은 옅게 남아 바닥을 받쳐준다
+    const melTarget = BG.phase === 'melody' ? 1 : 0;
+    BG.droneMix.gain.cancelScheduledValues(now);
+    BG.droneMix.gain.linearRampToValueAtTime(droneTarget, now + BG_CROSS);
+    BG.melMix.gain.cancelScheduledValues(now);
+    BG.melMix.gain.linearRampToValueAtTime(melTarget, now + BG_CROSS);
+    if (BG.phase === 'melody') BG.nextNote = now + 1.5;
+  }
+  if (BG.phase === 'melody' && now >= BG.nextNote) { bgNote(); BG.nextNote = now + 4 + Math.random() * 6; }
+}
+function bgStart(){
+  return;   // 배경음(앰비언트) 요청으로 완전히 비활성화 — 아래 다른 bg* 함수들은 BG가 항상 null이라
+            // 전부 조용히 아무 일도 안 하고 넘어간다(구조는 남겨둬 필요해지면 다시 켤 수 있게 함)
+  if (BG || S.vol <= 0) return;
+  BG = bgBuild(); if (!BG) return;
+  const now = BG.a.currentTime;
+  BG.phaseUntil = now + BG_PHASE_MIN + Math.random() * (BG_PHASE_MAX - BG_PHASE_MIN);
+  BG.droneMix.gain.setValueAtTime(1, now);
+  BG.timer = setInterval(bgTick, 1000);
+  bgTick();
+}
+function bgTeardown(){   // 대표권을 잃을 때(팔로워 탭) — 중복 재생을 막기 위해 완전히 정리한다
+  if (!BG) return;
+  clearInterval(BG.timer);
+  try { BG.oscs.forEach(o => o.stop()); } catch (e) {}
+  BG = null;
+}
+function bgSetHidden(hidden){   // 탭이 백그라운드로 가면 즉시 죽이고, 돌아오면 다시 천천히 살아난다
+  if (!BG) return;
+  const now = BG.a.currentTime;
+  BG.master.gain.cancelScheduledValues(now);
+  BG.master.gain.linearRampToValueAtTime(hidden ? 0 : bgVolFor(), now + (hidden ? 0.4 : 1.5));
+  BG.lastVol = hidden ? -1 : bgVolFor();   // 돌아왔을 때 bgTick이 다시 정확한 볼륨으로 맞추게 함
+}
+function bgSyncVolume(){   // 소리 버튼으로 볼륨을 바꾼 순간 바로 반영(다음 tick까지 안 기다림), 꺼짐→켜짐 전환도 처리
+  if (S.vol <= 0) { if (BG) bgSetHidden(true); return; }
+  if (!BG) { if (isLeader) bgStart(); return; }
+  bgTick();
+}
+
 /* ---------- 문장 ---------- */
 const NAMES = ['그림자', '굶주린 그림자', '눈 먼 순례자', '재의 사제', '뼈를 두른 것', '속삭이는 것', '이름을 잃은 왕', '빛을 삼킨 것'];
 const BOSSES = ['문지기', '첫 번째 그림자', '재의 여왕', '심연의 눈', '잊혀진 신', '마지막 어둠'];
@@ -1409,7 +1523,7 @@ let encT = 0, lastEnc = '';
 const ENC_CAP = 3, ENC_LIFE = 12, ENC_AUTO = 25;
 let relicT = 0;
 const RELIC_AUTO = 8;   // 자동 유물을 켜면 유물이 나타난 뒤 이만큼(초) 지나면 알아서 고른다
-const burnCd = () => BURN_CD * Math.max(0.3, 1 - pv('cd'));   // 대기 상한 / 유효 층수 / 자동 선택까지 초
+const burnCd = () => BURN_CD * Math.max(0.3, 1 - pv('cd') - achBonus('cd'));   // 대기 상한 / 유효 층수 / 자동 선택까지 초
 const BURN_CD = 12;
 const P = [], F = [];   // 파티클, 떠오르는 숫자
 const LOG = [];
@@ -1686,7 +1800,7 @@ function spawn(){
 /* ---------- 전투 ---------- */
 function hit(dmg, kind, noEcho){
   if (!E) return;
-  if (E.boss) dmg *= 1 + pv('boss');
+  if (E.boss) dmg *= 1 + pv('boss') + achBonus('boss');
   let crit = false;
   if (Math.random() < critChance()) { dmg *= critMult(); crit = true; sfx('crit'); }
   if (rel('mirror') ? Math.random() < (syn('gambler') ? 0.25 : 0.15) : Math.random() < 0.15 * relLvl('mirror')) { dmg *= 3; crit = true; }
@@ -1741,7 +1855,7 @@ function kill(){
   if (S.kills >= need(S.floor)) {
     const from = S.floor;
     S.kills = 0; S.floor++; zoneCheck();
-    if (pv('rest') > 0) S.hp = Math.min(maxHP(), S.hp + maxHP() * pv('rest'));
+    if (pv('rest') > 0 || achBonus('rest') > 0) S.hp = Math.min(maxHP(), S.hp + maxHP() * (pv('rest') + achBonus('rest')));
     rollEvent();
     const wellL = relLvl('well');
     if (wellL > 0) { const bonus = gain * 2 * wellL; S.souls += bonus; gainAcc += bonus; }
@@ -1862,9 +1976,22 @@ function reroll(){
   let picks;
   if (notOwned.length) {
     const w = relicWeights(S.floor);
-    const fresh = notOwned.filter(id => o.indexOf(id) < 0), back = notOwned.filter(id => o.indexOf(id) >= 0);
+    const fresh = notOwned.filter(id => o.indexOf(id) < 0);
     picks = drawRelics(fresh, w, 3);
-    if (picks.length < 3) picks.push(...drawRelics(back, w, 3 - picks.length));
+    if (picks.length < 3) {
+      // 미보유 유물이 얼마 안 남아 지금 보이는 3개가 사실상 전부일 때(주로 막바지 선택
+      // 기회 1번만 남았을 때) 예전엔 "back"이 곧 지금 보이는 것들 자체라서, 다시뽑기를
+      // 눌러도 화면이 하나도 안 바뀌는 문제가 있었다. 그럴 땐 대신 이미 지닌 유물을
+      // 벼릴 후보로 채워 넣어 최소한 목록이 실제로 바뀌게 한다.
+      const fw = id => 1 / (1 + (S.relicDup[id] || 0));
+      const forgePool = Object.keys(RELICS).filter(id => rel(id) && otherPending.indexOf(id) < 0 && picks.indexOf(id) < 0);
+      if (forgePool.length) {
+        picks.push(...drawByFn(forgePool, fw, 3 - picks.length));
+      } else {
+        const back = notOwned.filter(id => picks.indexOf(id) < 0 && o.indexOf(id) >= 0);
+        picks.push(...drawRelics(back, w, 3 - picks.length));
+      }
+    }
   } else {   // 18종 다 가진 뒤의 재굴림 — 벼림 후보 안에서 다시 뽑는다
     const fw = id => 1 / (1 + (S.relicDup[id] || 0));
     const pool = Object.keys(RELICS).filter(id => otherPending.indexOf(id) < 0);
@@ -2795,6 +2922,7 @@ $('snd').onclick = () => {
   S.mute = S.vol === 0;
   $('snd').textContent = VLB[S.vol];
   if (S.vol > 0) sfx('test');
+  bgSyncVolume();
   save();
 };
 const TABS = ['t0', 't1', 't2', 't3', 't4'];
@@ -4080,9 +4208,9 @@ function showAway(t){
   awayHideT = setTimeout(() => el.classList.remove('show'), 4500);
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { if (isLeader) { S.lastSeen = Date.now(); save(); } return; }   // 화면을 벗어나는 순간을 정확히 찍어 둔다 (대표 탭일 때만)
+  if (document.hidden) { if (isLeader) { S.lastSeen = Date.now(); save(); } bgSetHidden(true); return; }   // 화면을 벗어나는 순간을 정확히 찍어 둔다 (대표 탭일 때만)
   if (!isLeader) { claimOrWait(); return; }   // 팔로워였다면 그새 다른 탭이 닫혔는지 다시 확인
-  checkAway(); last = performance.now(); ui(); if (AC && AC.state !== 'running') AC.resume();
+  checkAway(); last = performance.now(); ui(); if (AC && AC.state !== 'running') AC.resume(); bgSetHidden(false);
 });
 window.addEventListener('pagehide', () => {
   if (!isLeader) return;
@@ -4201,10 +4329,12 @@ function becomeLeader(){
   $('tablock').classList.remove('show');
   beginPlay();
   requestChatConnect();   // 채팅창이 열려 있던 채로 대표권을 (다시) 잡은 경우 그제야 연결한다
+  bgStart();   // 배경음도 대표 탭에서만 켠다 — 여러 탭이 동시에 소리 내지 않도록
 }
 function becomeFollower(){
   if (isLeader) { isLeader = false; clearInterval(lockHeartbeatT); }
   $('tablock').classList.add('show');
+  bgTeardown();
   // 팔로워 탭은 Realtime을 붙잡고 있을 필요가 없다 — 대표권을 잃는 순간 바로 끊는다.
   if (chatDbChannel) {
     try { sbClient.removeChannel(chatDbChannel); } catch (e) {}
@@ -4257,6 +4387,7 @@ if (!fresh) {
   S.eq = S.eq.filter((id, i, a) => S.pil[id] && a.indexOf(id) === i).slice(0, slotN());
   if (!Array.isArray(S.rems)) S.rems = [];
   S.rems = S.rems.filter(o => o && isFinite(o.f)).slice(0, REM_CAP);
+  if (!S.achEver || typeof S.achEver !== 'object' || Array.isArray(S.achEver)) S.achEver = {};
   if (!isFinite(S.pity)) S.pity = 0;
   if (!S.hl || typeof S.hl !== 'object' || Array.isArray(S.hl)) S.hl = { hand: null, neck: null, chest: null };
   Object.keys(HL_SLOTS).forEach(s => { const it = S.hl[s]; if (it && (!HL_SLOTS[it.slot] || !isFinite(it.val))) S.hl[s] = null; if (!S.hl.hasOwnProperty(s)) S.hl[s] = null; });

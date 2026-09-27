@@ -650,6 +650,25 @@ const $ = id => document.getElementById(id);
 const KEY = 'ember-idle-v1';
 const RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
+/* ---------- 카드 UI 공통 템플릿 ----------
+   상점·유물·유품·업적 등에서 반복되던 "아이콘 + 이름/레벨 + 설명 + 구매란" 카드 마크업을
+   한 곳에서 만든다. 값은 비워서 반환하고(예: <span class="n"></span>), 호출하는 쪽에서
+   기존처럼 b.querySelector('.n').textContent = ... 로 채운다 — 기존 동작과 100% 동일한
+   HTML을 만들어내므로 호출부만 이 함수로 바꿔도 동작은 변하지 않는다.
+   옵션: icon(필수), lv(레벨 span 포함 여부), descs(설명 줄 수, 기본 1),
+        lore(마지막 설명 줄에 'lore' 클래스 추가), buy(구매란 포함 여부),
+        buyText(구매란에 처음부터 넣을 고정 텍스트, 없으면 나중에 채울 빈 span),
+        small(구매란에 <small></small> 추가) */
+function cardMarkup(o){
+  o = o || {};
+  const descs = o.descs || 1;
+  let ds = '';
+  for (let i = 0; i < descs; i++) ds += '<div class="ds' + (o.lore && i === descs - 1 ? ' lore' : '') + '"></div>';
+  const mid = '<div class="mid"><div class="nm"><span class="n"></span>' + (o.lv ? '<span class="lv"></span>' : '') + '</div>' + ds + '</div>';
+  const buy = o.buy ? ('<div class="buy"><span class="c">' + (o.buyText || '') + '</span>' + (o.small ? '<small></small>' : '') + '</div>') : '';
+  return '<div class="ic">' + o.icon + '</div>' + mid + buy;
+}
+
 /* ---------- 숫자 표기 (만/억/조...) ---------- */
 function fmt(n){
   if (!isFinite(n)) return '∞';
@@ -1049,7 +1068,7 @@ function achRow(a){
   const b = document.createElement('div'); b.className = 'card pick' + (done ? ' can' : '');
   b.style.setProperty('--tc', TC.safe);
   if (!done) b.style.opacity = '.5';
-  b.innerHTML = '<div class="ic">' + ICON.safe + '</div><div class="mid"><div class="nm"><span class="n"></span></div><div class="ds"></div></div><div class="buy"><span class="c"></span></div>';
+  b.innerHTML = cardMarkup({ icon: ICON.safe, buy: true });
   b.querySelector('.n').textContent = a.n;
   const bonusTxt = a.e ? a.e.map(([kk, v]) => KIND[kk].n + ' ' + KIND[kk].f(v)).join(' · ') : '';
   b.querySelector('.ds').textContent = done ? (a.d + (bonusTxt ? ' — ' + bonusTxt : '')) : '???';
@@ -1214,7 +1233,7 @@ const SFX = {
   floor: () => { tone(294, 294, 0.3, 'sine', 0.16); tone(440, 440, 0.45, 'sine', 0.15, 0.12); },
   relic: () => { tone(523, 523, 0.3, 'sine', 0.15); tone(659, 659, 0.3, 'sine', 0.15, 0.09); tone(784, 784, 0.5, 'sine', 0.15, 0.18); },
   burn:  () => { tone(140, 700, 0.4, 'sawtooth', 0.17); tone(70, 70, 0.35, 'sine', 0.12, 0.02); },
-  buy:   () => tone(660, 900, 0.07, 'square', 0.08),
+  buy:   () => tone(360, 490, 0.07, 'triangle', 0.09),
   die:   () => tone(200, 38, 1.3, 'sine', 0.22),
   crit:  () => tone(880, 1320, 0.12, 'square', 0.14),
   enc:   () => { tone(330, 330, 0.25, 'sine', 0.13); tone(494, 494, 0.4, 'sine', 0.13, 0.1); },
@@ -2199,8 +2218,7 @@ function relicRow(id, pickable){
   const b = document.createElement(pickable ? 'button' : 'div');
   b.className = 'card ' + (pickable ? 'pick can' : 'own');
   b.style.setProperty('--tc', GC[r.g]);
-  b.innerHTML = '<div class="ic">' + ICON.relic + '</div><div class="mid"><div class="nm"><span class="n"></span><span class="lv"></span></div><div class="ds"></div></div>' +
-    (pickable ? '<div class="buy"><span class="c">고른다</span></div>' : '');
+  b.innerHTML = cardMarkup({ icon: ICON.relic, lv: true, buy: pickable, buyText: '고른다' });
   b.querySelector('.n').textContent = r.n;
   b.querySelector('.lv').textContent = GN[r.g] + ((!pickable && S.relicDup[id]) ? ' · 벼림 ' + S.relicDup[id] + '회 (+' + Math.round(forgeBonus(id) * 100) + '%)' : '');
   b.querySelector('.ds').textContent = r.d;
@@ -2230,7 +2248,7 @@ function engRow(id){
   const b = document.createElement('button');
   b.className = 'card pick' + (on ? ' can' : '');
   b.style.setProperty('--tc', GC[r.g]);
-  b.innerHTML = '<div class="ic">' + ICON.eng + '</div><div class="mid"><div class="nm"><span class="n"></span><span class="lv"></span></div><div class="ds"></div></div><div class="buy"><span class="c"></span></div>';
+  b.innerHTML = cardMarkup({ icon: ICON.eng, lv: true, buy: true });
   b.querySelector('.n').textContent = r.n;
   b.querySelector('.lv').textContent = GN[r.g];
   b.querySelector('.ds').textContent = r.d;
@@ -2366,7 +2384,7 @@ function buildPanel(){
       const b = document.createElement('div'); b.className = 'card own';
       b.style.setProperty('--tc', TC.relic);
       if (!on) b.style.opacity = '.55';
-      b.innerHTML = '<div class="ic">' + ICON.relic + '</div><div class="mid"><div class="nm"><span class="n"></span></div><div class="ds"></div><div class="ds"></div></div>';
+      b.innerHTML = cardMarkup({ icon: ICON.relic, descs: 2 });
       b.querySelector('.n').textContent = (on ? '✦ ' : '') + sy.n;
       const ds = b.querySelectorAll('.ds');
       ds[0].textContent = sy.d;
@@ -2458,7 +2476,7 @@ function buildPanel(){
     const act = (nm, ds, cta, fn) => {
       const b = document.createElement('button'); b.className = 'card pick can';
       b.style.setProperty('--tc', TC.relic);
-      b.innerHTML = '<div class="ic">' + ICON.leg + '</div><div class="mid"><div class="nm"><span class="n"></span></div><div class="ds"></div></div><div class="buy"><span class="c"></span></div>';
+      b.innerHTML = cardMarkup({ icon: ICON.leg, buy: true });
       b.querySelector('.n').textContent = nm; b.querySelector('.ds').textContent = ds; b.querySelector('.c').textContent = cta;
       b.onclick = fn; return b;
     };
@@ -2480,7 +2498,7 @@ function buildPanel(){
       const p = PIL[id], lv = S.pil[id] || 0, on = S.eq.indexOf(id) >= 0;
       const b = document.createElement('button'); b.className = 'card pick' + (on ? ' can' : '');
       b.style.setProperty('--tc', GC[p.g]);
-      b.innerHTML = '<div class="ic">' + ICON.pil + '</div><div class="mid"><div class="nm"><span class="n"></span><span class="lv"></span></div><div class="ds"></div><div class="ds lore"></div></div><div class="buy"><span class="c"></span></div>';
+      b.innerHTML = cardMarkup({ icon: ICON.pil, lv: true, descs: 2, lore: true, buy: true });
       const ds = b.querySelectorAll('.ds');
       if (lv) {
         b.querySelector('.n').textContent = p.n;
@@ -2513,7 +2531,7 @@ function buildPanel(){
       ev.c.forEach((c, i) => {
         const b = document.createElement('button'); b.className = 'card pick can';
         b.style.setProperty('--tc', i ? TC.bold : TC.safe);
-        b.innerHTML = '<div class="ic">' + (i ? ICON.bold : ICON.safe) + '</div><div class="mid"><div class="nm"><span class="n"></span><span class="lv"></span></div><div class="ds"></div></div><div class="buy"><span class="c">고른다</span></div>';
+        b.innerHTML = cardMarkup({ icon: i ? ICON.bold : ICON.safe, lv: true, buy: true, buyText: '고른다' });
         b.querySelector('.n').textContent = c.t;
         b.querySelector('.lv').textContent = i ? '모험' : '안전';
         b.querySelector('.ds').textContent = c.d(e.f);
@@ -2558,7 +2576,7 @@ function buildPanel(){
 function makeRow(isUp, key){
   const b = document.createElement('button'); b.className = 'card ' + (isUp ? 'up' : 'alt');
   b.style.setProperty('--tc', TC[key] || TC.relic);
-  b.innerHTML = '<div class="ic">' + ICON[key] + '</div><div class="mid"><div class="nm"><span class="n"></span><span class="lv"></span></div><div class="ds"></div></div><div class="buy"><span class="c"></span><small></small></div>';
+  b.innerHTML = cardMarkup({ icon: ICON[key], lv: true, buy: true, small: true });
   b.onclick = () => buy(isUp, key);
   rows[key] = { el: b, isUp, n: b.querySelector('.n'), lv: b.querySelector('.lv'), ds: b.querySelector('.ds'), c: b.querySelector('.c'), s: b.querySelector('small') };
   return b;
@@ -3090,14 +3108,15 @@ function myStats(){
   return { floor: S.floor, best: S.best, souls: Math.floor(S.souls), ash: Math.floor(S.ash), total: Math.floor(S.total), runs: S.runs };
 }
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_GzEwgFkTqPH-Bij1I4OKFg_FWRqVjFv'; // Edge Function(withSupabase auth:'publishable') 호출 전용 — 새 API 키 체계
-async function callProfileSync(action, extra){
+async function callProfileSync(action, extra, opts){
   const token = (kakaoReady && window.Kakao && Kakao.Auth.getAccessToken()) || null;
   if (!token) return { error: 'no_kakao_token' };
   try {
     const res = await fetch(SUPABASE_URL + PROFILE_FN_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_PUBLISHABLE_KEY, 'apikey': SUPABASE_PUBLISHABLE_KEY },
-      body: JSON.stringify(Object.assign({ access_token: token, action }, extra || {}))
+      body: JSON.stringify(Object.assign({ access_token: token, action }, extra || {})),
+      keepalive: !!(opts && opts.keepalive)   // 탭이 실제로 닫히는 순간에도 브라우저가 요청을 끊지 않고 마저 보내도록
     });
     return await res.json();
   } catch (e) { return { error: 'network' }; }
@@ -3178,14 +3197,16 @@ async function cloudSaveManual(){
 // 자동 클라우드 저장 — 수동 버튼과 같은 엔드포인트·쿨타임을 쓰되, 채팅에 알리지 않고 조용히 시도한다.
 // 로그인 안 했거나 닉네임 미설정이면 그냥 넘어가고, 이미 저장 요청이 진행 중이거나 쿨타임 안이어도 조용히 스킵한다
 // (다음 자동 저장 타이밍에 다시 시도되므로 굳이 알릴 필요가 없다).
-async function cloudSaveAuto(){
+// force=true(탭이 실제로 떠나는 pagehide/beforeunload)일 때만 쿨타임을 건너뛴다 — 그 순간의 lastSeen이야말로
+// 다음 기기에서 부재중 보상을 계산할 기준이 되므로, 방금 수동/자동 저장을 했더라도 반드시 한 번 더 밀어야 한다.
+async function cloudSaveAuto(force){
   if (!kakaoUser || !kakaoUser.nick) return;
   if (cloudSaveBusy) return;
-  if (Date.now() - cloudSaveAttemptAt() < CLOUD_SAVE_COOLDOWN_MS) return;
+  if (!force && Date.now() - cloudSaveAttemptAt() < CLOUD_SAVE_COOLDOWN_MS) return;
   cloudSaveBusy = true;
   markCloudSaveAttempt();
   try {
-    const r = await callProfileSync('save_cloud', { save: S });
+    const r = await callProfileSync('save_cloud', { save: S }, { keepalive: !!force });
     if (r && r.ok) { markCloudSaved(); updateCloudHint(); }
   } catch (e) {}
   cloudSaveBusy = false;
@@ -4215,13 +4236,13 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => {
   if (!isLeader) return;
   if (!document.hidden) S.lastSeen = Date.now();
-  save(); touchProfile(); cloudSaveAuto();   // 로그인해놨다면 닫는 순간 클라우드에도 최신 기록을 밀어둔다
+  save(); touchProfile(); cloudSaveAuto(true);   // 로그인해놨다면 닫는 순간 클라우드에도 최신 기록을 밀어둔다 — 쿨타임 무시하고 반드시 나가야 한다
   releaseLock();   // 진짜로 닫히거나 새로고침되는 순간 락을 바로 놓아준다 — 다음 탭이 12초씩 기다릴 필요가 없다
 });
 window.addEventListener('beforeunload', () => {
   if (!isLeader) return;
   if (!document.hidden) S.lastSeen = Date.now();
-  save(); touchProfile(); cloudSaveAuto();
+  save(); touchProfile(); cloudSaveAuto(true);
   releaseLock();
 });
 window.addEventListener('pageshow', e => {

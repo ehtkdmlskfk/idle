@@ -3391,34 +3391,45 @@ function chatConnectWaitMs(){
 function markChatConnectAttempt(){ try { localStorage.setItem(CHAT_CONNECT_AT_LS_KEY, String(Date.now())); } catch (e) {} }
 /* 채팅 Realtime 연결은 대표(leader) 탭에서만, 그리고 너무 잦은 재연결(새로고침 반복 등)은
    최소 간격을 두고 미룬다. chatOpen()과 becomeLeader()에서 이 함수를 통해서만 연결을 시도한다. */
-function requestChatConnect(){
-  if (!sbClient || !CHAT.open || !isLeader || chatDbChannel) return;
+let chatConnecting = false;
+async function requestChatConnect(){
+  if (!sbClient || !CHAT.open || !isLeader || chatDbChannel || chatConnecting) return;
   const wait = chatConnectWaitMs();
   if (wait > 0) {
     CHAT.setStatus('connecting');
     setTimeout(() => requestChatConnect(), wait);
     return;
   }
+  chatConnecting = true;
   markChatConnectAttempt();
-  if (!chatHistoryLoaded) { loadChatHistory(); chatHistoryLoaded = true; }
+  CHAT.setStatus('connecting');
+  // 먼저 이력(또는 채팅창을 닫아 둔 동안 온 메시지)을 채운 뒤에 실시간 연결을 붙인다 — 순서가 뒤섞이지 않게.
+  try { await chatSync(); } finally { chatConnecting = false; }
+  if (!CHAT.open || !isLeader || chatDbChannel) return;
   connectChatDb();
 }
-async function loadChatHistory(){
+/* 방별로 화면에 이미 불러온 마지막 DB id. 채팅창을 다시 열거나 연결이 끊겼다 붙을 때
+   "그 뒤로 온 것만" 채워 넣는 기준이다(처음엔 0 → 최근 N개를 불러온다). */
+const chatLastId = {};
+async function chatSync(room){
+  const r = room || activeRoom;
+  if (!sbClient) return;
+  const last = chatLastId[r] || 0;
   try {
-    const { data, error } = await sbClient
-      .from(CHAT_TABLE)
-      .select('client_id,name,text,created_at')
-      .eq('room', activeRoom)
-      .order('id', { ascending: false })
-      .limit(CHAT_HISTORY_N);
+    let q = sbClient.from(CHAT_TABLE).select('id,client_id,name,text').eq('room', r).order('id', { ascending: false }).limit(CHAT_HISTORY_N);
+    if (last) q = q.gt('id', last);
+    const { data, error } = await q;
     if (error) throw error;
+    if (r !== activeRoom) return;   // 기다리는 사이 방을 바꿨으면 버린다
     (data || []).slice().reverse().forEach(row => {
-      CHAT.add({ id: row.client_id, name: row.name, text: row.text }, true);
+      if (row.id > (chatLastId[r] || 0)) chatLastId[r] = row.id;
+      CHAT.add({ id: row.client_id, name: row.name, text: row.text }, true);   // 같은 client_id는 add()가 걸러 준다
     });
   } catch (e) {
-    CHAT.notice('지난 대화를 불러오지 못했다.');
+    if (!last) CHAT.notice('지난 대화를 불러오지 못했다.');
   }
 }
+async function loadChatHistory(){ return chatSync(); }
 /* ---------- 랭킹 ----------
    채팅 기록처럼 로그인 없이도 볼 수 있어야 자연스러우니, profile-sync(인증 필요)를 거치지 않고
    채팅 기록을 읽을 때와 같은 방식으로 sbClient로 프로필 테이블을 직접 읽는다.
@@ -3890,11 +3901,15 @@ function connectChatDb(){
     .channel(activeRoom + '-db')
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: CHAT_TABLE, filter: `room=eq.${activeRoom}` },
-      ({ new: row }) => CHAT.receive({ id: row.client_id, name: row.name, text: row.text })
+      ({ new: row }) => {
+        if (row.id > (chatLastId[activeRoom] || 0)) chatLastId[activeRoom] = row.id;
+        CHAT.receive({ id: row.client_id, name: row.name, text: row.text });
+      }
     )
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         CHAT.setStatus('online');
+        chatSync();   // 연결이 끊겼다 다시 붙은 경우(백그라운드·네트워크 전환) 그 사이 놓친 메시지를 채운다
         // 클라이언트가 직접 insert하지 않는다. 닉네임 사칭/도배를 막기 위해
         // profile-sync Edge Function(action: 'send_chat')이 카카오 토큰으로 진짜 닉네임을
         // 확인하고(+ 길드방이면 실제 그 길드 멤버인지도 확인) 서버 롤 키로 대신 insert한다.
@@ -3928,9 +3943,9 @@ function switchChatRoom(room){
   $('crRoomGuild').classList.toggle('on', room !== CHAT_ROOM);
   CHAT.msgs = [];
   $('cl').innerHTML = '';
+  chatLastId[room] = 0;   // 목록을 비웠으니 이 방은 처음부터(최근 N개) 다시 채운다
   if (!sbClient) return;
-  loadChatHistory();
-  connectChatDb();
+  chatSync(room).then(() => { if (activeRoom === room) connectChatDb(); });
 }
 function connectChat(){
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
@@ -4181,6 +4196,46 @@ function chatClose(){
     CHAT.setStatus('offline');
   }
 }
+/* 채팅창을 닫아 두면 Realtime도 끊기므로(연결 절약) 안 읽은 메시지 빨간 점은 가볍게 확인해서 켠다.
+   로그인한 유저만, 화면을 보고 있을 때만, 90초마다 한 번 — 로비방과 내 길드방의 최신 몇 줄만 읽는다. */
+const chatPollBase = {};
+async function chatPollUnread(){
+  if (!sbClient || CHAT.open || document.hidden || !isLeader) return;
+  if (!(kakaoUser && kakaoUser.nick)) return;
+  const rooms = [CHAT_ROOM];
+  if (myGuild) rooms.push('guild-' + myGuild.id);
+  try {
+    const { data, error } = await sbClient.from(CHAT_TABLE).select('id,room,name').in('room', rooms).order('id', { ascending: false }).limit(30);
+    if (error) throw error;
+    if (CHAT.open) return;   // 기다리는 사이 채팅창을 열었으면 이미 다 보고 있다
+    const me = kakaoUser.nick;
+    let fresh = 0;
+    rooms.forEach(rm => {
+      const rows = (data || []).filter(x => x.room === rm);
+      if (!rows.length) return;
+      const top = rows[0].id;
+      let base;
+      if (chatLastId[rm]) base = Math.max(chatLastId[rm], chatPollBase[rm] || 0);   // 채팅창에서 본 곳까지 + 이미 알린 곳까지
+      else base = chatPollBase[rm] === undefined ? top : chatPollBase[rm];           // 처음엔 기준선만 잡고 알리지 않는다
+      fresh += rows.filter(x => x.id > base && x.name !== me).length;
+      chatPollBase[rm] = Math.max(top, chatPollBase[rm] || 0);
+    });
+    if (fresh > 0) { CHAT.unread += fresh; $('chatbtn').classList.add('ping'); }
+  } catch (e) {}
+}
+setTimeout(chatPollUnread, 8000);       // 접속 직후 기준선부터 잡아 둔다
+setInterval(chatPollUnread, 90000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (CHAT.open) {   // 백그라운드에 다녀온 뒤: 놓친 메시지를 채우고, 죽은 연결이면 다시 붙인다
+    chatSync();
+    if (chatDbChannel && CHAT.status !== 'online') {
+      try { sbClient.removeChannel(chatDbChannel); } catch (e) {}
+      chatDbChannel = null; CHAT.transport = null;
+    }
+    requestChatConnect();
+  } else chatPollUnread();
+});
 (() => {
   const ci = $('ci'), cs = $('cs');
   $('chatbtn').addEventListener('pointerdown', e => e.stopPropagation());

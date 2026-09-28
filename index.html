@@ -3046,11 +3046,22 @@ function tryRestoreKakaoSession(){
     try { saved = localStorage.getItem(KAKAO_TOKEN_LS_KEY); } catch (e) {}
     if (!saved) return resolve();
     try { Kakao.Auth.setAccessToken(saved); } catch (e) { clearKakaoToken(); return resolve(); }
-    Kakao.API.request({
-      url: '/v2/user/me',
-      async success(res){ await afterKakaoLogin(res); resolve(); },
-      fail(){ clearKakaoToken(); try { Kakao.Auth.setAccessToken(null); } catch (e) {} resolve(); }
-    });
+    // 진짜 만료(401)일 때만 저장된 토큰을 지운다. 네트워크 끊김·서버 일시 오류는 토큰을 남겨두고
+    // 한 번만 재시도하며, 그래도 실패하면 이번 접속만 로그아웃 상태로 두고 다음 접속에서 다시 시도한다.
+    const isExpired = (err) => !!err && (err.code === -401 || err.status === 401);
+    const attempt = (retry) => {
+      Kakao.API.request({
+        url: '/v2/user/me',
+        async success(res){ await afterKakaoLogin(res); resolve(); },
+        fail(err){
+          if (isExpired(err)) { clearKakaoToken(); try { Kakao.Auth.setAccessToken(null); } catch (e) {} return resolve(); }
+          if (retry) { setTimeout(() => attempt(false), 1500); return; }
+          try { Kakao.Auth.setAccessToken(null); } catch (e) {}   // 토큰은 localStorage에 그대로 둔다
+          resolve();
+        }
+      });
+    };
+    attempt(true);
   });
 }
 const ACC_HINT_LS_KEY = 'emberAccMenuHint';
@@ -4315,7 +4326,8 @@ window.addEventListener('pageshow', e => {
   claimOrWait();
 });
 setInterval(() => { if (!isLeader) return; if (!document.hidden) S.lastSeen = Date.now(); save(); }, 5000);   // 보고 있는 동안엔 계속 '방금'으로 갱신 — 새로고침해도 이미 번 시간을 또 자리비움으로 안 쳐준다
-setInterval(() => { if (!isLeader) return; if (!document.hidden) touchProfile(); }, 20000);   // 로그인한 유저의 진행도를 20초마다 서버에 반영
+const TOUCH_INTERVAL_MS = 45000;   // 서버 로그량을 줄이려고 20초→45초. 서버의 '접속 중' 판정 시간(last_seen 기준)보다 짧아야 접속자 수가 깜빡이지 않는다
+setInterval(() => { if (!isLeader) return; if (!document.hidden) touchProfile(); }, TOUCH_INTERVAL_MS);   // 로그인한 유저의 진행도를 주기적으로 서버에 반영
 setInterval(() => { if (!isLeader) return; if (!document.hidden) cloudSaveAuto(); }, 120000);   // 켜놓고 플레이하는 동안에도 2분마다 자동으로 클라우드에 밀어둔다 — 비정상 종료(배터리 방전 등)까지 대비
 setInterval(ui, 100);
 

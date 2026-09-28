@@ -41,6 +41,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .floor b.bump{animation:bump .5s cubic-bezier(.2,1.6,.4,1)}
 .floor .u{font-family:var(--disp);font-size:20px;color:var(--ember)}
 .floor small{flex-basis:100%;font-size:11px;color:var(--dim);white-space:nowrap}
+.floor small#pwr{margin-top:2px;color:var(--ember);letter-spacing:.02em}
 .wallet{position:relative;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
 .pill{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;min-width:120px;padding:3px 10px 3px 4px;border-radius:999px;
   background:linear-gradient(#0b0907,#171310);border:1px solid #3a2f22;box-shadow:inset 0 1px 3px #000}
@@ -273,8 +274,13 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 #chatbtn.ping{color:var(--hot);border-color:#7a5428}
 #chatbtn.ping::after{content:"";position:absolute;top:1px;right:1px;width:11px;height:11px;border-radius:50%;
   background:var(--blood);border:2px solid #15110d;box-shadow:0 0 8px rgba(196,64,47,.8)}
-/* 클라우드 저장 권유 표시 — 새 자리를 만들지 않고 채팅 버튼 왼쪽 위 모서리에 작은 점만 얹는다(안 읽은 채팅 점은 오른쪽 위) */
-#chatbtn.cloud::before{content:"";position:absolute;top:1px;left:1px;width:9px;height:9px;border-radius:50%;
+/* 클라우드 저장 버튼 — 오른쪽 위 HUD(소리 버튼 옆). 저장 권유가 필요하면 오른쪽 위에 작은 점을 얹는다 */
+#cloudbtn{position:relative;flex:none;width:28px;height:28px;padding:0;display:grid;place-items:center;border-radius:50%;
+  border:1px solid #3a2f22;background:rgba(10,9,8,.55);color:var(--dim);transition:transform .08s,color .2s}
+#cloudbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#cloudbtn:active{transform:scale(.93)}
+#cloudbtn.cloud{color:var(--hot);border-color:#7a5428}
+#cloudbtn.cloud::after{content:"";position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;
   background:var(--ember);border:2px solid #15110d;box-shadow:0 0 6px rgba(233,162,79,.7)}
 #socialbtn{position:absolute;right:10px;bottom:58px;width:40px;height:40px;padding:0;display:grid;place-items:center;border-radius:50%;
   border:1px solid #3a2f22;background:rgba(10,9,8,.55);color:var(--dim);transition:transform .08s,color .2s}
@@ -349,8 +355,8 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .accMenu.show{display:flex}
 .accMenu button{padding:10px 12px;border-radius:10px;text-align:left;font-size:13px;color:var(--bone);background:none}
 .accMenu button:active{background:#231b13}
-#nickModal,#guildModal,#attendModal{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,5,4,.65)}
-#nickModal.show,#guildModal.show,#attendModal.show{display:flex}
+#nickModal,#guildModal,#attendModal,#cloudModal{position:fixed;inset:0;z-index:45;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,5,4,.65)}
+#nickModal.show,#guildModal.show,#attendModal.show,#cloudModal.show{display:flex}
 .nmbox{width:100%;max-width:340px;padding:20px 18px;border-radius:20px;border:2px solid #3a2f22;
   background:linear-gradient(#1d1812,#100d0a);box-shadow:0 0 0 1px #000,0 10px 30px rgba(0,0,0,.6);animation:rvpop .4s cubic-bezier(.2,1.5,.4,1)}
 .nmtt{font-family:var(--disp);font-size:20px;color:var(--hot);margin-bottom:6px}
@@ -362,9 +368,10 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .nmbtns{display:flex;gap:8px;margin-top:12px}
 .nmbtns button{flex:1;min-height:44px;border-radius:12px;font-family:var(--disp);font-size:16px}
 .nmghost{border:1px solid #3a2f22;background:#1a150f;color:var(--dim)}
-#nmSave,#tlForce{border:0;background:linear-gradient(#f4b862,#cf7a22);color:#2a1300;box-shadow:0 3px 0 #7a3a10}
-#nmSave:active,#tlForce:active{transform:translateY(2px);box-shadow:0 1px 0 #7a3a10}
-#nmSave:disabled{opacity:.5}
+#nmSave,#tlForce,#cloudSaveBtn{border:0;background:linear-gradient(#f4b862,#cf7a22);color:#2a1300;box-shadow:0 3px 0 #7a3a10}
+#nmSave:active,#tlForce:active,#cloudSaveBtn:active{transform:translateY(2px);box-shadow:0 1px 0 #7a3a10}
+#nmSave:disabled,#cloudSaveBtn:disabled{opacity:.5}
+#cloudStat{min-height:18px;margin-top:10px;font-size:12.5px;color:var(--hot)}
 /* 다른 탭/창에서 이미 실행 중일 때 뜨는 차단막 — 방치 보상 중복·저장 덮어쓰기를 막는다 */
 #tablock{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(6,5,4,.85)}
 #tablock.show{display:flex}
@@ -438,6 +445,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 .gMember.me .gmNm{color:var(--hot);font-weight:700}
 .gMember .gmRole{flex:none;font-size:10.5px;font-weight:700;color:var(--ember)}
 .gMember .gmDon{flex:none;font-size:12px;color:#e9a24f;min-width:50px;text-align:right}
+.gMember .gmPow{flex:none;font-size:12px;color:var(--ember);min-width:44px;text-align:right}
 .gMember .gmBest{flex:none;font-size:12px;color:var(--dim);min-width:46px;text-align:right}
 .gMember .gmKick{flex:none;font-size:11px;color:#e07a6b;background:none;border:0;padding:2px 4px}
 .gRoomTabs{display:flex;gap:6px;padding:0 16px 8px}
@@ -478,7 +486,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   <div id="upd" role="status"><span>새 버전이 있다</span><button id="updBtn">새로고침</button></div>
   <div id="updDone" role="status"><span>업데이트 완료</span></div>
   <header>
-    <div class="floor"><b id="floor">1</b><span class="u">층</span><small id="best"></small></div>
+    <div class="floor"><b id="floor">1</b><span class="u">층</span><small id="best"></small><small id="pwr"></small></div>
     <div class="wallet">
       <span class="gbuf" id="gbuf"><i class="gi"></i><b id="gbufPct"></b></span>
       <div class="pill"><i class="coin"></i><span class="lb">영혼</span><b id="souls">0</b></div>
@@ -488,7 +496,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
 
   <div id="stage">
     <canvas id="cv"></canvas>
-    <div class="hud"><span class="brand">잿불</span><button class="snd" id="snd"></button></div>
+    <div class="hud"><span class="brand">잿불</span><button class="snd" id="snd"></button><button id="cloudbtn" aria-label="클라우드 저장"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 8.5a4.75 4.75 0 0 1 .5 9.5z"/><path d="M12 11v6M9.5 13.5L12 11l2.5 2.5"/></svg></button></div>
     <div id="boss">보스</div>
     <div id="evt"></div>
     <div id="buf"></div>
@@ -632,6 +640,19 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;pa
   </div>
 </div>
 
+<div id="cloudModal" role="dialog" aria-label="클라우드 저장">
+  <div class="nmbox">
+    <div class="nmtt">클라우드 저장</div>
+    <div class="nmsub" id="cloudSub"></div>
+    <div id="cloudStat"></div>
+    <div class="nmbtns">
+      <button id="cloudSaveBtn">저장</button>
+      <button id="cloudLoadBtn" class="nmghost">불러오기</button>
+    </div>
+    <div class="nmbtns"><button id="cloudClose" class="nmghost">닫기</button></div>
+  </div>
+</div>
+
 <div id="tablock" role="dialog" aria-label="다른 탭에서 실행 중">
   <div class="nmbox">
     <div class="nmtt">다른 곳에서 이미 열려 있다</div>
@@ -685,7 +706,7 @@ function fmt(n){
 
 /* ---------- 상태 ---------- */
 const def = () => ({
-  souls: 0, ash: 0, total: 0, best: 1, runs: 0,
+  souls: 0, ash: 0, total: 0, best: 1, runs: 0, peakPower: 0,
   floor: 1, kills: 0, hp: 40, sps: 0, lastSeen: Date.now(),
   lv: { atk: 0, hp: 0, spd: 0, greed: 0, crit: 0, def: 0 },
   meta: { ember: 0, leg: 0, desc: 0, hand: 0, eye: 0, auto: 0, autoEnc: 0, autoOpen: 0, autoRelic: 0, slot: 0, spark: 0, away: 0, awayEff: 0, eng: 0 },
@@ -789,7 +810,7 @@ const UP = {
      심지(체력)는 그 속도를 못 따라가서 깊은 층에서 한 방에 죽는 문제가 있었다. 심지를 더 올리는
      대신 받는 피해 자체를 (1 + 0.05×레벨)로 나누는 축을 새로 둬서 — 레벨이 오를수록 완만하게
      계속 줄어들고(하드캡 없음), 심지·유물과 겹치지 않게 곱연산으로 따로 뗐다. */
-  def:   { name: '그을린 비늘', sub: '받는 피해 배수', base: 12, g: 1.35, val: l => 1 / (1 + 0.05 * l), show: v => Math.round((1 - v) * 100) + '%' }
+  def:   { name: '그을린 비늘', sub: '받는 피해 감소', base: 12, g: 1.35, val: l => 1 / (1 + 0.05 * l), show: v => Math.round((1 - v) * 100) + '%' }
 };
 const critChance = () => Math.min(1, UP.crit.val(S.lv.crit));
 const critOverflow = () => Math.max(0, UP.crit.val(S.lv.crit) - 1);
@@ -1079,6 +1100,29 @@ const maxHP = () => UP.hp.val(S.lv.hp) * (1 + 0.15 * relLvl('anchor')) * (syn('i
 const atkV  = () => UP.atk.val(S.lv.atk) * (1 + relLvl('last') * (S.hp < maxHP() * 0.2 ? 1 : 0)) * (1 - 0.1 * relLvl('frost')) * (syn('madness') ? 1.25 : 1) * bufM('atk') * (1 + pv('atk') + achBonus('atk')) * (1 + hlBonus('atk'));
 const apsV  = () => UP.spd.val(S.lv.spd) * (1 - 0.1 * relLvl('anchor')) * (1 + 0.25 * relLvl('spite') * (S.hp < maxHP() * 0.4 ? 1 : 0)) * (syn('frenzy') ? 1.2 : 1) * (1 + pv('aps') + achBonus('aps'));
 const soulM = () => UP.greed.val(S.lv.greed) * (syn('crown') ? 1.3 : 1) * bufM('greed') * (1 + pv('soul') + achBonus('soul')) * (1 + guildBuff()) * (1 + hlBonus('soul'));
+/* 전투력 — 표시 전용(게임 로직엔 안 쓴다). "초당 피해"와 "버티는 힘"의 기하평균이라 어느 쪽을 올려도 오르고,
+   층수와는 무관하게 내 스펙만 나타낸다.
+   · 초당 피해 = 공격력 × 공속 × 치명타 기대배율 × 거울 유물(확률 ×3) × 메아리 유물(자동공격 추가타)
+   · 버티는 힘 = 최대 불꽃 ÷ 받는 피해 배율(방어) ÷ 불꽃 소모 배율(심지/외투/서리/겨울 조합/평온 등 층수 무관 부분)
+   체력이 낮을 때만 켜지는 유물(마지막 숨/원한)은 숫자가 출렁이지 않게 체력 가득일 때 기준으로 잰다.
+   제외: 보스 전용 추가피해, 가시(반사), 킬당 회복, 직접 태우기/두드리기 — 상황·층수에 따라 달라지는 값이라 뺐다. */
+const combatPower = () => {
+  const hp0 = S.hp;
+  let p = 0;
+  S.hp = Infinity;
+  try {
+    const mm = rel('mirror') ? (syn('gambler') ? 0.25 : 0.15) : 0.15 * relLvl('mirror');
+    const mirrorM = 1 + 2 * Math.min(1, mm);
+    const echoM = 1 + 0.2 * relLvl('echo');
+    const dps = atkV() * apsV() * (1 + critChance() * (critMult() - 1)) * mirrorM * echoM;
+    const mhp = maxHP();
+    const burn = drain() / (mhp * 0.010 * drainK(S.floor));
+    const ehp = mhp / UP.def.val(S.lv.def) / Math.max(0.05, burn);
+    p = Math.sqrt(dps * ehp);
+  } catch (e) { p = 0; }
+  S.hp = hp0;
+  return isFinite(p) ? p : 0;
+};
 const drain = () => maxHP() * 0.010 * drainK(S.floor) * ALT.ember.val(S.meta.ember) * (1 - 0.3 * relLvl('cloak')) * (1 + 0.3 * relLvl('pact')) * (1 - 0.2 * relLvl('frost')) * (syn('winter') ? 0.8 : 1) * bufM('calm') * Math.max(0.3, 1 - pv('calm') - achBonus('calm'));
 /* "온기"(ember, 소모 속도 감소)가 체감 안 된다는 피드백 원인 — 처치 회복(killHeal)이 층 깊이와
    무관하게 항상 고정 8%(+유물 보너스)라서, drain()이 층마다 커지는데도 회복이 거의 항상 소모를
@@ -1138,6 +1182,11 @@ const catchUpSouls = startFloor => {
   for (let f = 1; f < startFloor; f++) s += soulBase(f) * need(f);
   return Math.floor(s * (CATCH_UP_EFF + ALT.leg.val(S.meta.leg)));
 };
+/* 시작층("기억") 스킵 유물 — 건너뛴 층에서 원래 나왔을 유물 선택(7층마다 1회)도 영혼과 같은 비율로 미리 쥐여준다.
+   너무 많이 쌓이지 않게 상한을 둔다(자동 유물은 선택 하나에 8초가 걸린다). */
+const RELIC_EVERY = 7, CATCH_UP_RELIC_MAX = 12;
+const catchUpRelics = startFloor => Math.min(CATCH_UP_RELIC_MAX,
+  Math.floor(Math.floor((startFloor - 1) / RELIC_EVERY) * Math.min(CATCH_UP_MAX, CATCH_UP_EFF + ALT.leg.val(S.meta.leg))));
 const bossHpM   = f => f <= POST_FLOOR ? PRE_BOSS.hp   : POST_BOSS.hp;
 const bossDmgM  = f => f <= POST_FLOOR ? PRE_BOSS.dmg  : POST_BOSS.dmg;
 const bossSoulM = f => f <= POST_FLOOR ? PRE_BOSS.soul : POST_BOSS.soul;
@@ -1791,6 +1840,9 @@ function newRun(){
   zoneCheck();
   S.kills = 0;
   S.relics = []; S.relicDup = {}; S.offers = []; S.rr = 0;
+  const cr = catchUpRelics(S.floor);
+  for (let i = 0; i < cr; i++) offerRelic(true, Math.max(1, Math.round((i + 1) / cr * (S.floor - 1))));   // 건너뛴 구간 전체에 고르게 퍼뜨려 실제로 내려갔을 때와 비슷한 등급 분포가 되게 한다
+  if (S.offers.length) say('건너뛴 구간의 유물 선택 ' + S.offers.length + '회를 얻었다.', 'gold');
   S.encs = []; S.buf = null; encT = 0;
   S.hp = maxHP();
   E = null; spawnT = 0.5; heroT = 0; foeT = 0; burnT = 0;
@@ -1817,6 +1869,8 @@ function spawn(){
 
 
 /* ---------- 전투 ---------- */
+/* ※ 전투 효과(피해 배율·확률 추가타·받는 피해·소모 등)를 새로 넣거나 바꿀 땐 combatPower()(전투력 표시)도 함께 확인할 것.
+   공통 스탯 함수(atkV/apsV/maxHP/critChance/critMult/drain/UP.def)만 고치면 자동 반영되고, 이 함수 안에 직접 쓴 효과는 combatPower()에 따로 넣어야 한다. */
 function hit(dmg, kind, noEcho){
   if (!E) return;
   if (E.boss) dmg *= 1 + pv('boss') + achBonus('boss');
@@ -1888,7 +1942,7 @@ function kill(){
       if (zz && S.floor === zz.id) { say(zz.enter, 'gold'); flare = 1; try { navigator.vibrate && navigator.vibrate([18, 40, 18]); } catch (e) {} }   // 새 구역에 처음 닿은 순간
       if ([20, 50, 100, 150, 200, 300].indexOf(S.floor) >= 0) cloudNudge('기록을 잃으면 아깝다. ');
     }
-    if (from % 7 === 0) offerRelic();
+    if (from % RELIC_EVERY === 0) offerRelic();
     S.encs = S.encs.filter(e => S.floor - e.f < ENC_LIFE);
     if (S.floor >= 3 && S.floor % 10 !== 0 && Math.random() < 0.18) pushEnc();
   }
@@ -1973,13 +2027,14 @@ function offerForge(silent){
   if (tab === 1) buildPanel();
   return true;
 }
-function offerRelic(silent){
+function offerRelic(silent, atFloor){
+  const wf = atFloor || S.floor;   // 건너뛴 층 몫의 선택은 그 층 근처의 등급 가중치로 굴린다
   const pending = S.offers.flat();
   const pool = Object.keys(RELICS).filter(id => !rel(id) && pending.indexOf(id) < 0);
   const fallback = Object.keys(RELICS).filter(id => !rel(id));
   if (!fallback.length) return offerForge(silent);
-  const picks = drawRelics(pool, relicWeights(S.floor), 3);
-  if (picks.length < 3) picks.push(...drawRelics(fallback.filter(id => picks.indexOf(id) < 0), relicWeights(S.floor), 3 - picks.length));
+  const picks = drawRelics(pool, relicWeights(wf), 3);
+  if (picks.length < 3) picks.push(...drawRelics(fallback.filter(id => picks.indexOf(id) < 0), relicWeights(wf), 3 - picks.length));
   S.offers.push(picks);
   if (!silent) { say('유물이 손에 닿는다. 하나를 고를 수 있다.', 'gold'); sfx('relic'); }
   if (tab === 1) buildPanel();
@@ -2610,6 +2665,9 @@ function ui(){
   const mx = maxHP(), hf = Math.max(0, Math.min(1, S.hp / mx));
   $('floor').textContent = S.floor;
   $('best').textContent = '최심 ' + S.best + '층 · 소멸 ' + S.runs + '회';
+  const cp = combatPower();
+  if (cp > (S.peakPower || 0)) S.peakPower = cp;   // 서버·프로필에는 판마다 출렁이지 않게 "최고 전투력"을 보낸다
+  $('pwr').textContent = '전투력 ' + fmt(cp);
   $('souls').textContent = fmt(S.souls);
   $('ash').textContent = fmt(S.ash);
   $('prev').textContent = dead ? '' : '+' + fmt(ashGain(S.floor));
@@ -3031,8 +3089,8 @@ function cloudNudgeText(){
   if (!kakaoUser) return '로그인하면 클라우드 저장으로 기기를 바꿔도 기록을 지킬 수 있다.';
   if (!kakaoUser.nick) return null;   // 닉네임 설정 중엔 건드리지 않는다
   const at = cloudSavedAt();
-  if (!at) return '이 기기에선 클라우드 저장을 한 적이 없다 — 이름을 눌러 저장해두자.';
-  if (Date.now() - at > CLOUD_STALE_MS) return '클라우드 저장한 지 오래됐다 — 이름을 눌러 다시 저장해두자.';
+  if (!at) return '이 기기에선 클라우드 저장을 한 적이 없다 — 오른쪽 ☁ 버튼으로 저장해두자.';
+  if (Date.now() - at > CLOUD_STALE_MS) return '클라우드 저장한 지 오래됐다 — 오른쪽 ☁ 버튼으로 다시 저장해두자.';
   return null;
 }
 let lastNudgeAt = 0;
@@ -3042,7 +3100,7 @@ function cloudNudge(prefix){
   lastNudgeAt = Date.now();
   say(prefix + t, 'gold');
 }
-function updateCloudHint(){ const b = $('chatbtn'); if (b) b.classList.toggle('cloud', !!cloudNudgeText()); }
+function updateCloudHint(){ const b = $('cloudbtn'); if (b) b.classList.toggle('cloud', !!cloudNudgeText()); }
 setInterval(updateCloudHint, 30000);
 async function afterKakaoLogin(res){
   const acc = res.kakao_account || {};
@@ -3105,7 +3163,7 @@ const PROFILE_FN_PATH = '/functions/v1/profile-sync';
 let myProfile = null;
 function nickValid(n){ n = n.trim(); return n.length >= 2 && n.length <= 12 && !/\s/.test(n); }
 function myStats(){
-  return { floor: S.floor, best: S.best, souls: Math.floor(S.souls), ash: Math.floor(S.ash), total: Math.floor(S.total), runs: S.runs };
+  return { floor: S.floor, best: S.best, souls: Math.floor(S.souls), ash: Math.floor(S.ash), total: Math.floor(S.total), runs: S.runs, power: Math.max(S.peakPower || 0, combatPower()) };
 }
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_GzEwgFkTqPH-Bij1I4OKFg_FWRqVjFv'; // Edge Function(withSupabase auth:'publishable') 호출 전용 — 새 API 키 체계
 async function callProfileSync(action, extra, opts){
@@ -3181,17 +3239,18 @@ async function touchProfile(){
    수동 버튼은 그대로 남겨서 "지금 당장 확실히 저장됐는지 확인하고 싶을 때" 쓸 수 있다. */
 const CLOUD_SAVE_COOLDOWN_MS = 60 * 1000;
 let cloudSaveBusy = false;
+function cloudNotice(t){ CHAT.notice(t); const el = $('cloudStat'); if (el) el.textContent = t; }
 async function cloudSaveManual(){
-  if (!kakaoUser || !kakaoUser.nick) { CHAT.notice('로그인하고 닉네임을 설정해야 클라우드 저장을 쓸 수 있다.'); return; }
+  if (!kakaoUser || !kakaoUser.nick) { cloudNotice('로그인하고 닉네임을 설정해야 클라우드 저장을 쓸 수 있다.'); return; }
   if (cloudSaveBusy) return;
   const wait = CLOUD_SAVE_COOLDOWN_MS - (Date.now() - cloudSaveAttemptAt());
-  if (wait > 0) { CHAT.notice('너무 자주 저장하고 있다 — ' + Math.ceil(wait / 1000) + '초 뒤 다시 시도해줘.'); return; }
+  if (wait > 0) { cloudNotice('너무 자주 저장하고 있다 — ' + Math.ceil(wait / 1000) + '초 뒤 다시 시도해줘.'); return; }
   cloudSaveBusy = true;
   markCloudSaveAttempt();
-  CHAT.notice('클라우드에 저장하는 중…');
+  cloudNotice('클라우드에 저장하는 중…');
   const r = await callProfileSync('save_cloud', { save: S });
   if (r && r.ok) { markCloudSaved(); updateCloudHint(); }
-  CHAT.notice(r && r.ok ? '클라우드에 저장했다.' : '저장하지 못했다. 잠시 후 다시 시도해줘.');
+  cloudNotice(r && r.ok ? '클라우드에 저장했다.' : '저장하지 못했다. 잠시 후 다시 시도해줘.');
   cloudSaveBusy = false;
 }
 // 자동 클라우드 저장 — 수동 버튼과 같은 엔드포인트·쿨타임을 쓰되, 채팅에 알리지 않고 조용히 시도한다.
@@ -3212,11 +3271,11 @@ async function cloudSaveAuto(force){
   cloudSaveBusy = false;
 }
 async function cloudLoadManual(){
-  if (!kakaoUser || !kakaoUser.nick) { CHAT.notice('로그인하고 닉네임을 설정해야 불러올 수 있다.'); return; }
-  CHAT.notice('클라우드 기록을 확인하는 중…');
+  if (!kakaoUser || !kakaoUser.nick) { cloudNotice('로그인하고 닉네임을 설정해야 불러올 수 있다.'); return; }
+  cloudNotice('클라우드 기록을 확인하는 중…');
   const r = await callProfileSync('load_cloud');
-  if (!r || r.error) { CHAT.notice('불러오지 못했다.'); return; }
-  if (!r.save) { CHAT.notice('클라우드에 저장된 기록이 없다.'); return; }
+  if (!r || r.error) { cloudNotice('불러오지 못했다.'); return; }
+  if (!r.save) { cloudNotice('클라우드에 저장된 기록이 없다.'); return; }
   const when = r.updated_at ? new Date(r.updated_at).toLocaleString() : '알 수 없는 시각';
   const cFloor = isFinite(r.save.floor) ? r.save.floor : '?', cSouls = isFinite(r.save.souls) ? fmt(r.save.souls) : '?';
   const hFloor = isFinite(S.floor) ? S.floor : '?', hSouls = isFinite(S.souls) ? fmt(S.souls) : '?';
@@ -3232,7 +3291,7 @@ async function cloudLoadManual(){
     S = Object.assign(d, r.save, { lv: Object.assign(d.lv, r.save.lv), meta: Object.assign(d.meta, r.save.meta) });
     localStorage.setItem(KEY, JSON.stringify(S));
     markCloudSaved();
-  } catch (e) { CHAT.notice('불러오지 못했다.'); return; }
+  } catch (e) { cloudNotice('불러오지 못했다.'); return; }
   location.reload();
 }
 let nickForced = false;
@@ -3444,11 +3503,9 @@ async function showPlayerInfo(nickname){
   $('pinfo').classList.add('show');
   if (!sbClient) { $('pinfoMsg').textContent = '연결되지 않아 정보를 불러올 수 없다.'; return; }
   try {
-    const { data, error } = await sbClient
-      .from(PROFILE_TABLE)
-      .select('nickname,kakao_id,best,total,runs')
-      .eq('nickname', nickname)
-      .maybeSingle();
+    const q = cols => sbClient.from(PROFILE_TABLE).select(cols).eq('nickname', nickname).maybeSingle();
+    let { data, error } = await q('nickname,kakao_id,best,total,runs,power');
+    if (error) ({ data, error } = await q('nickname,kakao_id,best,total,runs'));   // power 컬럼이 아직 없는 서버에서도 프로필은 열리게
     if (error || !data) { $('pinfoMsg').textContent = '정보를 찾을 수 없다.'; return; }
     $('pinfoMsg').textContent = '';
     // 소속 길드 — profiles엔 길드 정보가 없어서 kakao_id로 guild_members를 한 번 더 조회한다.
@@ -3466,6 +3523,7 @@ async function showPlayerInfo(nickname){
     }
     const rows = [
       ['소속 길드', guildName],
+      ['최고 전투력', data.power > 0 ? fmt(data.power) : '-'],
       ['최고 도달층', fmt(data.best || 0) + '층'],
       ['누적 재', fmt(data.total || 0)],
       ['도전 횟수', fmt(data.runs || 0) + '회'],
@@ -3664,12 +3722,9 @@ async function renderGuildDetail(){
 async function fetchGuildMembers(){
   const list = $('gMemberList'); if (!list || !myGuild) return;
   try {
-    const { data, error } = await sbClient
-      .from(GUILD_MEMBERS_TABLE)
-      .select('kakao_id,nickname,role,donated,profiles(best)')
-      .eq('guild_id', myGuild.id)
-      .order('donated', { ascending: false })
-      .limit(100);
+    const q = cols => sbClient.from(GUILD_MEMBERS_TABLE).select(cols).eq('guild_id', myGuild.id).order('donated', { ascending: false }).limit(100);
+    let { data, error } = await q('kakao_id,nickname,role,donated,profiles(best,power)');
+    if (error) ({ data, error } = await q('kakao_id,nickname,role,donated,profiles(best)'));   // power 컬럼이 아직 없어도 길드원 목록은 뜨게
     if (error) throw error;
     guildMembersCache = data || [];
     list.innerHTML = '';
@@ -3681,7 +3736,8 @@ async function fetchGuildMembers(){
       const role = document.createElement('span'); role.className = 'gmRole'; role.textContent = m.role === 'leader' ? '길드장' : '';
       const don = document.createElement('span'); don.className = 'gmDon'; don.textContent = '재 ' + fmt(m.donated || 0);
       const best = document.createElement('span'); best.className = 'gmBest'; best.textContent = fmt((m.profiles && m.profiles.best) || 0) + '층';
-      el.appendChild(nmw); el.appendChild(role); el.appendChild(don); el.appendChild(best);
+      const pw = document.createElement('span'); pw.className = 'gmPow'; pw.textContent = (m.profiles && m.profiles.power > 0) ? fmt(m.profiles.power) : '';
+      el.appendChild(nmw); el.appendChild(role); el.appendChild(pw); el.appendChild(don); el.appendChild(best);
       if (myGuildRole === 'leader' && String(m.kakao_id) !== myId) {
         const kick = document.createElement('button'); kick.className = 'gmKick'; kick.textContent = '추방';
         kick.onclick = () => kickMember(m.kakao_id, m.nickname);
@@ -4133,6 +4189,22 @@ function chatClose(){
   $('socialbtn').addEventListener('pointerdown', e => e.stopPropagation());
   $('socialbtn').onclick = socialOpen;
   $('socialX').onclick = socialClose;
+  $('cloudbtn').addEventListener('pointerdown', e => e.stopPropagation());
+  $('cloudbtn').onclick = () => {
+    if (!kakaoUser) { kakaoLogin(); return; }
+    if (!kakaoUser.nick) { openNickModal('', true); return; }
+    const at = cloudSavedAt();
+    $('cloudSub').textContent = at ? '마지막 저장 ' + new Date(at).toLocaleString() : '이 기기에선 저장한 적이 없다.';
+    $('cloudStat').textContent = '';
+    $('cloudModal').classList.add('show');
+  };
+  $('cloudClose').onclick = () => $('cloudModal').classList.remove('show');
+  $('cloudModal').addEventListener('click', e => { if (e.target === $('cloudModal')) $('cloudModal').classList.remove('show'); });
+  $('cloudSaveBtn').onclick = async () => {
+    await cloudSaveManual();
+    const at = cloudSavedAt(); if (at) $('cloudSub').textContent = '마지막 저장 ' + new Date(at).toLocaleString();
+  };
+  $('cloudLoadBtn').onclick = () => { cloudLoadManual(); };
   $('attendbtn').addEventListener('pointerdown', e => e.stopPropagation());
   $('attendbtn').onclick = () => { $('attendModal').classList.add('show'); buildAttendModal(); };
   $('atClose').onclick = () => $('attendModal').classList.remove('show');
@@ -4396,6 +4468,7 @@ if (!fresh) {
   if (!S.relicDup || typeof S.relicDup !== 'object' || Array.isArray(S.relicDup)) S.relicDup = {};
   Object.keys(S.relicDup).forEach(k => { if (!RELICS[k] || !(S.relicDup[k] > 0)) delete S.relicDup[k]; });
   if (!Array.isArray(S.offers)) S.offers = [];
+  if (!isFinite(S.peakPower) || S.peakPower < 0) S.peakPower = 0;
   if (!Array.isArray(S.metRelics)) S.metRelics = [];
   S.metRelics = S.metRelics.filter((id, i, a) => RELICS[id] && a.indexOf(id) === i);
   if (!Array.isArray(S.metSyn)) S.metSyn = [];

@@ -2664,7 +2664,7 @@ function ui(){
   $('best').textContent = '최심 ' + S.best + '층 · 소멸 ' + S.runs + '회';
   const cp = combatPower();
   if (cp > (S.peakPower || 0)) S.peakPower = cp;   // 서버·프로필에는 판마다 출렁이지 않게 "최고 전투력"을 보낸다
-  $('pwr').textContent = '전투력 ' + fmt(cp);
+  $('pwr').textContent = '전투력 ' + fmt(cp) + (S.peakPower > cp * 1.001 ? ' (최고 ' + fmt(S.peakPower) + ')' : '');   // 죽어서 현재 값이 내려가 있을 때만 최고치를 같이 보여준다
   $('souls').textContent = fmt(S.souls);
   $('ash').textContent = fmt(S.ash);
   $('prev').textContent = dead ? '' : '+' + fmt(ashGain(S.floor));
